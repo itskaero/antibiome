@@ -23,7 +23,7 @@ const firebaseConfig = {
 // ─────────────────────────────────────────────────────────
 
 let db = null;
-let useFirebase = false;
+let useFirebase = true;
 
 try {
   const app = initializeApp(firebaseConfig);

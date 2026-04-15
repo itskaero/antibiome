@@ -6,7 +6,7 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
-  getFirestore, collection, addDoc, getDocs, deleteDoc, doc,
+  getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
   onSnapshot, query, orderBy, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
@@ -23,7 +23,7 @@ const firebaseConfig = {
 // ─────────────────────────────────────────────────────────
 
 let db = null;
-let useFirebase = false;
+let useFirebase = true;
 
 try {
   const app = initializeApp(firebaseConfig);
@@ -93,6 +93,23 @@ export function subscribeCultures(callback) {
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ ...d.data(), _fbId: d.id })));
   });
+}
+
+/**
+ * Update an existing culture entry in-place.
+ */
+export async function updateCulture(entry) {
+  if (!useFirebase) {
+    let stored = JSON.parse(localStorage.getItem('nicu-cultures') || '[]');
+    stored = stored.map(e => e.id === entry.id ? entry : e);
+    localStorage.setItem('nicu-cultures', JSON.stringify(stored));
+    return entry;
+  }
+  if (entry._fbId) {
+    const { _fbId, _createdAt, ...data } = entry;
+    await updateDoc(doc(db, 'cultures', _fbId), data);
+  }
+  return entry;
 }
 
 export { useFirebase };

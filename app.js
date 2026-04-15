@@ -2,7 +2,7 @@
 //  app.js  —  NICU Antibiogram  (vanilla JS, Chart.js 4)
 // ═══════════════════════════════════════════════════════════
 
-import { saveCulture, loadCultures, deleteCulture, subscribeCultures, useFirebase }
+import { saveCulture, loadCultures, deleteCulture, subscribeCultures, updateCulture, useFirebase }
   from './firebase-config.js';
 
 /* ══════════════════════════════════════════════════════════
@@ -110,6 +110,7 @@ Chart.defaults.plugins.tooltip.bodyColor       = '#94a3b8';
 let allCultures  = [];
 let chartInstances = {};
 let pendingDeleteId = null;
+let editingId = null;
 
 /* ══════════════════════════════════════════════════════════
    BACKGROUND CANVAS ANIMATION
@@ -636,14 +637,22 @@ function renderRecords() {
       <td>${entry.specimen || '—'}</td>
       <td>${mdr ? '<span class="badge-mdr">MDR</span>' : '<span class="badge-ok">—</span>'}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b">${abList}${more}</td>
-      <td><button class="btn-remove-row" data-id="${entry.id}" title="Delete">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-      </button></td>
+      <td class="row-actions">
+        <button class="btn-view-row" data-id="${entry.id}" title="View / Edit">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <button class="btn-remove-row" data-id="${entry.id}" title="Delete">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        </button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
 
-  tbody.querySelectorAll('[data-id]').forEach(btn => {
+  tbody.querySelectorAll('.btn-view-row').forEach(btn => {
+    btn.addEventListener('click', () => openViewModal(btn.dataset.id));
+  });
+  tbody.querySelectorAll('.btn-remove-row').forEach(btn => {
     btn.addEventListener('click', () => openDeleteModal(btn.dataset.id));
   });
 }

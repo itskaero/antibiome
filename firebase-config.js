@@ -32,6 +32,7 @@ try {
   useFirebase = firebaseConfig.apiKey !== "YOUR_API_KEY";
 } catch (e) {
   console.warn('[Firebase] Init failed, falling back to localStorage:', e.message);
+  useFirebase = false;
 }
 
 // ── Public API used by app.js ─────────────────────────────

@@ -657,6 +657,83 @@ function renderRecords() {
   });
 }
 
+/* ── View modal ──────────────────────────────────────────── */
+function openViewModal(id) {
+  const entry = allCultures.find(e => e.id === id);
+  if (!entry) return;
+  const mdr = isMDR(entry);
+  const abRows = (entry.antibiotics || []).map(ab => {
+    const cls = ab.result === 'S' ? 'pct-high' : ab.result === 'I' ? 'pct-mid' : 'pct-low';
+    return `<tr><td>${ab.name}</td><td><span class="pct-cell ${cls}">${ab.result}</span></td></tr>`;
+  }).join('');
+  document.getElementById('modal-view-body').innerHTML = `
+    <div class="view-grid">
+      <div class="view-field"><span class="view-label">Date</span><span class="view-val">${entry.date || '\u2014'}</span></div>
+      <div class="view-field"><span class="view-label">Patient</span><span class="view-val">${entry.patient_name || '\u2014'}</span></div>
+      <div class="view-field"><span class="view-label">Age Group</span><span class="view-val">${entry.age_group || '\u2014'}</span></div>
+      <div class="view-field"><span class="view-label">Ward</span><span class="view-val">${entry.ward || '\u2014'}</span></div>
+      <div class="view-field"><span class="view-label">Specimen</span><span class="view-val">${entry.specimen || '\u2014'}</span></div>
+      <div class="view-field"><span class="view-label">Organism</span><span class="view-val">${entry.organism || '\u2014'}</span></div>
+      <div class="view-field"><span class="view-label">MDR Status</span><span class="view-val">${mdr ? '<span class="badge-mdr">MDR</span>' : '<span class="badge-ok">Non-MDR</span>'}</span></div>
+    </div>
+    ${abRows
+      ? `<div class="view-ab-section"><p class="view-label" style="margin-bottom:8px">Antibiotic Susceptibility</p><table class="data-table"><thead><tr><th>Antibiotic</th><th>Result</th></tr></thead><tbody>${abRows}</tbody></table></div>`
+      : '<p style="color:#64748b;margin-top:12px;font-size:13px">No antibiotic data recorded.</p>'}
+  `;
+  document.getElementById('modal-view-edit').dataset.id = id;
+  document.getElementById('modal-view-overlay').style.display = 'grid';
+}
+
+function closeViewModal() {
+  document.getElementById('modal-view-overlay').style.display = 'none';
+}
+
+document.getElementById('modal-view-close').addEventListener('click', closeViewModal);
+document.getElementById('modal-view-cancel').addEventListener('click', closeViewModal);
+document.getElementById('modal-view-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-view-overlay')) closeViewModal();
+});
+
+document.getElementById('modal-view-edit').addEventListener('click', () => {
+  const id = document.getElementById('modal-view-edit').dataset.id;
+  closeViewModal();
+  openEditForm(id);
+});
+
+function openEditForm(id) {
+  const entry = allCultures.find(e => e.id === id);
+  if (!entry) return;
+  editingId = id;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-page="entry"]').classList.add('active');
+  document.getElementById('page-entry').classList.add('active');
+  document.getElementById('entry-page-title').textContent = 'Edit Culture Entry';
+  document.getElementById('entry-page-sub').textContent   = 'Update the existing culture record';
+  document.getElementById('form-submit-label').textContent = 'Update Culture';
+  document.getElementById('f-date').value         = entry.date || '';
+  document.getElementById('f-patient-name').value = entry.patient_name || '';
+  document.getElementById('f-age-group').value    = entry.age_group || '';
+  document.getElementById('f-ward').value         = entry.ward || '';
+  document.getElementById('f-specimen').value     = entry.specimen || '';
+  const orgEl = document.getElementById('f-organism');
+  const customGroup = document.getElementById('custom-org-group');
+  if (!ORGANISMS.includes(entry.organism) || entry.organism === 'Other (specify below)') {
+    orgEl.value = 'Other (specify below)';
+    customGroup.style.display = 'flex';
+    document.getElementById('f-custom-organism').value = entry.organism || '';
+  } else {
+    orgEl.value = entry.organism || '';
+    customGroup.style.display = 'none';
+  }
+  document.getElementById('antibiotic-rows').innerHTML = '';
+  if ((entry.antibiotics || []).length) {
+    entry.antibiotics.forEach(ab => addABRow(ab.name, ab.result));
+  } else {
+    addABRow();
+  }
+}
+
 /* ── Delete modal ────────────────────────────────────────── */
 function openDeleteModal(id) {
   pendingDeleteId = id;
@@ -744,6 +821,10 @@ document.getElementById('records-search').addEventListener('input', renderRecord
   // Reset
   document.getElementById('culture-form').addEventListener('reset', () => {
     setTimeout(() => {
+      editingId = null;
+      document.getElementById('entry-page-title').textContent  = 'Add Culture Entry';
+      document.getElementById('entry-page-sub').textContent    = 'Record a new culture result with susceptibility data';
+      document.getElementById('form-submit-label').textContent = 'Save Culture';
       document.getElementById('f-date').valueAsDate = new Date();
       document.getElementById('antibiotic-rows').innerHTML = '';
       document.getElementById('custom-org-group').style.display = 'none';
@@ -754,13 +835,13 @@ document.getElementById('records-search').addEventListener('input', renderRecord
   });
 })();
 
-function addABRow() {
+function addABRow(prefillName = '', prefillResult = '') {
   const container = document.getElementById('antibiotic-rows');
   const row       = document.createElement('div');
   row.className   = 'ab-row';
 
   const opts = ALL_ANTIBIOTICS.map(ab =>
-    `<option value="${ab.name}" data-class="${ab.cls}">${ab.name}</option>`
+    `<option value="${ab.name}" data-class="${ab.cls}"${ab.name === prefillName ? ' selected' : ''}>${ab.name}</option>`
   ).join('');
 
   row.innerHTML = `
@@ -769,10 +850,10 @@ function addABRow() {
       ${opts}
     </select>
     <div class="sus-btns" style="justify-content:center">
-      <button type="button" class="sus-btn" data-val="S">S</button>
-      <button type="button" class="sus-btn" data-val="I">I</button>
-      <button type="button" class="sus-btn" data-val="R">R</button>
-      <input type="hidden" class="sus-hidden" value="" />
+      <button type="button" class="sus-btn${prefillResult === 'S' ? ' active-S' : ''}" data-val="S">S</button>
+      <button type="button" class="sus-btn${prefillResult === 'I' ? ' active-I' : ''}" data-val="I">I</button>
+      <button type="button" class="sus-btn${prefillResult === 'R' ? ' active-R' : ''}" data-val="R">R</button>
+      <input type="hidden" class="sus-hidden" value="${prefillResult}" />
     </div>
     <button type="button" class="btn-remove-row" title="Remove">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -820,8 +901,19 @@ async function handleFormSubmit(e) {
   };
 
   try {
-    const saved = await saveCulture(entry);
-    allCultures.unshift(saved);
+    if (editingId) {
+      const existing = allCultures.find(c => c.id === editingId);
+      const updated  = { ...existing, ...entry, id: editingId };
+      const saved    = await updateCulture(updated);
+      allCultures    = allCultures.map(c => c.id === editingId ? saved : c);
+      editingId      = null;
+      document.getElementById('entry-page-title').textContent  = 'Add Culture Entry';
+      document.getElementById('entry-page-sub').textContent    = 'Record a new culture result with susceptibility data';
+      document.getElementById('form-submit-label').textContent = 'Save Culture';
+    } else {
+      const saved = await saveCulture(entry);
+      allCultures.unshift(saved);
+    }
     succEl.style.display = 'flex';
     setTimeout(() => { succEl.style.display = 'none'; }, 3500);
     e.target.reset();

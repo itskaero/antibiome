@@ -13,12 +13,12 @@ import {
 // ── YOUR FIREBASE CONFIG ──────────────────────────────────
 // Replace these placeholder values with your own project credentials
 const firebaseConfig = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey:            "AIzaSyAwEdxBn2i8_6Dfwk0VhYSp2vYYXH7jybU",
+  authDomain:        "pediatric-opd.firebaseapp.com",
+  projectId:         "pediatric-opd",
+  storageBucket:     "pediatric-opd.firebasestorage.app",
+  messagingSenderId: "1009806046904",
+  appId:             "1:1009806046904:web:3a1bc12de6576b8cbce64d"
 };
 // ─────────────────────────────────────────────────────────
 
@@ -28,8 +28,7 @@ let useFirebase = true;
 try {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
-  // Quick connectivity check — will fail gracefully if config is invalid
-  useFirebase = firebaseConfig.apiKey !== "YOUR_API_KEY";
+  useFirebase = true;
 } catch (e) {
   console.warn('[Firebase] Init failed, falling back to localStorage:', e.message);
   useFirebase = false;

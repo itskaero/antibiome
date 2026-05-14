@@ -1,5 +1,5 @@
 {
-  "name": "Antibiome — Clinical Analytics",
+  "name": "Antibiome \u2014 Clinical Analytics",
   "short_name": "Antibiome",
   "description": "Local culture surveillance, antibiogram, MDR tracking and antibiotic guidelines for clinical wards.",
   "id": "./",
@@ -9,7 +9,10 @@
   "background_color": "#080c14",
   "theme_color": "#3b82f6",
   "orientation": "any",
-  "categories": ["medical", "health"],
+  "categories": [
+    "medical",
+    "health"
+  ],
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -22,6 +25,41 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "lang": "en",
+  "dir": "ltr",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Add Culture",
+      "short_name": "Add Culture",
+      "description": "Record a new culture entry",
+      "url": "./#entry",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Ward Guidelines",
+      "short_name": "Guidelines",
+      "description": "Review ward antibiotic protocols",
+      "url": "./#guidelines",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

@@ -87,6 +87,9 @@ const ORGANISMS = [
 const SPECIMEN_TYPES = ['Blood','CSF','ETT','Peritoneal Fluid','Stool','Urine','Wound','Other'];
 const AGE_GROUPS     = ['Neonate','Infant','Child'];
 
+const PWA_FALLBACK_PROMPT_DELAY_MS = 1800; // 1.8s delay before showing manual install guidance
+const GUIDELINE_SUSCEPTIBILITY_THRESHOLD = 70;
+
 const PALETTE = [
   '#3b82f6','#06b6d4','#10b981','#8b5cf6','#f59e0b',
   '#ef4444','#f97316','#ec4899','#14b8a6','#a3e635',
@@ -180,6 +183,7 @@ let editingId = null;
 // Guidelines state
 let currentGuidelineWard = null;
 let editingGuidelineId   = null;
+let currentPwaStatus     = { state: 'Checking…', detail: 'Install guidance appears here when supported' };
 
 /* ══════════════════════════════════════════════════════════
    HTML ESCAPE HELPER  — prevents XSS when inserting user data
@@ -192,6 +196,135 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function setPwaStatus(state, detail) {
+  currentPwaStatus = { state, detail };
+  updatePwaStatusSummary();
+}
+
+function createClientId(prefix = 'antibiome') {
+  return typeof crypto.randomUUID === 'function'
+    ? `${prefix}-${crypto.randomUUID()}`
+    : `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function updatePwaStatusSummary() {
+  const stateEl = document.getElementById('home-pwa-state');
+  const hintEl = document.getElementById('home-pwa-hint');
+  if (stateEl) stateEl.textContent = currentPwaStatus.state;
+  if (hintEl) hintEl.textContent = currentPwaStatus.detail;
+}
+
+function getWardCounts(data) {
+  return Object.entries(countBy(data, 'ward')).sort((a, b) => b[1] - a[1]);
+}
+
+function dominantOrganismGroupLabel(data) {
+  const counts = { 'gram-positive': 0, 'gram-negative': 0, fungal: 0, unknown: 0 };
+  data.forEach(entry => { counts[getOrganismGroup(entry.organism)]++; });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  if (!top || top[1] === 0) return { label: 'Mixed', note: 'Capture more isolates for a clearer dominant pattern' };
+  const friendly = top[0] === 'gram-positive' ? 'Gram-positive' : top[0] === 'gram-negative' ? 'Gram-negative' : top[0] === 'fungal' ? 'Fungal' : 'Unclassified';
+  return { label: friendly, note: `${top[1]} isolates currently match this group` };
+}
+
+function buildStewardshipBriefing(data) {
+  if (!data.length) {
+    return [
+      { tone: 'neutral', text: 'Add culture entries with ward and susceptibility data to unlock stewardship briefing, drift alerts, and ward-level recommendations.' }
+    ];
+  }
+
+  const items = [];
+  const wardCounts = getWardCounts(data);
+  if (wardCounts.length) {
+    const [topWard, topWardCount] = wardCounts[0];
+    items.push({ tone: 'info', text: `${topWard} currently contributes the highest volume with ${topWardCount} tagged culture${topWardCount === 1 ? '' : 's'}.` });
+  }
+
+  const mdrCases = data.filter(isMDR);
+  const mdrRate = data.length ? Math.round(mdrCases.length / data.length * 100) : 0;
+  if (mdrRate >= 30) {
+    items.push({ tone: 'warn', text: `MDR burden is ${mdrRate}% of recorded isolates — review first-line coverage and isolation workflow.` });
+  } else if (mdrRate) {
+    items.push({ tone: 'good', text: `MDR burden is ${mdrRate}% of isolates, which is trackable but still worth trending by ward.` });
+  }
+
+  const months = sortedMonths(data);
+  if (months.length >= 2) {
+    const lastMonth = months[months.length - 1];
+    const prevMonth = months[months.length - 2];
+    const lastMonthCount = data.filter(c => c.date?.startsWith(lastMonth)).length;
+    const prevMonthCount = data.filter(c => c.date?.startsWith(prevMonth)).length;
+    const delta = lastMonthCount - prevMonthCount;
+    const deltaText = ` (${delta >= 0 ? '+' : ''}${delta} vs ${fmtMonth(prevMonth)})`;
+    items.push({ tone: 'neutral', text: `${fmtMonth(lastMonth)} recorded ${lastMonthCount} culture${lastMonthCount === 1 ? '' : 's'}${deltaText}.` });
+  }
+
+  const exactPairs = {};
+  data.forEach(entry => {
+    (entry.antibiotics || []).forEach(({ name, result }) => {
+      if (!name || !['S', 'I', 'R'].includes(result)) return;
+      exactPairs[name] ||= { S: 0, I: 0, R: 0 };
+      exactPairs[name][result]++;
+    });
+  });
+  const weakDrug = Object.entries(exactPairs)
+    .map(([drug, counts]) => {
+      const total = counts.S + counts.I + counts.R;
+      return { drug, total, susceptible: total ? Math.round(counts.S / total * 100) : 0 };
+    })
+    .filter(item => item.total >= 5)
+    .sort((a, b) => a.susceptible - b.susceptible)[0];
+  if (weakDrug && weakDrug.susceptible < GUIDELINE_SUSCEPTIBILITY_THRESHOLD) {
+    items.push({ tone: 'warn', text: `${weakDrug.drug} is only ${weakDrug.susceptible}% susceptible across ${weakDrug.total} results — keep it out of default empiric pathways unless clinically justified.` });
+  }
+
+  items.push({ tone: 'neutral', text: 'Interpret ward protocols alongside CLSI-style isolate thresholds; thin datasets should prompt caution rather than overconfident changes.' });
+  return items;
+}
+
+function renderHomeBriefing(data) {
+  const summaryEl = document.getElementById('home-brief-summary');
+  const topWardEl = document.getElementById('home-top-ward');
+  const topWardNoteEl = document.getElementById('home-top-ward-note');
+  const dominantGroupEl = document.getElementById('home-dominant-group');
+  const dominantGroupNoteEl = document.getElementById('home-dominant-group-note');
+
+  const wardCounts = getWardCounts(data);
+  if (topWardEl && topWardNoteEl) {
+    if (wardCounts.length) {
+      topWardEl.textContent = wardCounts[0][0];
+      topWardNoteEl.textContent = `${wardCounts[0][1]} ward-tagged culture${wardCounts[0][1] === 1 ? '' : 's'} recorded`;
+    } else {
+      topWardEl.textContent = '—';
+      topWardNoteEl.textContent = 'Add ward or bay names to cultures to unlock unit views';
+    }
+  }
+
+  const dominant = dominantOrganismGroupLabel(data);
+  if (dominantGroupEl) dominantGroupEl.textContent = dominant.label;
+  if (dominantGroupNoteEl) dominantGroupNoteEl.textContent = dominant.note;
+
+  if (summaryEl) {
+    const briefing = buildStewardshipBriefing(data).slice(0, 2).map(item => item.text).join(' ');
+    summaryEl.textContent = briefing || 'Add local microbiology data to generate a stewardship-ready summary.';
+  }
+
+  updatePwaStatusSummary();
+}
+
+function renderInsightsBriefing(data) {
+  const host = document.getElementById('insights-briefing');
+  if (!host) return;
+  const toneIcons = { good: '✅', info: 'ℹ️', warn: '⚠️', neutral: '•' };
+  host.innerHTML = buildStewardshipBriefing(data).map(item => `
+    <div class="insights-brief-item insights-brief-${item.tone}">
+      <span class="insights-brief-icon">${toneIcons[item.tone] || '•'}</span>
+      <span>${escHtml(item.text)}</span>
+    </div>
+  `).join('');
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -271,6 +404,7 @@ function escHtml(str) {
 ══════════════════════════════════════════════════════════ */
 (function initPwaInstallPrompt() {
   const IOS_INSTALL_TEXT = 'Install app: Share → “Add to Home Screen”.';
+  const MENU_INSTALL_TEXT = 'Use your browser menu → Install app / Add to Home screen.';
   const banner = document.getElementById('pwa-install-banner');
   if (!banner) return;
   const textEl = document.getElementById('pwa-install-text');
@@ -279,21 +413,11 @@ function escHtml(str) {
 
   const dismissed = localStorage.getItem('antibiome-pwa-dismissed') === '1';
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  if (dismissed || isStandalone) {
-    banner.style.display = 'none';
-    return;
-  }
-
-  // iOS Safari does not emit beforeinstallprompt, so we show manual install guidance.
-  const uaPlatform = navigator.userAgentData?.platform || navigator.platform || '';
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
-    || (uaPlatform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let deferredPrompt = null;
 
   function showBanner(text, showInstall) {
     textEl.textContent = text;
     installBtn.style.display = showInstall ? '' : 'none';
-    banner.style.display = 'flex';
+    banner.style.display = dismissed && !showInstall ? 'none' : 'flex';
   }
 
   function dismissBanner() {
@@ -303,20 +427,49 @@ function escHtml(str) {
 
   dismissBtn.addEventListener('click', dismissBanner);
 
-  if (isIOS) {
-    showBanner(IOS_INSTALL_TEXT, false);
+  if (isStandalone) {
+    banner.style.display = 'none';
+    setPwaStatus('Installed', 'Antibiome is already running like an app on this device');
     return;
   }
 
+  if (!window.isSecureContext) {
+    showBanner('PWA install requires HTTPS or localhost.', false);
+    setPwaStatus('Needs HTTPS', 'Open the deployed site over HTTPS, or use localhost while testing');
+    return;
+  }
+
+  const uaPlatform = navigator.userAgentData?.platform || navigator.platform || '';
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (uaPlatform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let deferredPrompt = null;
+
+  if (isIOS) {
+    showBanner(IOS_INSTALL_TEXT, false);
+    setPwaStatus('Manual install', 'On iPhone/iPad, use Share → Add to Home Screen');
+    return;
+  }
+
+  setPwaStatus('Ready to install', 'If your browser supports install prompts, the button appears automatically');
+
+  const fallbackTimer = window.setTimeout(() => {
+    if (deferredPrompt || localStorage.getItem('antibiome-pwa-dismissed') === '1') return;
+    showBanner(MENU_INSTALL_TEXT, false);
+    setPwaStatus('Menu install', 'Use the browser menu if no install button appears');
+  }, PWA_FALLBACK_PROMPT_DELAY_MS);
+
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
+    window.clearTimeout(fallbackTimer);
     deferredPrompt = event;
     showBanner('Install Antibiome for faster access and offline support.', true);
+    setPwaStatus('Install available', 'The browser supports an install prompt for this app');
   });
 
   window.addEventListener('appinstalled', () => {
     banner.style.display = 'none';
     localStorage.removeItem('antibiome-pwa-dismissed');
+    setPwaStatus('Installed', 'Antibiome has been installed for quick launch and offline shell caching');
   });
 
   installBtn.addEventListener('click', async () => {
@@ -331,15 +484,30 @@ function escHtml(str) {
 /* ══════════════════════════════════════════════════════════
    NAVIGATION
 ══════════════════════════════════════════════════════════ */
+const VALID_PAGES = new Set(['home', 'trends', 'entry', 'antibiogram', 'mdr', 'records', 'insights', 'guidelines']);
+
+function navigateToPage(target, updateHash = true) {
+  if (!VALID_PAGES.has(target)) return;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.page === target));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + target));
+  if (updateHash) {
+    const hash = target === 'home' ? '' : `#${target}`;
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hash}`);
+  }
+  renderActivePage(target);
+}
+
 document.querySelectorAll('.nav-item').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const target = btn.dataset.page;
-    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('page-' + target).classList.add('active');
-    renderActivePage(target);
-  });
+  btn.addEventListener('click', () => navigateToPage(btn.dataset.page));
+});
+
+document.querySelectorAll('[data-page-link]').forEach(btn => {
+  btn.addEventListener('click', () => navigateToPage(btn.dataset.pageLink));
+});
+
+window.addEventListener('hashchange', () => {
+  const target = window.location.hash.replace('#', '') || 'home';
+  if (VALID_PAGES.has(target)) navigateToPage(target, false);
 });
 
 function renderActivePage(page) {
@@ -513,6 +681,8 @@ function renderHome() {
   const mdrAll  = data.filter(isMDR);
   const mdrPct  = data.length ? Math.round(mdrAll.length / data.length * 100) : 0;
   const uniqOrgs = new Set(data.map(c => c.organism).filter(Boolean)).size;
+
+  renderHomeBriefing(data);
 
   document.getElementById('kpi-total').textContent    = data.length;
   document.getElementById('kpi-mdr').textContent      = mdrAll.length;
@@ -1108,7 +1278,7 @@ async function handleFormSubmit(e) {
   });
 
   const entry = {
-    id:           crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)),
+    id:           createClientId('culture'),
     patient_name: document.getElementById('f-patient-name').value.trim(),
     date,
     age_group:    ageGroup,
@@ -1175,6 +1345,7 @@ function setStatus(state, label) {
 ══════════════════════════════════════════════════════════ */
 function renderInsights() {
   const data = allCultures;
+  renderInsightsBriefing(data);
   if (!data.length) {
     document.getElementById('tidbits-list').innerHTML = '<p style="color:var(--text-muted);font-size:13px">No data yet. Add culture entries to see insights.</p>';
     document.getElementById('insights-ab-table').innerHTML = '';
@@ -1314,33 +1485,78 @@ function renderInsights() {
    GUIDELINES PAGE
 ══════════════════════════════════════════════════════════ */
 
-/** Compute local susceptibility % for a drug against an organism. Returns null if no data. */
-function localSusceptibility(drug, organism) {
-  const entries = allCultures.filter(c => c.organism === organism);
-  let S=0, total=0;
-  entries.forEach(e => {
-    (e.antibiotics||[]).forEach(ab => {
-      if (ab.name === drug) {
-        total++;
-        if (ab.result === 'S') S++;
-      }
+function isWardEntry(entry) {
+  return entry?.entry_type === 'ward';
+}
+
+function matchesGuidelineTarget(entry, target) {
+  const normalizedTarget = (target || '').trim().toLowerCase();
+  if (!normalizedTarget || ['any', 'all', 'empiric coverage', 'empiric'].includes(normalizedTarget)) return true;
+  const organism = (entry.organism || '').trim().toLowerCase();
+  const group = getOrganismGroup(entry.organism);
+  if (/gram[- ]?negative|gn/.test(normalizedTarget)) return group === 'gram-negative';
+  if (/gram[- ]?positive|gp/.test(normalizedTarget)) return group === 'gram-positive';
+  if (/fungal|candida|yeast/.test(normalizedTarget)) return group === 'fungal';
+  return organism === normalizedTarget || organism.includes(normalizedTarget) || normalizedTarget.includes(organism);
+}
+
+/** Compute local susceptibility % for a drug against an organism target. Returns null if no data. */
+function localSusceptibility(drug, organismTarget, ward = '') {
+  const compute = entries => {
+    let S = 0;
+    let total = 0;
+    entries.forEach(e => {
+      (e.antibiotics || []).forEach(ab => {
+        if (ab.name === drug) {
+          total++;
+          if (ab.result === 'S') S++;
+        }
+      });
     });
-  });
-  return total >= 3 ? Math.round(S / total * 100) : null;
+    return total >= 3 ? Math.round(S / total * 100) : null;
+  };
+
+  const matching = allCultures.filter(c => matchesGuidelineTarget(c, organismTarget));
+  const wardSpecific = ward ? matching.filter(c => c.ward === ward) : matching;
+  return compute(wardSpecific) ?? (ward ? compute(matching) : null);
 }
 
 function renderGuidelines() {
   const wards = [...new Set(allGuidelines.map(p => p.ward).filter(Boolean))].sort();
 
-  // Populate ward select
   const wsel = document.getElementById('gl-ward-select');
-  const curWard = wsel.value;
+  const preferredWard = currentGuidelineWard || wsel.value;
   while (wsel.options.length > 1) wsel.remove(1);
   wards.forEach(w => wsel.add(new Option(w, w)));
-  if (curWard && wards.includes(curWard)) wsel.value = curWard;
+  if (preferredWard && wards.includes(preferredWard)) wsel.value = preferredWard;
 
   const selectedWard = wsel.value;
   const addBtn = document.getElementById('gl-add-protocol-btn');
+  const wardGrid = document.getElementById('gl-ward-grid');
+  wardGrid.innerHTML = '';
+
+  if (!wards.length) {
+    wardGrid.innerHTML = '<div class="gl-ward-card gl-ward-card-empty"><strong>No wards yet</strong><span>Create a ward to stage guidance before the first protocol is written.</span></div>';
+  } else {
+    wards.forEach(ward => {
+      const protocolsForWard = allGuidelines.filter(p => p.ward === ward && !isWardEntry(p));
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'gl-ward-card' + (ward === selectedWard ? ' active' : '');
+      card.dataset.ward = ward;
+      card.innerHTML = `
+        <span class="gl-ward-card-title">${escHtml(ward)}</span>
+        <span class="gl-ward-card-meta">${protocolsForWard.length} protocol${protocolsForWard.length === 1 ? '' : 's'}</span>
+        <span class="gl-ward-card-state">${protocolsForWard.length ? 'Ready for review' : 'Awaiting first protocol'}</span>
+      `;
+      card.addEventListener('click', () => {
+        currentGuidelineWard = ward;
+        wsel.value = ward;
+        renderGuidelines();
+      });
+      wardGrid.appendChild(card);
+    });
+  }
 
   if (!selectedWard) {
     document.getElementById('gl-empty').style.display = '';
@@ -1355,25 +1571,33 @@ function renderGuidelines() {
   document.getElementById('gl-ward-title').textContent = selectedWard + ' — Protocols';
   currentGuidelineWard = selectedWard;
 
-  const protocols = allGuidelines.filter(p => p.ward === selectedWard);
+  const protocols = allGuidelines
+    .filter(p => p.ward === selectedWard && !isWardEntry(p))
+    .sort((a, b) => (a.infection_type || '').localeCompare(b.infection_type || ''));
   const container = document.getElementById('gl-protocols-list');
   container.innerHTML = '';
 
   if (!protocols.length) {
-    container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">No protocols defined for this ward yet. Click "Add Protocol" to add one.</p>';
+    container.innerHTML = `
+      <div class="gl-empty-card">
+        <strong>${escHtml(selectedWard)} is ready.</strong>
+        <p>No protocols are defined yet. Start with the most common infections for this ward and use local susceptibility trends to refine first-line coverage.</p>
+        <button type="button" class="btn-primary gl-create-first-proto">Create First Protocol</button>
+      </div>
+    `;
+    container.querySelector('.gl-create-first-proto')?.addEventListener('click', () => openGuidelineProtocolModal());
     return;
   }
 
   protocols.forEach(proto => {
-    // Check drug susceptibility threshold
-    const THRESHOLD = 70;
+    const THRESHOLD = GUIDELINE_SUSCEPTIBILITY_THRESHOLD;
     const linesToCheck = [proto.line1, proto.line2, proto.line3].filter(Boolean);
     let belowThreshold = false;
     const alertDrugs = [];
     linesToCheck.forEach(line => {
       line.split(/[,+/]/).map(d => d.trim()).filter(Boolean).forEach(drug => {
         const drugName = ALL_ANTIBIOTICS.find(ab => ab.name.toLowerCase() === drug.toLowerCase())?.name || drug;
-        const pct = localSusceptibility(drugName, proto.organism_target);
+        const pct = localSusceptibility(drugName, proto.organism_target, selectedWard);
         if (pct !== null && pct < THRESHOLD) {
           belowThreshold = true;
           alertDrugs.push(`${drugName} (${pct}% susceptible)`);
@@ -1454,24 +1678,59 @@ document.getElementById('gl-ward-select').addEventListener('change', () => {
   renderGuidelines();
 });
 
+function closeGuidelineWardModal() {
+  document.getElementById('modal-gl-ward').style.display = 'none';
+  document.getElementById('gl-ward-error').style.display = 'none';
+}
+
 document.getElementById('gl-new-ward-btn').addEventListener('click', () => {
   document.getElementById('gl-new-ward-input').value = '';
+  document.getElementById('gl-ward-error').style.display = 'none';
   document.getElementById('modal-gl-ward').style.display = 'grid';
+  document.getElementById('gl-new-ward-input').focus();
 });
 
-document.getElementById('gl-ward-modal-cancel').addEventListener('click', () => {
-  document.getElementById('modal-gl-ward').style.display = 'none';
+document.getElementById('gl-ward-modal-cancel').addEventListener('click', closeGuidelineWardModal);
+document.getElementById('modal-gl-ward').addEventListener('click', event => {
+  if (event.target === document.getElementById('modal-gl-ward')) closeGuidelineWardModal();
+});
+document.getElementById('gl-new-ward-input').addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    document.getElementById('gl-ward-modal-confirm').click();
+  }
 });
 
-document.getElementById('gl-ward-modal-confirm').addEventListener('click', () => {
-  const name = document.getElementById('gl-new-ward-input').value.trim();
-  if (!name) return;
-  document.getElementById('modal-gl-ward').style.display = 'none';
-  currentGuidelineWard = name;
-  // Add a placeholder protocol so ward appears; just set selection
-  document.getElementById('gl-ward-select').add(new Option(name, name));
-  document.getElementById('gl-ward-select').value = name;
-  renderGuidelines();
+document.getElementById('gl-ward-modal-confirm').addEventListener('click', async () => {
+  const input = document.getElementById('gl-new-ward-input');
+  const errorEl = document.getElementById('gl-ward-error');
+  const name = input.value.trim();
+  if (!name) {
+    errorEl.textContent = 'Ward name is required.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if (allGuidelines.some(item => (item.ward || '').toLowerCase() === name.toLowerCase())) {
+    errorEl.textContent = 'That ward already exists.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const wardRecord = {
+      id: createClientId('guideline'),
+      ward: name,
+      entry_type: 'ward',
+    };
+    const savedWard = await saveGuideline(wardRecord);
+    allGuidelines.push(savedWard);
+    currentGuidelineWard = name;
+    closeGuidelineWardModal();
+    renderGuidelines();
+  } catch (err) {
+    errorEl.textContent = `Unable to create ward: ${err?.message || err}`;
+    errorEl.style.display = 'block';
+  }
 });
 
 document.getElementById('gl-add-protocol-btn').addEventListener('click', () => {
@@ -1495,7 +1754,7 @@ document.getElementById('gl-proto-modal-confirm').addEventListener('click', asyn
   document.getElementById('gl-proto-error').style.display = 'none';
 
   const proto = {
-    id:              editingGuidelineId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)),
+    id:              editingGuidelineId || createClientId('guideline'),
     ward:            currentGuidelineWard,
     infection_type:  type,
     organism_target: org,
@@ -1551,6 +1810,9 @@ document.getElementById('gl-proto-modal-confirm').addEventListener('click', asyn
     if (activePage) renderActivePage(activePage);
   });
 
-  // Render default page
-  renderHome();
+  // Render initial page (supports manifest shortcuts like #guidelines)
+  const initialPage = VALID_PAGES.has(window.location.hash.replace('#', ''))
+    ? window.location.hash.replace('#', '')
+    : 'home';
+  navigateToPage(initialPage, false);
 })();

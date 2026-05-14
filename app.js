@@ -204,7 +204,7 @@ function setPwaStatus(state, detail) {
 }
 
 function createClientId(prefix = 'antibiome') {
-  return crypto.randomUUID
+  return typeof crypto.randomUUID === 'function'
     ? `${prefix}-${crypto.randomUUID()}`
     : `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
@@ -1485,7 +1485,7 @@ function renderInsights() {
    GUIDELINES PAGE
 ══════════════════════════════════════════════════════════ */
 
-function isGuidelineWardDefinition(entry) {
+function isWardEntry(entry) {
   return entry?.entry_type === 'ward';
 }
 
@@ -1539,7 +1539,7 @@ function renderGuidelines() {
     wardGrid.innerHTML = '<div class="gl-ward-card gl-ward-card-empty"><strong>No wards yet</strong><span>Create a ward to stage guidance before the first protocol is written.</span></div>';
   } else {
     wards.forEach(ward => {
-      const protocolsForWard = allGuidelines.filter(p => p.ward === ward && !isGuidelineWardDefinition(p));
+      const protocolsForWard = allGuidelines.filter(p => p.ward === ward && !isWardEntry(p));
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'gl-ward-card' + (ward === selectedWard ? ' active' : '');
@@ -1572,7 +1572,7 @@ function renderGuidelines() {
   currentGuidelineWard = selectedWard;
 
   const protocols = allGuidelines
-    .filter(p => p.ward === selectedWard && !isGuidelineWardDefinition(p))
+    .filter(p => p.ward === selectedWard && !isWardEntry(p))
     .sort((a, b) => (a.infection_type || '').localeCompare(b.infection_type || ''));
   const container = document.getElementById('gl-protocols-list');
   container.innerHTML = '';

@@ -182,6 +182,19 @@ let currentGuidelineWard = null;
 let editingGuidelineId   = null;
 
 /* ══════════════════════════════════════════════════════════
+   HTML ESCAPE HELPER  — prevents XSS when inserting user data
+   into innerHTML
+══════════════════════════════════════════════════════════ */
+function escHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* ══════════════════════════════════════════════════════════
    BACKGROUND CANVAS ANIMATION
 ══════════════════════════════════════════════════════════ */
 (function initBackground() {
@@ -599,7 +612,7 @@ function renderTrends() {
       ctx.fillStyle = '#64748b';
       ctx.font = '13px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('No ward data recorded yet — add ward/bay to culture entries.', cv.width / 2, cv.height / 2 || 60);
+      ctx.fillText('No ward data recorded yet — add ward/bay to culture entries.', cv.width / 2, cv.height ? cv.height / 2 : 60);
     }
   }
 }
@@ -1138,7 +1151,7 @@ function renderInsights() {
           ? Math.round(prevOrgMap[topOrg[0]] / prevMonthData.length * 100) : null;
         const delta = prevPct !== null ? (pct - prevPct) : null;
         const deltaStr = delta !== null ? (delta >= 0 ? ` — ${delta} pp above last month ▲` : ` — ${Math.abs(delta)} pp below last month ▼`) : '';
-        tidbits.push({ type:'info', msg: `${fmtMonth(lastMonth)}: <strong>${topOrg[0]}</strong> is the top organism, accounting for ${pct}% of isolates (n=${topOrg[1]})${deltaStr}.` });
+        tidbits.push({ type:'info', msg: `${fmtMonth(lastMonth)}: <strong>${escHtml(topOrg[0])}</strong> is the top organism, accounting for ${pct}% of isolates (n=${topOrg[1]})${deltaStr}.` });
       }
     }
 
@@ -1197,7 +1210,7 @@ function renderInsights() {
       if (pct === null) return null;
       const cls   = pct >= 80 ? 'pct-high' : pct >= 50 ? 'pct-mid' : 'pct-low';
       const reco  = pct >= 80 ? '✅ Likely effective' : pct < 50 ? '🚫 Avoid / High resistance' : '⚠️ Use with caution';
-      return `<tr><td>${drug}</td><td><span class="pct-cell ${cls}">${pct}%</span></td><td style="font-size:12px;color:var(--text-muted)">${reco}</td><td style="font-size:11px;color:var(--text-muted)">${total} isolates</td></tr>`;
+      return `<tr><td>${escHtml(drug)}</td><td><span class="pct-cell ${cls}">${pct}%</span></td><td style="font-size:12px;color:var(--text-muted)">${reco}</td><td style="font-size:11px;color:var(--text-muted)">${total} isolates</td></tr>`;
     }).filter(Boolean).sort((a,b) => {
       // Sort: high pct first
       const pa = parseInt(a.match(/(\d+)%/)?.[1] || '0');
@@ -1208,7 +1221,7 @@ function renderInsights() {
     const groupLabel = getOrganismGroup(org);
     abHtml += `
       <div style="margin-bottom:20px">
-        <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">${org} <small style="color:var(--text-muted);font-weight:400">(${groupLabel})</small></h4>
+        <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">${escHtml(org)} <small style="color:var(--text-muted);font-weight:400">(${escHtml(groupLabel)})</small></h4>
         <div class="table-scroll"><table class="data-table" style="font-size:12px">
           <thead><tr><th>Antibiotic</th><th>%S (susceptible)</th><th>Recommendation</th><th>n</th></tr></thead>
           <tbody>${rows.join('')}</tbody>
@@ -1225,7 +1238,7 @@ function renderInsights() {
     COMMON_EMPIRIC.forEach(drug => {
       const counts = (rawAB[org] || {})[drug];
       if (!counts) {
-        alertItems.push(`<li style="margin-bottom:6px;font-size:13px;color:var(--text-dim)"><strong>${drug}</strong> — no local susceptibility data for <em>${org}</em></li>`);
+        alertItems.push(`<li style="margin-bottom:6px;font-size:13px;color:var(--text-dim)"><strong>${escHtml(drug)}</strong> — no local susceptibility data for <em>${escHtml(org)}</em></li>`);
       }
     });
   });
@@ -1319,20 +1332,20 @@ function renderGuidelines() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-            <span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">${proto.infection_type || '—'}</span>
-            <span style="font-size:13px;color:var(--text-dim)">Target: <strong style="color:var(--text)">${proto.organism_target || 'Any'}</strong></span>
+            <span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">${escHtml(proto.infection_type) || '—'}</span>
+            <span style="font-size:13px;color:var(--text-dim)">Target: <strong style="color:var(--text)">${escHtml(proto.organism_target) || 'Any'}</strong></span>
           </div>
           <div style="display:grid;gap:5px">
-            ${proto.line1 ? `<div style="font-size:13px"><span style="color:var(--green);font-weight:600;min-width:60px;display:inline-block">1st Line:</span> ${proto.line1}</div>` : ''}
-            ${proto.line2 ? `<div style="font-size:13px"><span style="color:var(--yellow);font-weight:600;min-width:60px;display:inline-block">2nd Line:</span> ${proto.line2}</div>` : ''}
-            ${proto.line3 ? `<div style="font-size:13px"><span style="color:var(--orange);font-weight:600;min-width:60px;display:inline-block">3rd Line:</span> ${proto.line3}</div>` : ''}
-            ${proto.exceptions ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;border-left:2px solid var(--border2);padding-left:8px"><em>${proto.exceptions}</em></div>` : ''}
+            ${proto.line1 ? `<div style="font-size:13px"><span style="color:var(--green);font-weight:600;min-width:60px;display:inline-block">1st Line:</span> ${escHtml(proto.line1)}</div>` : ''}
+            ${proto.line2 ? `<div style="font-size:13px"><span style="color:var(--yellow);font-weight:600;min-width:60px;display:inline-block">2nd Line:</span> ${escHtml(proto.line2)}</div>` : ''}
+            ${proto.line3 ? `<div style="font-size:13px"><span style="color:var(--orange);font-weight:600;min-width:60px;display:inline-block">3rd Line:</span> ${escHtml(proto.line3)}</div>` : ''}
+            ${proto.exceptions ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;border-left:2px solid var(--border2);padding-left:8px"><em>${escHtml(proto.exceptions)}</em></div>` : ''}
           </div>
           ${alertBanner}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn-outline gl-edit-proto" data-id="${proto.id}" style="padding:5px 10px;font-size:12px">Edit</button>
-          <button class="btn-danger gl-del-proto" data-id="${proto.id}" style="padding:5px 10px;font-size:12px">Delete</button>
+          <button class="btn-outline gl-edit-proto" data-id="${escHtml(proto.id)}" style="padding:5px 10px;font-size:12px">Edit</button>
+          <button class="btn-danger gl-del-proto" data-id="${escHtml(proto.id)}" style="padding:5px 10px;font-size:12px">Delete</button>
         </div>
       </div>
     `;
@@ -1417,7 +1430,7 @@ document.getElementById('gl-proto-modal-confirm').addEventListener('click', asyn
   document.getElementById('gl-proto-error').style.display = 'none';
 
   const proto = {
-    id:              editingGuidelineId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)),
+    id:              editingGuidelineId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)),
     ward:            currentGuidelineWard,
     infection_type:  type,
     organism_target: org,

@@ -218,7 +218,7 @@ export async function updateGuideline(protocol) {
     return protocol;
   }
   if (protocol._fbId) {
-    const { _fbId, _createdAt, ...data } = protocol;
+    const { _fbId, _fbPath, _createdAt, ...data } = protocol;
     const pathTag = protocol._fbPath || 'scoped';
     const scopedDocRef = doc(db, 'hospitals', GUIDELINES_HOSPITAL_ID, 'guidelines', _fbId);
     const legacyDocRef = doc(db, 'guidelines', _fbId);

@@ -285,8 +285,9 @@ function escHtml(str) {
   }
 
   // iOS Safari does not emit beforeinstallprompt, so we show manual install guidance.
+  const uaPlatform = navigator.userAgentData?.platform || navigator.platform || '';
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
-    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    || (uaPlatform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let deferredPrompt = null;
 
   function showBanner(text, showInstall) {

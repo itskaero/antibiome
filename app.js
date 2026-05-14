@@ -1150,7 +1150,7 @@ function renderInsights() {
         const prevPct = prevMonthData.length && prevOrgMap[topOrg[0]]
           ? Math.round(prevOrgMap[topOrg[0]] / prevMonthData.length * 100) : null;
         const delta = prevPct !== null ? (pct - prevPct) : null;
-        const deltaStr = delta !== null ? (delta >= 0 ? ` — ${delta} pp above last month ▲` : ` — ${Math.abs(delta)} pp below last month ▼`) : '';
+        const deltaStr = delta !== null ? (delta >= 0 ? ` — ${escHtml(String(delta))} pp above last month ▲` : ` — ${escHtml(String(Math.abs(delta)))} pp below last month ▼`) : '';
         tidbits.push({ type:'info', msg: `${fmtMonth(lastMonth)}: <strong>${escHtml(topOrg[0])}</strong> is the top organism, accounting for ${pct}% of isolates (n=${topOrg[1]})${deltaStr}.` });
       }
     }

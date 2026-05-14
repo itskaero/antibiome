@@ -9,6 +9,7 @@
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#3b82f6" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Antibiome" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -121,6 +122,55 @@
             </select>
             <input type="month" id="home-filter-month" class="filter-select" title="Filter by month" />
           </div>
+        </div>
+
+        <div class="hero-grid">
+          <section class="hero-card hero-primary">
+            <span class="hero-badge">Clinical stewardship workspace</span>
+            <h2 class="hero-title">Track cultures, spot resistance drift, and keep ward guidance current.</h2>
+            <p class="hero-copy" id="home-brief-summary">Your culture surveillance summary will appear here as data loads.</p>
+            <div class="hero-actions">
+              <button type="button" class="btn-primary hero-link-btn" data-page-link="entry">Log Culture</button>
+              <button type="button" class="btn-outline hero-link-btn" data-page-link="guidelines">Open Guidelines</button>
+            </div>
+          </section>
+          <section class="hero-card hero-secondary">
+            <div class="mini-stat-grid">
+              <div class="mini-stat-card">
+                <span class="mini-stat-label">Top ward</span>
+                <strong class="mini-stat-value" id="home-top-ward">—</strong>
+                <span class="mini-stat-note" id="home-top-ward-note">Awaiting ward-tagged cultures</span>
+              </div>
+              <div class="mini-stat-card">
+                <span class="mini-stat-label">Dominant group</span>
+                <strong class="mini-stat-value" id="home-dominant-group">—</strong>
+                <span class="mini-stat-note" id="home-dominant-group-note">More data sharpens local patterns</span>
+              </div>
+              <div class="mini-stat-card">
+                <span class="mini-stat-label">PWA status</span>
+                <strong class="mini-stat-value" id="home-pwa-state">Checking…</strong>
+                <span class="mini-stat-note" id="home-pwa-hint">Install guidance appears here when supported</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="evidence-card">
+            <span class="evidence-kicker">CLSI M39</span>
+            <h3>Use robust isolate counts</h3>
+            <p>Antibiogram interpretation is most reliable once a drug-organism view reaches roughly 30 isolates for the reporting period.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="evidence-kicker">CDC stewardship</span>
+            <h3>Stratify by ward and specimen</h3>
+            <p>Unit-level and specimen-level views improve empiric decisions by reflecting the population actually being treated.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="evidence-kicker">Empiric coverage</span>
+            <h3>Flag weakened first-line options</h3>
+            <p>Many stewardship teams review empiric agents once local susceptibility falls below about 80–90%, especially for severe infections.</p>
+          </article>
         </div>
 
         <!-- KPI row -->
@@ -559,6 +609,27 @@
           </div>
         </div>
 
+        <div class="insights-brief-grid">
+          <section class="card insight-brief-card">
+            <h3 class="card-title">Stewardship Briefing</h3>
+            <div id="insights-briefing" class="insights-briefing-list"></div>
+          </section>
+          <section class="card insight-brief-card">
+            <h3 class="card-title">Evidence Anchors</h3>
+            <div class="insights-evidence-list">
+              <div class="insights-evidence-item">
+                <strong>CLSI:</strong> Prefer cumulative views backed by sufficient isolate counts before making formulary or empiric changes.
+              </div>
+              <div class="insights-evidence-item">
+                <strong>CDC:</strong> Ward-level stratification is useful where patient mix and resistance pressure differ meaningfully by unit.
+              </div>
+              <div class="insights-evidence-item">
+                <strong>Stewardship practice:</strong> Falling susceptibility in common empiric options should trigger a protocol review rather than silent drift.
+              </div>
+            </div>
+          </section>
+        </div>
+
         <!-- GP / GN KPI row -->
         <div class="kpi-grid" id="insights-kpi-grid">
           <div class="kpi-card kpi-blue">
@@ -637,6 +708,15 @@
           <span>Protocols highlighted in <span style="color:var(--orange)">orange</span> mean local susceptibility for that drug has dropped below the 70% safety threshold based on your antibiogram data.</span>
         </div>
 
+        <div class="gl-research-note card">
+          <div>
+            <strong>Ward-level guidance works best when it stays stratified.</strong>
+            <p>Modern stewardship dashboards keep unit-specific protocols separate, highlight reduced coverage early, and preserve empty wards so teams can stage guidance before adding the first protocol.</p>
+          </div>
+        </div>
+
+        <div id="gl-ward-grid" class="gl-ward-grid"></div>
+
         <div id="gl-empty" class="empty-state">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
           <p>Select a ward to view its protocols, or create a new ward.</p>
@@ -653,7 +733,8 @@
         <div class="modal" style="max-width:360px">
           <h3>New Ward / Unit</h3>
           <p>Enter a name for the ward (e.g. NICU, Pediatric Ward A).</p>
-          <input type="text" id="gl-new-ward-input" class="form-input" style="width:100%;margin-bottom:16px" placeholder="Ward name" />
+          <input type="text" id="gl-new-ward-input" class="form-input" style="width:100%;margin-bottom:10px" placeholder="Ward name" />
+          <div id="gl-ward-error" class="form-error" style="display:none;margin-bottom:12px"></div>
           <div class="modal-actions">
             <button id="gl-ward-modal-cancel" class="btn-outline">Cancel</button>
             <button id="gl-ward-modal-confirm" class="btn-primary">Create</button>

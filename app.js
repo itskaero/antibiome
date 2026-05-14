@@ -283,7 +283,8 @@ function escHtml(str) {
     return;
   }
 
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let deferredPrompt = null;
 
   function showBanner(text, showInstall) {

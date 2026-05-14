@@ -29,6 +29,9 @@ export const GUIDELINES_PASSCODE = '';
 let db = null;
 let useFirebase = true;
 const GUIDELINES_HOSPITAL_ID = 'default';
+const isPermissionDenied = err =>
+  err?.code === 'permission-denied' ||
+  /PERMISSION_DENIED|insufficient permissions/i.test(err?.message || '');
 
 try {
   const app = initializeApp(firebaseConfig);
@@ -130,7 +133,6 @@ export async function loadGuidelines() {
   const legacyRef = collection(db, 'guidelines');
 
   const mapDocs = (snap, pathTag) => snap.docs.map(d => ({ ...d.data(), _fbId: d.id, _fbPath: pathTag }));
-  const isPermissionDenied = err => err?.code === 'permission-denied' || /permission/i.test(err?.message || '');
 
   try {
     const scopedSnap = await getDocs(scopedRef);
@@ -169,7 +171,7 @@ export async function saveGuideline(protocol) {
     const ref = await addDoc(scopedRef, data);
     return { ...protocol, _fbId: ref.id, _fbPath: 'scoped' };
   } catch (err) {
-    if (err?.code !== 'permission-denied') throw err;
+    if (!isPermissionDenied(err)) throw err;
     const ref = await addDoc(collection(db, 'guidelines'), data);
     return { ...protocol, _fbId: ref.id, _fbPath: 'legacy' };
   }
@@ -192,7 +194,7 @@ export async function deleteGuideline(protocol) {
     try {
       await deleteDoc(pathTag === 'legacy' ? legacyDocRef : scopedDocRef);
     } catch (err) {
-      if (err?.code !== 'permission-denied' || pathTag === 'legacy') throw err;
+      if (!isPermissionDenied(err) || pathTag === 'legacy') throw err;
       await deleteDoc(legacyDocRef);
     }
   }
@@ -216,7 +218,7 @@ export async function updateGuideline(protocol) {
     try {
       await updateDoc(pathTag === 'legacy' ? legacyDocRef : scopedDocRef, data);
     } catch (err) {
-      if (err?.code !== 'permission-denied' || pathTag === 'legacy') throw err;
+      if (!isPermissionDenied(err) || pathTag === 'legacy') throw err;
       await updateDoc(legacyDocRef, data);
     }
   }

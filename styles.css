@@ -855,26 +855,134 @@ form .form-section {
 #tidbits-list em { font-style: italic; color: var(--text-dim); }
 
 /* ── Guidelines protocol cards ──────────────────────────── */
-.gl-proto-card { transition: border-color .18s; }
+.gl-threshold-info {
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: linear-gradient(180deg, rgba(59,130,246,0.1), rgba(59,130,246,0.03));
+  border-color: rgba(59,130,246,0.24);
+}
+
+.gl-proto-card {
+  margin-bottom: 14px;
+  transition: border-color .18s, transform .18s ease, box-shadow .18s ease;
+  background: linear-gradient(180deg, rgba(17,24,39,0.88), rgba(17,24,39,0.72));
+}
+
+.gl-proto-card:hover {
+  border-color: var(--border2);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.gl-proto-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gl-proto-main { flex: 1; min-width: 200px; }
+
+.gl-proto-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.gl-proto-pill {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.gl-proto-target { font-size: 13px; color: var(--text-dim); }
+.gl-proto-target strong { color: var(--text); font-weight: 600; }
+
+.gl-proto-lines { display: grid; gap: 6px; }
+.gl-line-row { font-size: 13px; color: var(--text); }
+.gl-line-label {
+  min-width: 68px;
+  display: inline-block;
+  font-weight: 700;
+}
+.gl-line-1 { color: var(--green); }
+.gl-line-2 { color: var(--yellow); }
+.gl-line-3 { color: var(--orange); }
+
+.gl-proto-note {
+  margin-top: 4px;
+  border-left: 2px solid var(--border2);
+  padding-left: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.gl-proto-alert {
+  margin-top: 10px;
+  border: 1px solid rgba(249,115,22,0.35);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--orange);
+  background: rgba(249,115,22,0.1);
+}
+
+.gl-proto-actions {
+  display: flex;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.gl-proto-actions .btn-outline,
+.gl-proto-actions .btn-danger {
+  padding: 5px 10px;
+  font-size: 12px;
+}
 
 /* ── PWA install banner (optional, keep minimal) ─────────── */
 #pwa-install-banner {
   position: fixed;
-  bottom: 16px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  padding: 12px 20px;
+  background: rgba(17,24,39,0.95);
+  border: 1px solid rgba(59,130,246,0.35);
+  border-radius: 999px;
+  padding: 8px 10px 8px 14px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   box-shadow: var(--shadow);
-  z-index: 200;
-  font-size: 13px;
-  color: var(--text-dim);
+  z-index: 300;
+  font-size: 12.5px;
+  color: var(--text);
   max-width: 90vw;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  flex-wrap: wrap;
 }
 
-#pwa-install-banner button { margin-left: 4px; }
+#pwa-install-text {
+  color: var(--text-dim);
+  margin-right: 2px;
+}
+
+#pwa-install-banner .btn-primary,
+#pwa-install-banner .btn-outline {
+  padding: 6px 12px;
+  font-size: 12px;
+}

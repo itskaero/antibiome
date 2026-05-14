@@ -267,6 +267,68 @@ function escHtml(str) {
 })();
 
 /* ══════════════════════════════════════════════════════════
+   PWA INSTALL PROMPT
+══════════════════════════════════════════════════════════ */
+(function initPwaInstallPrompt() {
+  const IOS_INSTALL_TEXT = 'Install app: Share → “Add to Home Screen”.';
+  const banner = document.getElementById('pwa-install-banner');
+  if (!banner) return;
+  const textEl = document.getElementById('pwa-install-text');
+  const installBtn = document.getElementById('pwa-install-btn');
+  const dismissBtn = document.getElementById('pwa-install-dismiss');
+
+  const dismissed = localStorage.getItem('antibiome-pwa-dismissed') === '1';
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (dismissed || isStandalone) {
+    banner.style.display = 'none';
+    return;
+  }
+
+  // iOS Safari does not emit beforeinstallprompt, so we show manual install guidance.
+  const uaPlatform = navigator.userAgentData?.platform || navigator.platform || '';
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (uaPlatform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let deferredPrompt = null;
+
+  function showBanner(text, showInstall) {
+    textEl.textContent = text;
+    installBtn.style.display = showInstall ? '' : 'none';
+    banner.style.display = 'flex';
+  }
+
+  function dismissBanner() {
+    banner.style.display = 'none';
+    localStorage.setItem('antibiome-pwa-dismissed', '1');
+  }
+
+  dismissBtn.addEventListener('click', dismissBanner);
+
+  if (isIOS) {
+    showBanner(IOS_INSTALL_TEXT, false);
+    return;
+  }
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+    showBanner('Install Antibiome for faster access and offline support.', true);
+  });
+
+  window.addEventListener('appinstalled', () => {
+    banner.style.display = 'none';
+    localStorage.removeItem('antibiome-pwa-dismissed');
+  });
+
+  installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    banner.style.display = 'none';
+  });
+})();
+
+/* ══════════════════════════════════════════════════════════
    NAVIGATION
 ══════════════════════════════════════════════════════════ */
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -1321,31 +1383,30 @@ function renderGuidelines() {
 
     const borderColor = belowThreshold ? 'var(--orange)' : 'var(--border)';
     const alertBanner = belowThreshold
-      ? `<div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:6px;padding:8px 12px;margin-top:10px;font-size:12px;color:var(--orange)">⚠️ Local susceptibility below ${THRESHOLD}% threshold: ${alertDrugs.map(escHtml).join('; ')}. Consider reviewing this protocol.</div>`
+      ? `<div class="gl-proto-alert">⚠️ Local susceptibility below ${THRESHOLD}% threshold: ${alertDrugs.map(escHtml).join('; ')}. Consider reviewing this protocol.</div>`
       : '';
 
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = 'card gl-proto-card';
     card.style.borderColor = borderColor;
-    card.style.marginBottom = '14px';
     card.innerHTML = `
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-            <span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">${escHtml(proto.infection_type) || '—'}</span>
-            <span style="font-size:13px;color:var(--text-dim)">Target: <strong style="color:var(--text)">${escHtml(proto.organism_target) || 'Any'}</strong></span>
+      <div class="gl-proto-head">
+        <div class="gl-proto-main">
+          <div class="gl-proto-meta">
+            <span class="gl-proto-pill">${escHtml(proto.infection_type) || '—'}</span>
+            <span class="gl-proto-target">Target: <strong>${escHtml(proto.organism_target) || 'Any'}</strong></span>
           </div>
-          <div style="display:grid;gap:5px">
-            ${proto.line1 ? `<div style="font-size:13px"><span style="color:var(--green);font-weight:600;min-width:60px;display:inline-block">1st Line:</span> ${escHtml(proto.line1)}</div>` : ''}
-            ${proto.line2 ? `<div style="font-size:13px"><span style="color:var(--yellow);font-weight:600;min-width:60px;display:inline-block">2nd Line:</span> ${escHtml(proto.line2)}</div>` : ''}
-            ${proto.line3 ? `<div style="font-size:13px"><span style="color:var(--orange);font-weight:600;min-width:60px;display:inline-block">3rd Line:</span> ${escHtml(proto.line3)}</div>` : ''}
-            ${proto.exceptions ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;border-left:2px solid var(--border2);padding-left:8px"><em>${escHtml(proto.exceptions)}</em></div>` : ''}
+          <div class="gl-proto-lines">
+            ${proto.line1 ? `<div class="gl-line-row"><span class="gl-line-label gl-line-1">1st Line:</span> ${escHtml(proto.line1)}</div>` : ''}
+            ${proto.line2 ? `<div class="gl-line-row"><span class="gl-line-label gl-line-2">2nd Line:</span> ${escHtml(proto.line2)}</div>` : ''}
+            ${proto.line3 ? `<div class="gl-line-row"><span class="gl-line-label gl-line-3">3rd Line:</span> ${escHtml(proto.line3)}</div>` : ''}
+            ${proto.exceptions ? `<div class="gl-proto-note"><em>${escHtml(proto.exceptions)}</em></div>` : ''}
           </div>
           ${alertBanner}
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn-outline gl-edit-proto" data-id="${escHtml(proto.id)}" style="padding:5px 10px;font-size:12px">Edit</button>
-          <button class="btn-danger gl-del-proto" data-id="${escHtml(proto.id)}" style="padding:5px 10px;font-size:12px">Delete</button>
+        <div class="gl-proto-actions">
+          <button class="btn-outline gl-edit-proto" data-id="${escHtml(proto.id)}">Edit</button>
+          <button class="btn-danger gl-del-proto" data-id="${escHtml(proto.id)}">Delete</button>
         </div>
       </div>
     `;
@@ -1378,9 +1439,13 @@ async function deleteGuidelineProtocol(id) {
   const proto = allGuidelines.find(p => p.id === id);
   if (!proto) return;
   if (!confirm('Delete this protocol?')) return;
-  await deleteGuideline(proto);
-  allGuidelines = allGuidelines.filter(p => p.id !== id);
-  renderGuidelines();
+  try {
+    await deleteGuideline(proto);
+    allGuidelines = allGuidelines.filter(p => p.id !== id);
+    renderGuidelines();
+  } catch (err) {
+    alert(`Unable to delete protocol: ${err?.message || err}`);
+  }
 }
 
 // Wire up guidelines buttons
@@ -1440,18 +1505,24 @@ document.getElementById('gl-proto-modal-confirm').addEventListener('click', asyn
     exceptions:      document.getElementById('gl-proto-exceptions').value.trim(),
   };
 
-  if (editingGuidelineId) {
-    const existing = allGuidelines.find(p => p.id === editingGuidelineId);
-    const merged   = { ...existing, ...proto };
-    await updateGuideline(merged);
-    allGuidelines = allGuidelines.map(p => p.id === editingGuidelineId ? merged : p);
-  } else {
-    const saved = await saveGuideline(proto);
-    allGuidelines.push(saved);
+  try {
+    if (editingGuidelineId) {
+      const existing = allGuidelines.find(p => p.id === editingGuidelineId);
+      const merged   = { ...existing, ...proto };
+      await updateGuideline(merged);
+      allGuidelines = allGuidelines.map(p => p.id === editingGuidelineId ? merged : p);
+    } else {
+      const saved = await saveGuideline(proto);
+      allGuidelines.push(saved);
+    }
+    editingGuidelineId = null;
+    document.getElementById('modal-gl-protocol').style.display = 'none';
+    renderGuidelines();
+  } catch (err) {
+    const errEl = document.getElementById('gl-proto-error');
+    errEl.textContent = `Unable to save protocol: ${err?.message || err}`;
+    errEl.style.display = 'block';
   }
-  editingGuidelineId = null;
-  document.getElementById('modal-gl-protocol').style.display = 'none';
-  renderGuidelines();
 });
 
 /* ══════════════════════════════════════════════════════════

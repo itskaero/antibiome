@@ -4,14 +4,16 @@
 //  Firestore / CDN resources, offline fallback to index.html.
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME  = 'antibiome-v1';
+const CACHE_NAME  = 'antibiome-v2';
 const STATIC_URLS = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/styles.css',
-  '/firebase-config.js',
-  '/manifest.json',
+  './',
+  './index.html',
+  './app.js',
+  './styles.css',
+  './firebase-config.js',
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
 ];
 
 // ── Install: pre-cache all static assets ────────────────────
@@ -59,7 +61,7 @@ self.addEventListener('fetch', event => {
         }
         return response;
       });
-      return cached || networkFetch.catch(() => caches.match('/index.html'));
+      return cached || networkFetch.catch(() => caches.match('./index.html'));
     })
   );
 });

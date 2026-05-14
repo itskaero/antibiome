@@ -200,6 +200,12 @@ function setPwaStatus(state, detail) {
   updatePwaStatusSummary();
 }
 
+function createClientId(prefix = 'antibiome') {
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 function updatePwaStatusSummary() {
   const stateEl = document.getElementById('home-pwa-state');
   const hintEl = document.getElementById('home-pwa-hint');
@@ -1268,7 +1274,7 @@ async function handleFormSubmit(e) {
   });
 
   const entry = {
-    id:           crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)),
+    id:           createClientId('culture'),
     patient_name: document.getElementById('f-patient-name').value.trim(),
     date,
     age_group:    ageGroup,
@@ -1708,7 +1714,7 @@ document.getElementById('gl-ward-modal-confirm').addEventListener('click', async
 
   try {
     const wardRecord = {
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+      id: createClientId('guideline'),
       ward: name,
       entry_type: 'ward',
     };
@@ -1744,7 +1750,7 @@ document.getElementById('gl-proto-modal-confirm').addEventListener('click', asyn
   document.getElementById('gl-proto-error').style.display = 'none';
 
   const proto = {
-    id:              editingGuidelineId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)),
+    id:              editingGuidelineId || createClientId('guideline'),
     ward:            currentGuidelineWard,
     infection_type:  type,
     organism_target: org,

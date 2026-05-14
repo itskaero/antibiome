@@ -195,7 +195,8 @@ export async function deleteGuideline(protocol) {
     return;
   }
   if (protocol._fbId) {
-    const pathTag = protocol._fbPath || 'scoped';
+    const { _fbPath } = protocol;
+    const pathTag = _fbPath || 'scoped';
     const scopedDocRef = doc(db, 'hospitals', GUIDELINES_HOSPITAL_ID, 'guidelines', protocol._fbId);
     const legacyDocRef = doc(db, 'guidelines', protocol._fbId);
     try {
@@ -219,7 +220,7 @@ export async function updateGuideline(protocol) {
   }
   if (protocol._fbId) {
     const { _fbId, _fbPath, _createdAt, ...data } = protocol;
-    const pathTag = protocol._fbPath || 'scoped';
+    const pathTag = _fbPath || 'scoped';
     const scopedDocRef = doc(db, 'hospitals', GUIDELINES_HOSPITAL_ID, 'guidelines', _fbId);
     const legacyDocRef = doc(db, 'guidelines', _fbId);
     try {

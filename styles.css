@@ -849,3 +849,32 @@ form .form-section {
   .header-actions { width: 100%; flex-wrap: wrap; }
   .filter-select { flex: 1 1 120px; }
 }
+
+/* ── Insights tidbits ─────────────────────────────────── */
+#tidbits-list strong { color: var(--text); }
+#tidbits-list em { font-style: italic; color: var(--text-dim); }
+
+/* ── Guidelines protocol cards ──────────────────────────── */
+.gl-proto-card { transition: border-color .18s; }
+
+/* ── PWA install banner (optional, keep minimal) ─────────── */
+#pwa-install-banner {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  z-index: 200;
+  font-size: 13px;
+  color: var(--text-dim);
+  max-width: 90vw;
+}
+
+#pwa-install-banner button { margin-left: 4px; }

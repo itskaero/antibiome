@@ -224,7 +224,7 @@ function dominantOrganismGroupLabel(data) {
   const counts = { 'gram-positive': 0, 'gram-negative': 0, fungal: 0, unknown: 0 };
   data.forEach(entry => { counts[getOrganismGroup(entry.organism)]++; });
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-  if (!top || !top[1]) return { label: 'Mixed', note: 'Capture more isolates for a clearer dominant pattern' };
+  if (!top || top[1] === 0) return { label: 'Mixed', note: 'Capture more isolates for a clearer dominant pattern' };
   const friendly = top[0] === 'gram-positive' ? 'Gram-positive' : top[0] === 'gram-negative' ? 'Gram-negative' : top[0] === 'fungal' ? 'Fungal' : 'Unclassified';
   return { label: friendly, note: `${top[1]} isolates currently match this group` };
 }
@@ -258,7 +258,7 @@ function buildStewardshipBriefing(data) {
     const lastMonthCount = data.filter(c => c.date?.startsWith(lastMonth)).length;
     const prevMonthCount = data.filter(c => c.date?.startsWith(prevMonth)).length;
     const delta = lastMonthCount - prevMonthCount;
-    const deltaText = prevMonth ? ` (${delta >= 0 ? '+' : ''}${delta} vs ${fmtMonth(prevMonth)})` : '';
+    const deltaText = ` (${delta >= 0 ? '+' : ''}${delta} vs ${fmtMonth(prevMonth)})`;
     items.push({ tone: 'neutral', text: `${fmtMonth(lastMonth)} recorded ${lastMonthCount} culture${lastMonthCount === 1 ? '' : 's'}${deltaText}.` });
   }
 

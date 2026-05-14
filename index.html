@@ -4,6 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Antibiome — Clinical Analytics</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#3b82f6" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Antibiome" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -12,6 +21,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Firebase -->
   <script type="module" src="firebase-config.js"></script>
+
+  <!-- Service Worker registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => console.log('[SW] registered, scope:', reg.scope))
+          .catch(err => console.warn('[SW] registration failed:', err));
+      });
+    }
+  </script>
 </head>
 <body>
 
@@ -58,6 +78,14 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           <span>Records</span>
         </button>
+        <button class="nav-item" data-page="insights">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <span>Insights</span>
+        </button>
+        <button class="nav-item" data-page="guidelines">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><polyline points="9 12 11 14 15 10"/></svg>
+          <span>Guidelines</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -87,6 +115,9 @@
               <option value="Neonate">Neonate (0-28d)</option>
               <option value="Infant">Infant (1-12m)</option>
               <option value="Child">Child (1-12y)</option>
+            </select>
+            <select id="home-filter-ward" class="filter-select">
+              <option value="">All Wards</option>
             </select>
             <input type="month" id="home-filter-month" class="filter-select" title="Filter by month" />
           </div>
@@ -175,6 +206,9 @@
             <select id="trend-filter-specimen" class="filter-select">
               <option value="">All Specimens</option>
             </select>
+            <select id="trend-filter-ward" class="filter-select">
+              <option value="">All Wards</option>
+            </select>
           </div>
         </div>
 
@@ -219,6 +253,16 @@
               <span class="chart-badge">Time Series</span>
             </div>
             <div class="chart-wrap"><canvas id="chart-specimen-monthly"></canvas></div>
+          </div>
+        </div>
+
+        <div class="charts-grid-2">
+          <div class="chart-card span-2">
+            <div class="chart-header">
+              <h3 class="chart-title">Cultures by Ward / Bay</h3>
+              <span class="chart-badge">Ward</span>
+            </div>
+            <div class="chart-wrap chart-tall"><canvas id="chart-ward"></canvas></div>
           </div>
         </div>
       </div>
@@ -391,6 +435,9 @@
             <select id="ab-filter-year" class="filter-select">
               <option value="">All Years</option>
             </select>
+            <select id="ab-filter-ward" class="filter-select">
+              <option value="">All Wards</option>
+            </select>
           </div>
         </div>
         <div class="table-scroll">
@@ -411,6 +458,11 @@
           <div>
             <h1 class="page-title">MDR Tracker</h1>
             <p class="page-sub">Multi-drug resistant organism surveillance (WHO/ECDC 2012 criteria)</p>
+          </div>
+          <div class="header-actions">
+            <select id="mdr-filter-ward" class="filter-select">
+              <option value="">All Wards</option>
+            </select>
           </div>
         </div>
 
@@ -494,6 +546,165 @@
           <div id="records-empty" class="empty-state" style="display:none">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
             <p>No records yet. Add a culture entry to get started.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ INSIGHTS PAGE ══ -->
+      <div class="page" id="page-insights">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Clinical Insights</h1>
+            <p class="page-sub">Intelligent analysis — antibiotic effectiveness, prevalence trends &amp; alerts</p>
+          </div>
+        </div>
+
+        <!-- GP / GN KPI row -->
+        <div class="kpi-grid" id="insights-kpi-grid">
+          <div class="kpi-card kpi-blue">
+            <div class="kpi-icon" style="color:#60a5fa"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg></div>
+            <div class="kpi-body"><p class="kpi-label">Gram-Positive</p><p class="kpi-value" id="ins-kpi-gp">0</p></div>
+          </div>
+          <div class="kpi-card kpi-purple">
+            <div class="kpi-icon" style="color:#a78bfa"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg></div>
+            <div class="kpi-body"><p class="kpi-label">Gram-Negative</p><p class="kpi-value" id="ins-kpi-gn">0</p></div>
+          </div>
+          <div class="kpi-card kpi-orange">
+            <div class="kpi-icon" style="color:#fb923c"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5c0 2.76-2.24 5-5 5s-5-2.24-5-5a5 5 0 0 1 5-5z"/><path d="M12 12c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z"/></svg></div>
+            <div class="kpi-body"><p class="kpi-label">Fungal</p><p class="kpi-value" id="ins-kpi-fungal">0</p></div>
+          </div>
+          <div class="kpi-card kpi-red">
+            <div class="kpi-icon" style="color:#f87171"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+            <div class="kpi-body"><p class="kpi-label">Alert Count</p><p class="kpi-value" id="ins-kpi-alerts">0</p></div>
+          </div>
+        </div>
+
+        <!-- Prevalence tidbits -->
+        <div class="card" id="insights-tidbits">
+          <h3 class="card-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            Prevalence &amp; Pattern Tidbits
+          </h3>
+          <div id="tidbits-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+
+        <!-- Antibiotic effectiveness per organism -->
+        <div class="card">
+          <h3 class="card-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+            Antibiotic Effectiveness by Organism
+          </h3>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Based on local susceptibility data. Threshold: ≥80% = likely effective, &lt;50% = avoid.</p>
+          <div id="insights-ab-table"></div>
+        </div>
+
+        <!-- Blank antibiogram alerts -->
+        <div class="card" id="blank-ab-card">
+          <h3 class="card-title" style="color:var(--orange)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Missing Susceptibility Data Alerts
+          </h3>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Antibiotics frequently used empirically but with no local susceptibility data for a given organism.</p>
+          <div id="blank-ab-list"></div>
+        </div>
+      </div>
+
+      <!-- ══ GUIDELINES PAGE ══ -->
+      <div class="page" id="page-guidelines">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Ward Guidelines</h1>
+            <p class="page-sub">1st / 2nd / 3rd line empirical antibiotic protocols per ward</p>
+          </div>
+          <div class="header-actions">
+            <select id="gl-ward-select" class="filter-select" style="min-width:160px">
+              <option value="">Select Ward…</option>
+            </select>
+            <button id="gl-new-ward-btn" class="btn-ghost-sm">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New Ward
+            </button>
+            <button id="gl-add-protocol-btn" class="btn-primary" style="display:none">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Protocol
+            </button>
+          </div>
+        </div>
+
+        <!-- Threshold info -->
+        <div id="gl-threshold-info" class="card" style="margin-bottom:18px;padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span style="font-size:13px;color:var(--text-dim)">Protocols highlighted in <span style="color:var(--orange)">orange</span> mean local susceptibility for that drug has dropped below the 70% safety threshold based on your antibiogram data.</span>
+        </div>
+
+        <div id="gl-empty" class="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
+          <p>Select a ward to view its protocols, or create a new ward.</p>
+        </div>
+
+        <div id="gl-protocols-area" style="display:none">
+          <h3 id="gl-ward-title" class="card-title" style="margin-bottom:16px;font-size:17px"></h3>
+          <div id="gl-protocols-list"></div>
+        </div>
+      </div>
+
+      <!-- Guidelines: new ward modal -->
+      <div id="modal-gl-ward" class="modal-overlay" style="display:none">
+        <div class="modal" style="max-width:360px">
+          <h3>New Ward / Unit</h3>
+          <p>Enter a name for the ward (e.g. NICU, Pediatric Ward A).</p>
+          <input type="text" id="gl-new-ward-input" class="form-input" style="width:100%;margin-bottom:16px" placeholder="Ward name" />
+          <div class="modal-actions">
+            <button id="gl-ward-modal-cancel" class="btn-outline">Cancel</button>
+            <button id="gl-ward-modal-confirm" class="btn-primary">Create</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guidelines: add/edit protocol modal -->
+      <div id="modal-gl-protocol" class="modal-overlay" style="display:none">
+        <div class="modal" style="max-width:480px;width:96%">
+          <h3 id="gl-proto-modal-title">Add Protocol</h3>
+          <p style="margin-bottom:16px">Define infection type, antibiotic lines, and any exceptions.</p>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="form-group">
+              <label class="form-label">Infection Type <span class="required">*</span></label>
+              <select id="gl-proto-type" class="form-input">
+                <option value="">— Select —</option>
+                <option>BSI (Bloodstream Infection)</option>
+                <option>UTI (Urinary Tract Infection)</option>
+                <option>Pneumonia / LRTI</option>
+                <option>Wound / SSTI</option>
+                <option>CNS / Meningitis</option>
+                <option>Intra-abdominal</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Target Organism / Group <span class="required">*</span></label>
+              <input type="text" id="gl-proto-organism" class="form-input" placeholder="e.g. Gram-negative, S. aureus, Any" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">1st Line Antibiotic(s)</label>
+              <input type="text" id="gl-proto-1st" class="form-input" placeholder="e.g. Ampicillin + Gentamicin" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">2nd Line Antibiotic(s)</label>
+              <input type="text" id="gl-proto-2nd" class="form-input" placeholder="e.g. Meropenem" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">3rd Line / Salvage</label>
+              <input type="text" id="gl-proto-3rd" class="form-input" placeholder="e.g. Vancomycin + Colistin" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Exceptions / Notes</label>
+              <textarea id="gl-proto-exceptions" class="form-input" rows="2" placeholder="e.g. Avoid Ceftriaxone — local resistance ≥60%"></textarea>
+            </div>
+          </div>
+          <div id="gl-proto-error" class="form-error" style="display:none;margin-top:8px"></div>
+          <div class="modal-actions" style="margin-top:16px">
+            <button id="gl-proto-modal-cancel" class="btn-outline">Cancel</button>
+            <button id="gl-proto-modal-confirm" class="btn-primary">Save Protocol</button>
           </div>
         </div>
       </div>

@@ -1,9 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-//  app.js  —  NICU Antibiogram  (vanilla JS, Chart.js 4)
+//  app.js  —  Antibiome Clinical Analytics  (vanilla JS, Chart.js 4)
 // ═══════════════════════════════════════════════════════════
 
-import { saveCulture, loadCultures, deleteCulture, subscribeCultures, updateCulture, useFirebase }
-  from './firebase-config.js';
+import {
+  saveCulture, loadCultures, deleteCulture, subscribeCultures, updateCulture, useFirebase,
+  loadGuidelines, saveGuideline, deleteGuideline, updateGuideline, GUIDELINES_PASSCODE
+} from './firebase-config.js';
 
 /* ══════════════════════════════════════════════════════════
    DATA CONSTANTS
@@ -91,6 +93,69 @@ const PALETTE = [
   '#0ea5e9','#d946ef','#22c55e','#fb923c','#818cf8',
 ];
 
+/* ══════════════════════════════════════════════════════════
+   ORGANISM GROUP MAPS  (for MDR classification)
+   Follows WHO/ECDC 2012 categorisation
+══════════════════════════════════════════════════════════ */
+
+// Set of gram-positive organism name fragments (lowercase)
+const GRAM_POSITIVE_SET = new Set([
+  'staphylococcus aureus', 'staphylococcus epidermidis', 'staphylococcus haemolyticus',
+  'coagulase-negative staphylococci', 'cons',
+  'enterococcus faecalis', 'enterococcus faecium',
+  'streptococcus agalactiae', 'streptococcus pneumoniae', 'streptococcus pyogenes',
+  'streptococcus viridans', 'listeria monocytogenes',
+]);
+const GRAM_NEGATIVE_SET = new Set([
+  'acinetobacter baumannii', 'burkholderia cepacia',
+  'citrobacter freundii', 'citrobacter koseri',
+  'enterobacter cloacae', 'enterobacter aerogenes', 'klebsiella aerogenes',
+  'escherichia coli', 'haemophilus influenzae',
+  'klebsiella oxytoca', 'klebsiella pneumoniae',
+  'morganella morganii', 'proteus mirabilis', 'proteus vulgaris',
+  'providencia stuartii', 'pseudomonas aeruginosa', 'salmonella',
+  'serratia marcescens', 'stenotrophomonas maltophilia',
+]);
+const FUNGAL_SET = new Set([
+  'candida albicans', 'candida auris', 'candida glabrata', 'candida krusei',
+  'candida parapsilosis', 'candida tropicalis', 'aspergillus fumigatus',
+]);
+
+/**
+ * Returns 'gram-positive' | 'gram-negative' | 'fungal' | 'unknown'
+ */
+function getOrganismGroup(organism) {
+  if (!organism) return 'unknown';
+  const lc = organism.toLowerCase();
+  for (const key of GRAM_POSITIVE_SET) { if (lc.includes(key)) return 'gram-positive'; }
+  for (const key of GRAM_NEGATIVE_SET) { if (lc.includes(key)) return 'gram-negative'; }
+  for (const key of FUNGAL_SET)        { if (lc.includes(key)) return 'fungal'; }
+  return 'unknown';
+}
+
+// Relevant antibiotic categories per organism group (WHO/ECDC 2012)
+const MDR_RELEVANT_CATEGORIES = {
+  'gram-positive': [
+    'Penicillins', 'Cephalosporins', 'Carbapenems',
+    'Aminoglycosides', 'Fluoroquinolones', 'Macrolides',
+    'Lincosamides', 'Glycopeptides', 'Oxazolidinones',
+    'Tetracyclines', 'Sulfonamides', 'Rifamycins', 'Lipopeptides',
+  ],
+  'gram-negative': [
+    'Penicillins', 'Cephalosporins', 'Carbapenems',
+    'Aminoglycosides', 'Fluoroquinolones', 'Polymyxins',
+    'Monobactams', 'Sulfonamides', 'Tetracyclines', 'Phenicols',
+  ],
+  'fungal': [
+    // Use generic fallback — antifungals don't map to standard AB classes here
+  ],
+  'unknown': [
+    'Penicillins', 'Cephalosporins', 'Carbapenems',
+    'Aminoglycosides', 'Fluoroquinolones', 'Glycopeptides',
+    'Macrolides', 'Polymyxins',
+  ],
+};
+
 /* Chart.js global defaults */
 Chart.defaults.color          = '#64748b';
 Chart.defaults.borderColor    = '#1e2d45';
@@ -107,10 +172,14 @@ Chart.defaults.plugins.tooltip.bodyColor       = '#94a3b8';
 /* ══════════════════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════════════════ */
-let allCultures  = [];
+let allCultures    = [];
+let allGuidelines  = [];
 let chartInstances = {};
 let pendingDeleteId = null;
 let editingId = null;
+// Guidelines state
+let currentGuidelineWard = null;
+let editingGuidelineId   = null;
 
 /* ══════════════════════════════════════════════════════════
    BACKGROUND CANVAS ANIMATION
@@ -199,36 +268,47 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 });
 
 function renderActivePage(page) {
-  if (page === 'home')        { populateSpecimenFilters(); renderHome(); }
-  if (page === 'trends')      { populateTrendFilters(); renderTrends(); }
-  if (page === 'antibiogram') { populateABFilters(); renderAntibiogram(); }
-  if (page === 'mdr')         { renderMDR(); }
+  if (page === 'home')        { populateSpecimenFilters(); populateWardFilters(); renderHome(); }
+  if (page === 'trends')      { populateTrendFilters(); populateWardFilters(); renderTrends(); }
+  if (page === 'antibiogram') { populateABFilters(); populateWardFilters(); renderAntibiogram(); }
+  if (page === 'mdr')         { populateWardFilters(); renderMDR(); }
   if (page === 'records')     { renderRecords(); }
+  if (page === 'insights')    { renderInsights(); }
+  if (page === 'guidelines')  { renderGuidelines(); }
 }
 
 /* ══════════════════════════════════════════════════════════
-   MDR LOGIC
+   MDR LOGIC  (WHO/ECDC 2012 organism-aware)
 ══════════════════════════════════════════════════════════ */
-function isMDR(entry) {
-  const rc = new Set();
-  (entry.antibiotics || []).forEach(({ name, result }) => {
-    if (result === 'R' || result === 'I') {
-      const cls = DRUG_TO_CLASS[name];
-      if (cls) rc.add(cls);
-    }
-  });
-  return rc.size >= 3;
-}
 
-function resistantClasses(entry) {
-  const rc = new Set();
+/**
+ * Returns resistant/intermediate classes that are *relevant* to the
+ * organism's group, per WHO/ECDC 2012 categories.
+ */
+function relevantResistantClasses(entry) {
+  const group      = getOrganismGroup(entry.organism);
+  const categories = MDR_RELEVANT_CATEGORIES[group] || MDR_RELEVANT_CATEGORIES['unknown'];
+  const rc         = new Set();
   (entry.antibiotics || []).forEach(({ name, result }) => {
     if (result === 'R' || result === 'I') {
       const cls = DRUG_TO_CLASS[name];
-      if (cls) rc.add(cls);
+      if (cls && categories.includes(cls)) rc.add(cls);
     }
   });
   return [...rc];
+}
+
+/**
+ * An isolate is MDR if it is non-susceptible (R or I) to ≥1 agent in
+ * ≥3 relevant antimicrobial categories for its organism group.
+ */
+function isMDR(entry) {
+  return relevantResistantClasses(entry).length >= 3;
+}
+
+/** Kept for backward compat — returns same relevant resistant classes. */
+function resistantClasses(entry) {
+  return relevantResistantClasses(entry);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -237,11 +317,13 @@ function resistantClasses(entry) {
 function getHomeFiltered() {
   const specimen  = document.getElementById('home-filter-specimen').value;
   const ageGroup  = document.getElementById('home-filter-agegroup').value;
-  const month     = document.getElementById('home-filter-month').value;   // "YYYY-MM"
+  const month     = document.getElementById('home-filter-month').value;
+  const ward      = document.getElementById('home-filter-ward').value;
   return allCultures.filter(c => {
     if (specimen && c.specimen !== specimen) return false;
     if (ageGroup && c.age_group !== ageGroup) return false;
     if (month && !c.date?.startsWith(month)) return false;
+    if (ward && c.ward !== ward) return false;
     return true;
   });
 }
@@ -249,9 +331,19 @@ function getHomeFiltered() {
 function getTrendFiltered() {
   const organism  = document.getElementById('trend-filter-organism').value;
   const specimen  = document.getElementById('trend-filter-specimen').value;
+  const ward      = document.getElementById('trend-filter-ward').value;
   return allCultures.filter(c => {
     if (organism && c.organism !== organism) return false;
     if (specimen && c.specimen !== specimen) return false;
+    if (ward && c.ward !== ward) return false;
+    return true;
+  });
+}
+
+function getMDRFiltered() {
+  const ward = document.getElementById('mdr-filter-ward')?.value || '';
+  return allCultures.filter(c => {
+    if (ward && c.ward !== ward) return false;
     return true;
   });
 }
@@ -266,6 +358,18 @@ function populateSpecimenFilters() {
     const cur = sel.value;
     while (sel.options.length > 1) sel.remove(1);
     SPECIMEN_TYPES.forEach(s => { const o = new Option(s, s); sel.add(o); });
+    sel.value = cur;
+  });
+}
+
+function populateWardFilters() {
+  const wards = [...new Set(allCultures.map(c => c.ward).filter(Boolean))].sort();
+  ['home-filter-ward','trend-filter-ward','ab-filter-ward','mdr-filter-ward'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    while (sel.options.length > 1) sel.remove(1);
+    wards.forEach(w => sel.add(new Option(w, w)));
     sel.value = cur;
   });
 }
@@ -469,6 +573,35 @@ function renderTrends() {
     data: { labels: months.map(fmtMonth), datasets: specLineDatasets },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, grid: { color: '#1e2d45' } }, x: { grid: { display: false } } } }
   });
+
+  // ── Cultures by Ward (stacked bar per month)
+  const wards = [...new Set(data.map(c => c.ward).filter(Boolean))].sort();
+  if (wards.length) {
+    const wardDatasets = wards.map((w, i) => ({
+      label: w,
+      data: months.map(m => data.filter(c => c.date?.startsWith(m) && c.ward === w).length),
+      backgroundColor: PALETTE[i % PALETTE.length],
+      borderRadius: 3,
+      stack: 'w',
+    }));
+    makeChart('chart-ward', {
+      type: 'bar',
+      data: { labels: months.map(fmtMonth), datasets: wardDatasets },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: '#1e2d45' } } } }
+    });
+  } else {
+    // No ward data — show placeholder
+    if (chartInstances['chart-ward']) { chartInstances['chart-ward'].destroy(); delete chartInstances['chart-ward']; }
+    const cv = document.getElementById('chart-ward');
+    if (cv) {
+      const ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '13px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No ward data recorded yet — add ward/bay to culture entries.', cv.width / 2, cv.height / 2 || 60);
+    }
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -477,9 +610,11 @@ function renderTrends() {
 function renderAntibiogram() {
   const specFilter = document.getElementById('ab-filter-specimen')?.value || '';
   const yearFilter = document.getElementById('ab-filter-year')?.value || '';
+  const wardFilter = document.getElementById('ab-filter-ward')?.value || '';
   const data = allCultures.filter(c => {
     if (specFilter && c.specimen !== specFilter) return false;
     if (yearFilter && c.date?.slice(0, 4) !== yearFilter) return false;
+    if (wardFilter && c.ward !== wardFilter) return false;
     return true;
   });
 
@@ -538,8 +673,9 @@ function renderAntibiogram() {
    MDR PAGE
 ══════════════════════════════════════════════════════════ */
 function renderMDR() {
-  const mdrCases = allCultures.filter(isMDR);
-  const total    = allCultures.length;
+  const filtered = getMDRFiltered();
+  const mdrCases = filtered.filter(isMDR);
+  const total    = filtered.length;
   const rate     = total ? Math.round(mdrCases.length / total * 100) : 0;
   const mdrOrgs  = new Set(mdrCases.map(c => c.organism).filter(Boolean)).size;
 
@@ -548,10 +684,10 @@ function renderMDR() {
   document.getElementById('mdr-kpi-orgs').textContent  = mdrOrgs;
 
   // MDR trend chart
-  const months = sortedMonths(allCultures);
-  const mdrByM  = months.map(m => allCultures.filter(c => c.date?.startsWith(m) && isMDR(c)).length);
+  const months = sortedMonths(filtered);
+  const mdrByM  = months.map(m => filtered.filter(c => c.date?.startsWith(m) && isMDR(c)).length);
   const pctByM  = months.map((m, i) => {
-    const tot = allCultures.filter(c => c.date?.startsWith(m)).length;
+    const tot = filtered.filter(c => c.date?.startsWith(m)).length;
     return tot ? Math.round(mdrByM[i] / tot * 100) : 0;
   });
   makeChart('chart-mdr-trend', {
@@ -594,6 +730,8 @@ function renderMDR() {
   empty.style.display = 'none';
   mdrCases.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(c => {
     const cls = resistantClasses(c);
+    const group = getOrganismGroup(c.organism);
+    const tooltip = `MDR: non-susceptible in ${cls.length} relevant categories (${cls.join(', ')}) — organism group: ${group}`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${c.date || '—'}</td>
@@ -601,7 +739,7 @@ function renderMDR() {
       <td>${c.age_group || '—'}</td>
       <td>${c.organism || '—'}</td>
       <td>${c.specimen || '—'}</td>
-      <td><small style="color:#f87171">${cls.join(', ')}</small></td>
+      <td><small style="color:#f87171" title="${tooltip}">${cls.join(', ')}</small></td>
     `;
     tbody.appendChild(tr);
   });
@@ -661,7 +799,12 @@ function renderRecords() {
 function openViewModal(id) {
   const entry = allCultures.find(e => e.id === id);
   if (!entry) return;
-  const mdr = isMDR(entry);
+  const mdr   = isMDR(entry);
+  const group = getOrganismGroup(entry.organism);
+  const rCls  = resistantClasses(entry);
+  const mdrNote = mdr
+    ? `<span class="badge-mdr" title="Non-susceptible in ${rCls.length} categories: ${rCls.join(', ')}">MDR</span> <small style="color:#64748b;font-size:11px">(${rCls.join(', ')})</small>`
+    : '<span class="badge-ok">Non-MDR</span>';
   const abRows = (entry.antibiotics || []).map(ab => {
     const cls = ab.result === 'S' ? 'pct-high' : ab.result === 'I' ? 'pct-mid' : 'pct-low';
     return `<tr><td>${ab.name}</td><td><span class="pct-cell ${cls}">${ab.result}</span></td></tr>`;
@@ -673,8 +816,8 @@ function openViewModal(id) {
       <div class="view-field"><span class="view-label">Age Group</span><span class="view-val">${entry.age_group || '\u2014'}</span></div>
       <div class="view-field"><span class="view-label">Ward</span><span class="view-val">${entry.ward || '\u2014'}</span></div>
       <div class="view-field"><span class="view-label">Specimen</span><span class="view-val">${entry.specimen || '\u2014'}</span></div>
-      <div class="view-field"><span class="view-label">Organism</span><span class="view-val">${entry.organism || '\u2014'}</span></div>
-      <div class="view-field"><span class="view-label">MDR Status</span><span class="view-val">${mdr ? '<span class="badge-mdr">MDR</span>' : '<span class="badge-ok">Non-MDR</span>'}</span></div>
+      <div class="view-field"><span class="view-label">Organism</span><span class="view-val">${entry.organism || '\u2014'} <small style="color:var(--text-muted)">(${group})</small></span></div>
+      <div class="view-field" style="grid-column:span 2"><span class="view-label">MDR Status</span><span class="view-val">${mdrNote}</span></div>
     </div>
     ${abRows
       ? `<div class="view-ab-section"><p class="view-label" style="margin-bottom:8px">Antibiotic Susceptibility</p><table class="data-table"><thead><tr><th>Antibiotic</th><th>Result</th></tr></thead><tbody>${abRows}</tbody></table></div>`
@@ -931,15 +1074,16 @@ function showFormError(msg) {
 /* ══════════════════════════════════════════════════════════
    FILTER EVENT LISTENERS (re-render on change)
 ══════════════════════════════════════════════════════════ */
-['home-filter-specimen','home-filter-agegroup','home-filter-month'].forEach(id => {
+['home-filter-specimen','home-filter-agegroup','home-filter-month','home-filter-ward'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', renderHome);
 });
-['trend-filter-organism','trend-filter-specimen'].forEach(id => {
+['trend-filter-organism','trend-filter-specimen','trend-filter-ward'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', renderTrends);
 });
-['ab-filter-specimen','ab-filter-year'].forEach(id => {
+['ab-filter-specimen','ab-filter-year','ab-filter-ward'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', renderAntibiogram);
 });
+document.getElementById('mdr-filter-ward')?.addEventListener('change', renderMDR);
 
 /* ══════════════════════════════════════════════════════════
    CONNECTION STATUS UI
@@ -952,13 +1096,359 @@ function setStatus(state, label) {
 }
 
 /* ══════════════════════════════════════════════════════════
+   INSIGHTS PAGE
+══════════════════════════════════════════════════════════ */
+function renderInsights() {
+  const data = allCultures;
+  if (!data.length) {
+    document.getElementById('tidbits-list').innerHTML = '<p style="color:var(--text-muted);font-size:13px">No data yet. Add culture entries to see insights.</p>';
+    document.getElementById('insights-ab-table').innerHTML = '';
+    document.getElementById('blank-ab-list').innerHTML = '';
+    ['ins-kpi-gp','ins-kpi-gn','ins-kpi-fungal','ins-kpi-alerts'].forEach(id => {
+      document.getElementById(id).textContent = '0';
+    });
+    return;
+  }
+
+  // ── GP / GN / Fungal KPIs
+  const gpCount     = data.filter(c => getOrganismGroup(c.organism) === 'gram-positive').length;
+  const gnCount     = data.filter(c => getOrganismGroup(c.organism) === 'gram-negative').length;
+  const fungalCount = data.filter(c => getOrganismGroup(c.organism) === 'fungal').length;
+  document.getElementById('ins-kpi-gp').textContent     = gpCount;
+  document.getElementById('ins-kpi-gn').textContent     = gnCount;
+  document.getElementById('ins-kpi-fungal').textContent = fungalCount;
+
+  // ── Prevalence tidbits
+  const tidbits = [];
+  const months = sortedMonths(data);
+  const lastMonth  = months[months.length - 1];
+  const prevMonth  = months[months.length - 2];
+
+  // Top organism this month vs last
+  if (lastMonth) {
+    const thisMonthData = data.filter(c => c.date?.startsWith(lastMonth));
+    const prevMonthData = prevMonth ? data.filter(c => c.date?.startsWith(prevMonth)) : [];
+    if (thisMonthData.length) {
+      const orgMap   = countBy(thisMonthData, 'organism');
+      const topOrg   = Object.entries(orgMap).sort((a,b)=>b[1]-a[1])[0];
+      if (topOrg) {
+        const pct = Math.round(topOrg[1] / thisMonthData.length * 100);
+        const prevOrgMap = countBy(prevMonthData, 'organism');
+        const prevPct = prevMonthData.length && prevOrgMap[topOrg[0]]
+          ? Math.round(prevOrgMap[topOrg[0]] / prevMonthData.length * 100) : null;
+        const delta = prevPct !== null ? (pct - prevPct) : null;
+        const deltaStr = delta !== null ? (delta >= 0 ? ` — ${delta} pp above last month ▲` : ` — ${Math.abs(delta)} pp below last month ▼`) : '';
+        tidbits.push({ type:'info', msg: `${fmtMonth(lastMonth)}: <strong>${topOrg[0]}</strong> is the top organism, accounting for ${pct}% of isolates (n=${topOrg[1]})${deltaStr}.` });
+      }
+    }
+
+    // MDR trend
+    if (months.length >= 3) {
+      const last3 = months.slice(-3);
+      const mdrPcts = last3.map(m => {
+        const md = data.filter(c => c.date?.startsWith(m));
+        return md.length ? Math.round(md.filter(isMDR).length / md.length * 100) : 0;
+      });
+      const rising = mdrPcts[0] < mdrPcts[1] && mdrPcts[1] < mdrPcts[2];
+      const falling = mdrPcts[0] > mdrPcts[1] && mdrPcts[1] > mdrPcts[2];
+      if (rising) {
+        tidbits.push({ type:'warn', msg: `MDR rate has risen for 3 consecutive months (${mdrPcts.join('% → ')}%) — consider reviewing empiric protocols.` });
+      } else if (falling) {
+        tidbits.push({ type:'good', msg: `MDR rate has fallen for 3 consecutive months (${mdrPcts.join('% → ')}%) — current protocols appear effective.` });
+      }
+    }
+  }
+
+  // Dominant organism group
+  if (gpCount > gnCount * 1.5) {
+    tidbits.push({ type:'info', msg: `Gram-positive organisms dominate (${gpCount} vs ${gnCount} gram-negative) — consider cover for <em>Staphylococci</em> and <em>Enterococci</em>.` });
+  } else if (gnCount > gpCount * 1.5) {
+    tidbits.push({ type:'info', msg: `Gram-negative organisms dominate (${gnCount} vs ${gpCount} gram-positive) — extended-spectrum coverage may be warranted.` });
+  }
+
+  // Total isolates
+  tidbits.push({ type:'stat', msg: `Total isolates in database: <strong>${data.length}</strong> | MDR: <strong>${data.filter(isMDR).length}</strong> (${data.length ? Math.round(data.filter(isMDR).length/data.length*100) : 0}%)` });
+
+  const tidbitIcons = { info:'ℹ️', warn:'⚠️', good:'✅', stat:'📊' };
+  document.getElementById('tidbits-list').innerHTML = tidbits.length
+    ? tidbits.map(t => `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--text-dim)">${tidbitIcons[t.type] || ''} ${t.msg}</div>`).join('')
+    : '<p style="color:var(--text-muted);font-size:13px">Not enough data to generate tidbits yet.</p>';
+
+  // ── Antibiotic effectiveness per organism
+  const rawAB = {};
+  data.forEach(entry => {
+    const org = entry.organism;
+    if (!org) return;
+    if (!rawAB[org]) rawAB[org] = {};
+    (entry.antibiotics || []).forEach(({ name, result }) => {
+      if (!name || !['S','I','R'].includes(result)) return;
+      if (!rawAB[org][name]) rawAB[org][name] = { S:0, I:0, R:0 };
+      rawAB[org][name][result]++;
+    });
+  });
+
+  const topOrgs = Object.entries(countBy(data,'organism')).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([o])=>o);
+  let abHtml = '';
+  topOrgs.forEach(org => {
+    const drugs = rawAB[org] || {};
+    const rows = Object.entries(drugs).map(([drug, counts]) => {
+      const total = counts.S + counts.I + counts.R;
+      const pct   = total ? Math.round(counts.S / total * 100) : null;
+      if (pct === null) return null;
+      const cls   = pct >= 80 ? 'pct-high' : pct >= 50 ? 'pct-mid' : 'pct-low';
+      const reco  = pct >= 80 ? '✅ Likely effective' : pct < 50 ? '🚫 Avoid / High resistance' : '⚠️ Use with caution';
+      return `<tr><td>${drug}</td><td><span class="pct-cell ${cls}">${pct}%</span></td><td style="font-size:12px;color:var(--text-muted)">${reco}</td><td style="font-size:11px;color:var(--text-muted)">${total} isolates</td></tr>`;
+    }).filter(Boolean).sort((a,b) => {
+      // Sort: high pct first
+      const pa = parseInt(a.match(/(\d+)%/)?.[1] || '0');
+      const pb = parseInt(b.match(/(\d+)%/)?.[1] || '0');
+      return pb - pa;
+    });
+    if (!rows.length) return;
+    const groupLabel = getOrganismGroup(org);
+    abHtml += `
+      <div style="margin-bottom:20px">
+        <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">${org} <small style="color:var(--text-muted);font-weight:400">(${groupLabel})</small></h4>
+        <div class="table-scroll"><table class="data-table" style="font-size:12px">
+          <thead><tr><th>Antibiotic</th><th>%S (susceptible)</th><th>Recommendation</th><th>n</th></tr></thead>
+          <tbody>${rows.join('')}</tbody>
+        </table></div>
+      </div>`;
+  });
+  document.getElementById('insights-ab-table').innerHTML = abHtml || '<p style="color:var(--text-muted);font-size:13px">No antibiotic susceptibility data yet.</p>';
+
+  // ── Blank antibiogram alerts
+  // Common empiric antibiotics — flag if no local data for a common organism
+  const COMMON_EMPIRIC = ['Ampicillin','Gentamicin','Meropenem','Vancomycin','Piperacillin-Tazobactam','Ceftriaxone','Amikacin','Ciprofloxacin'];
+  const alertItems = [];
+  topOrgs.forEach(org => {
+    COMMON_EMPIRIC.forEach(drug => {
+      const counts = (rawAB[org] || {})[drug];
+      if (!counts) {
+        alertItems.push(`<li style="margin-bottom:6px;font-size:13px;color:var(--text-dim)"><strong>${drug}</strong> — no local susceptibility data for <em>${org}</em></li>`);
+      }
+    });
+  });
+  document.getElementById('ins-kpi-alerts').textContent = alertItems.length;
+  document.getElementById('blank-ab-list').innerHTML = alertItems.length
+    ? `<ul style="padding-left:18px">${alertItems.join('')}</ul>`
+    : '<p style="color:var(--green);font-size:13px">✅ All common empiric antibiotics have susceptibility data for the top organisms.</p>';
+}
+
+/* ══════════════════════════════════════════════════════════
+   GUIDELINES PAGE
+══════════════════════════════════════════════════════════ */
+
+/** Compute local susceptibility % for a drug against an organism. Returns null if no data. */
+function localSusceptibility(drug, organism) {
+  const entries = allCultures.filter(c => c.organism === organism);
+  let S=0, total=0;
+  entries.forEach(e => {
+    (e.antibiotics||[]).forEach(ab => {
+      if (ab.name === drug) {
+        total++;
+        if (ab.result === 'S') S++;
+      }
+    });
+  });
+  return total >= 3 ? Math.round(S / total * 100) : null;
+}
+
+function renderGuidelines() {
+  const wards = [...new Set(allGuidelines.map(p => p.ward).filter(Boolean))].sort();
+
+  // Populate ward select
+  const wsel = document.getElementById('gl-ward-select');
+  const curWard = wsel.value;
+  while (wsel.options.length > 1) wsel.remove(1);
+  wards.forEach(w => wsel.add(new Option(w, w)));
+  if (curWard && wards.includes(curWard)) wsel.value = curWard;
+
+  const selectedWard = wsel.value;
+  const addBtn = document.getElementById('gl-add-protocol-btn');
+
+  if (!selectedWard) {
+    document.getElementById('gl-empty').style.display = '';
+    document.getElementById('gl-protocols-area').style.display = 'none';
+    addBtn.style.display = 'none';
+    return;
+  }
+
+  document.getElementById('gl-empty').style.display = 'none';
+  document.getElementById('gl-protocols-area').style.display = '';
+  addBtn.style.display = '';
+  document.getElementById('gl-ward-title').textContent = selectedWard + ' — Protocols';
+  currentGuidelineWard = selectedWard;
+
+  const protocols = allGuidelines.filter(p => p.ward === selectedWard);
+  const container = document.getElementById('gl-protocols-list');
+  container.innerHTML = '';
+
+  if (!protocols.length) {
+    container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">No protocols defined for this ward yet. Click "Add Protocol" to add one.</p>';
+    return;
+  }
+
+  protocols.forEach(proto => {
+    // Check drug susceptibility threshold
+    const THRESHOLD = 70;
+    const linesToCheck = [proto.line1, proto.line2, proto.line3].filter(Boolean);
+    let belowThreshold = false;
+    const alertDrugs = [];
+    linesToCheck.forEach(line => {
+      line.split(/[,+/]/).map(d => d.trim()).filter(Boolean).forEach(drug => {
+        const drugName = ALL_ANTIBIOTICS.find(ab => ab.name.toLowerCase() === drug.toLowerCase())?.name || drug;
+        const pct = localSusceptibility(drugName, proto.organism_target);
+        if (pct !== null && pct < THRESHOLD) {
+          belowThreshold = true;
+          alertDrugs.push(`${drugName} (${pct}% susceptible)`);
+        }
+      });
+    });
+
+    const borderColor = belowThreshold ? 'var(--orange)' : 'var(--border)';
+    const alertBanner = belowThreshold
+      ? `<div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:6px;padding:8px 12px;margin-top:10px;font-size:12px;color:var(--orange)">⚠️ Local susceptibility below ${THRESHOLD}% threshold: ${alertDrugs.join('; ')}. Consider reviewing this protocol.</div>`
+      : '';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.borderColor = borderColor;
+    card.style.marginBottom = '14px';
+    card.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">${proto.infection_type || '—'}</span>
+            <span style="font-size:13px;color:var(--text-dim)">Target: <strong style="color:var(--text)">${proto.organism_target || 'Any'}</strong></span>
+          </div>
+          <div style="display:grid;gap:5px">
+            ${proto.line1 ? `<div style="font-size:13px"><span style="color:var(--green);font-weight:600;min-width:60px;display:inline-block">1st Line:</span> ${proto.line1}</div>` : ''}
+            ${proto.line2 ? `<div style="font-size:13px"><span style="color:var(--yellow);font-weight:600;min-width:60px;display:inline-block">2nd Line:</span> ${proto.line2}</div>` : ''}
+            ${proto.line3 ? `<div style="font-size:13px"><span style="color:var(--orange);font-weight:600;min-width:60px;display:inline-block">3rd Line:</span> ${proto.line3}</div>` : ''}
+            ${proto.exceptions ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;border-left:2px solid var(--border2);padding-left:8px"><em>${proto.exceptions}</em></div>` : ''}
+          </div>
+          ${alertBanner}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn-outline gl-edit-proto" data-id="${proto.id}" style="padding:5px 10px;font-size:12px">Edit</button>
+          <button class="btn-danger gl-del-proto" data-id="${proto.id}" style="padding:5px 10px;font-size:12px">Delete</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  container.querySelectorAll('.gl-edit-proto').forEach(btn => {
+    btn.addEventListener('click', () => openGuidelineProtocolModal(btn.dataset.id));
+  });
+  container.querySelectorAll('.gl-del-proto').forEach(btn => {
+    btn.addEventListener('click', () => deleteGuidelineProtocol(btn.dataset.id));
+  });
+}
+
+function openGuidelineProtocolModal(editId = null) {
+  editingGuidelineId = editId || null;
+  const proto = editId ? allGuidelines.find(p => p.id === editId) : null;
+  document.getElementById('gl-proto-modal-title').textContent = editId ? 'Edit Protocol' : 'Add Protocol';
+  document.getElementById('gl-proto-type').value       = proto?.infection_type || '';
+  document.getElementById('gl-proto-organism').value   = proto?.organism_target || '';
+  document.getElementById('gl-proto-1st').value        = proto?.line1 || '';
+  document.getElementById('gl-proto-2nd').value        = proto?.line2 || '';
+  document.getElementById('gl-proto-3rd').value        = proto?.line3 || '';
+  document.getElementById('gl-proto-exceptions').value = proto?.exceptions || '';
+  document.getElementById('gl-proto-error').style.display = 'none';
+  document.getElementById('modal-gl-protocol').style.display = 'grid';
+}
+
+async function deleteGuidelineProtocol(id) {
+  const proto = allGuidelines.find(p => p.id === id);
+  if (!proto) return;
+  if (!confirm('Delete this protocol?')) return;
+  await deleteGuideline(proto);
+  allGuidelines = allGuidelines.filter(p => p.id !== id);
+  renderGuidelines();
+}
+
+// Wire up guidelines buttons
+document.getElementById('gl-ward-select').addEventListener('change', () => {
+  currentGuidelineWard = document.getElementById('gl-ward-select').value;
+  renderGuidelines();
+});
+
+document.getElementById('gl-new-ward-btn').addEventListener('click', () => {
+  document.getElementById('gl-new-ward-input').value = '';
+  document.getElementById('modal-gl-ward').style.display = 'grid';
+});
+
+document.getElementById('gl-ward-modal-cancel').addEventListener('click', () => {
+  document.getElementById('modal-gl-ward').style.display = 'none';
+});
+
+document.getElementById('gl-ward-modal-confirm').addEventListener('click', () => {
+  const name = document.getElementById('gl-new-ward-input').value.trim();
+  if (!name) return;
+  document.getElementById('modal-gl-ward').style.display = 'none';
+  currentGuidelineWard = name;
+  // Add a placeholder protocol so ward appears; just set selection
+  document.getElementById('gl-ward-select').add(new Option(name, name));
+  document.getElementById('gl-ward-select').value = name;
+  renderGuidelines();
+});
+
+document.getElementById('gl-add-protocol-btn').addEventListener('click', () => {
+  openGuidelineProtocolModal();
+});
+
+document.getElementById('gl-proto-modal-cancel').addEventListener('click', () => {
+  document.getElementById('modal-gl-protocol').style.display = 'none';
+  editingGuidelineId = null;
+});
+
+document.getElementById('gl-proto-modal-confirm').addEventListener('click', async () => {
+  const type = document.getElementById('gl-proto-type').value;
+  const org  = document.getElementById('gl-proto-organism').value.trim();
+  if (!type || !org) {
+    const errEl = document.getElementById('gl-proto-error');
+    errEl.textContent = 'Infection type and target organism are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  document.getElementById('gl-proto-error').style.display = 'none';
+
+  const proto = {
+    id:              editingGuidelineId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)),
+    ward:            currentGuidelineWard,
+    infection_type:  type,
+    organism_target: org,
+    line1:           document.getElementById('gl-proto-1st').value.trim(),
+    line2:           document.getElementById('gl-proto-2nd').value.trim(),
+    line3:           document.getElementById('gl-proto-3rd').value.trim(),
+    exceptions:      document.getElementById('gl-proto-exceptions').value.trim(),
+  };
+
+  if (editingGuidelineId) {
+    const existing = allGuidelines.find(p => p.id === editingGuidelineId);
+    const merged   = { ...existing, ...proto };
+    await updateGuideline(merged);
+    allGuidelines = allGuidelines.map(p => p.id === editingGuidelineId ? merged : p);
+  } else {
+    const saved = await saveGuideline(proto);
+    allGuidelines.push(saved);
+  }
+  editingGuidelineId = null;
+  document.getElementById('modal-gl-protocol').style.display = 'none';
+  renderGuidelines();
+});
+
+/* ══════════════════════════════════════════════════════════
    INIT — load data & wire up real-time listener
 ══════════════════════════════════════════════════════════ */
 (async function init() {
   setStatus('connecting', 'Connecting…');
 
   try {
-    allCultures = await loadCultures();
+    [allCultures, allGuidelines] = await Promise.all([loadCultures(), loadGuidelines()]);
     setStatus(useFirebase ? 'connected' : 'connected', useFirebase ? 'Firebase' : 'Local');
   } catch (e) {
     setStatus('disconnected', 'Offline');
@@ -967,10 +1457,12 @@ function setStatus(state, label) {
 
   // Populate specimen selects with static list immediately
   populateSpecimenFilters();
+  populateWardFilters();
 
   // Subscribe to real-time updates
   subscribeCultures(cultures => {
     allCultures = cultures;
+    populateWardFilters();
     const activePage = document.querySelector('.page.active')?.id?.replace('page-', '');
     if (activePage) renderActivePage(activePage);
   });

@@ -22,6 +22,10 @@ const firebaseConfig = {
 };
 // ─────────────────────────────────────────────────────────
 
+// Set to true to require a passcode before editing guidelines.
+// Leave as empty string '' to allow open editing.
+export const GUIDELINES_PASSCODE = '';
+
 let db = null;
 let useFirebase = true;
 
@@ -112,4 +116,67 @@ export async function updateCulture(entry) {
   return entry;
 }
 
+// ── Guidelines CRUD ───────────────────────────────────────
+
+/**
+ * Load all guideline protocols.
+ */
+export async function loadGuidelines() {
+  if (!useFirebase) {
+    return JSON.parse(localStorage.getItem('antibiome-guidelines') || '[]');
+  }
+  const snap = await getDocs(collection(db, 'guidelines'));
+  return snap.docs.map(d => ({ ...d.data(), _fbId: d.id }));
+}
+
+/**
+ * Save a guideline protocol.
+ */
+export async function saveGuideline(protocol) {
+  if (!useFirebase) {
+    const stored = JSON.parse(localStorage.getItem('antibiome-guidelines') || '[]');
+    stored.push(protocol);
+    localStorage.setItem('antibiome-guidelines', JSON.stringify(stored));
+    return protocol;
+  }
+  const ref = await addDoc(collection(db, 'guidelines'), {
+    ...protocol,
+    _createdAt: serverTimestamp()
+  });
+  return { ...protocol, _fbId: ref.id };
+}
+
+/**
+ * Delete a guideline protocol.
+ */
+export async function deleteGuideline(protocol) {
+  if (!useFirebase) {
+    let stored = JSON.parse(localStorage.getItem('antibiome-guidelines') || '[]');
+    stored = stored.filter(p => p.id !== protocol.id);
+    localStorage.setItem('antibiome-guidelines', JSON.stringify(stored));
+    return;
+  }
+  if (protocol._fbId) {
+    await deleteDoc(doc(db, 'guidelines', protocol._fbId));
+  }
+}
+
+/**
+ * Update an existing guideline protocol.
+ */
+export async function updateGuideline(protocol) {
+  if (!useFirebase) {
+    let stored = JSON.parse(localStorage.getItem('antibiome-guidelines') || '[]');
+    stored = stored.map(p => p.id === protocol.id ? protocol : p);
+    localStorage.setItem('antibiome-guidelines', JSON.stringify(stored));
+    return protocol;
+  }
+  if (protocol._fbId) {
+    const { _fbId, _createdAt, ...data } = protocol;
+    await updateDoc(doc(db, 'guidelines', _fbId), data);
+  }
+  return protocol;
+}
+
 export { useFirebase };
+

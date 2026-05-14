@@ -87,7 +87,7 @@ const ORGANISMS = [
 const SPECIMEN_TYPES = ['Blood','CSF','ETT','Peritoneal Fluid','Stool','Urine','Wound','Other'];
 const AGE_GROUPS     = ['Neonate','Infant','Child'];
 
-const PWA_FALLBACK_PROMPT_DELAY_MS = 1800;
+const PWA_FALLBACK_PROMPT_DELAY_MS = 1800; // 1.8s delay before showing manual install guidance
 const GUIDELINE_SUSCEPTIBILITY_THRESHOLD = 70;
 
 const PALETTE = [
@@ -277,7 +277,7 @@ function buildStewardshipBriefing(data) {
     })
     .filter(item => item.total >= 5)
     .sort((a, b) => a.susceptible - b.susceptible)[0];
-  if (weakDrug && weakDrug.susceptible < 70) {
+  if (weakDrug && weakDrug.susceptible < GUIDELINE_SUSCEPTIBILITY_THRESHOLD) {
     items.push({ tone: 'warn', text: `${weakDrug.drug} is only ${weakDrug.susceptible}% susceptible across ${weakDrug.total} results — keep it out of default empiric pathways unless clinically justified.` });
   }
 
@@ -456,7 +456,7 @@ function renderInsightsBriefing(data) {
     if (deferredPrompt || localStorage.getItem('antibiome-pwa-dismissed') === '1') return;
     showBanner(MENU_INSTALL_TEXT, false);
     setPwaStatus('Menu install', 'Use the browser menu if no install button appears');
-  }, 1800);
+  }, PWA_FALLBACK_PROMPT_DELAY_MS);
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();

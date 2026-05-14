@@ -28,6 +28,7 @@ export const GUIDELINES_PASSCODE = '';
 
 let db = null;
 let useFirebase = true;
+const GUIDELINES_HOSPITAL_ID = 'default';
 
 try {
   const app = initializeApp(firebaseConfig);
@@ -125,8 +126,31 @@ export async function loadGuidelines() {
   if (!useFirebase) {
     return JSON.parse(localStorage.getItem('antibiome-guidelines') || '[]');
   }
-  const snap = await getDocs(collection(db, 'guidelines'));
-  return snap.docs.map(d => ({ ...d.data(), _fbId: d.id }));
+  const scopedRef = collection(db, 'hospitals', GUIDELINES_HOSPITAL_ID, 'guidelines');
+  const legacyRef = collection(db, 'guidelines');
+
+  const mapDocs = (snap, pathTag) => snap.docs.map(d => ({ ...d.data(), _fbId: d.id, _fbPath: pathTag }));
+  const isPermissionDenied = err => err?.code === 'permission-denied' || /permission/i.test(err?.message || '');
+
+  try {
+    const scopedSnap = await getDocs(scopedRef);
+    const scopedRows = mapDocs(scopedSnap, 'scoped');
+    try {
+      const legacySnap = await getDocs(legacyRef);
+      const merged = [...scopedRows];
+      mapDocs(legacySnap, 'legacy').forEach(item => {
+        if (!merged.some(m => m.id === item.id)) merged.push(item);
+      });
+      return merged;
+    } catch (legacyErr) {
+      if (isPermissionDenied(legacyErr)) return scopedRows;
+      throw legacyErr;
+    }
+  } catch (scopedErr) {
+    if (!isPermissionDenied(scopedErr)) throw scopedErr;
+    const legacySnap = await getDocs(legacyRef);
+    return mapDocs(legacySnap, 'legacy');
+  }
 }
 
 /**
@@ -139,11 +163,16 @@ export async function saveGuideline(protocol) {
     localStorage.setItem('antibiome-guidelines', JSON.stringify(stored));
     return protocol;
   }
-  const ref = await addDoc(collection(db, 'guidelines'), {
-    ...protocol,
-    _createdAt: serverTimestamp()
-  });
-  return { ...protocol, _fbId: ref.id };
+  const data = { ...protocol, _createdAt: serverTimestamp() };
+  const scopedRef = collection(db, 'hospitals', GUIDELINES_HOSPITAL_ID, 'guidelines');
+  try {
+    const ref = await addDoc(scopedRef, data);
+    return { ...protocol, _fbId: ref.id, _fbPath: 'scoped' };
+  } catch (err) {
+    if (err?.code !== 'permission-denied') throw err;
+    const ref = await addDoc(collection(db, 'guidelines'), data);
+    return { ...protocol, _fbId: ref.id, _fbPath: 'legacy' };
+  }
 }
 
 /**
@@ -157,7 +186,15 @@ export async function deleteGuideline(protocol) {
     return;
   }
   if (protocol._fbId) {
-    await deleteDoc(doc(db, 'guidelines', protocol._fbId));
+    const pathTag = protocol._fbPath || 'scoped';
+    const scopedDocRef = doc(db, 'hospitals', GUIDELINES_HOSPITAL_ID, 'guidelines', protocol._fbId);
+    const legacyDocRef = doc(db, 'guidelines', protocol._fbId);
+    try {
+      await deleteDoc(pathTag === 'legacy' ? legacyDocRef : scopedDocRef);
+    } catch (err) {
+      if (err?.code !== 'permission-denied' || pathTag === 'legacy') throw err;
+      await deleteDoc(legacyDocRef);
+    }
   }
 }
 
@@ -173,10 +210,17 @@ export async function updateGuideline(protocol) {
   }
   if (protocol._fbId) {
     const { _fbId, _createdAt, ...data } = protocol;
-    await updateDoc(doc(db, 'guidelines', _fbId), data);
+    const pathTag = protocol._fbPath || 'scoped';
+    const scopedDocRef = doc(db, 'hospitals', GUIDELINES_HOSPITAL_ID, 'guidelines', _fbId);
+    const legacyDocRef = doc(db, 'guidelines', _fbId);
+    try {
+      await updateDoc(pathTag === 'legacy' ? legacyDocRef : scopedDocRef, data);
+    } catch (err) {
+      if (err?.code !== 'permission-denied' || pathTag === 'legacy') throw err;
+      await updateDoc(legacyDocRef, data);
+    }
   }
   return protocol;
 }
 
 export { useFirebase };
-

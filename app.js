@@ -744,15 +744,15 @@ function renderMDR() {
   mdrCases.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(c => {
     const cls = resistantClasses(c);
     const group = getOrganismGroup(c.organism);
-    const tooltip = `MDR: non-susceptible in ${cls.length} relevant categories (${cls.join(', ')}) — organism group: ${group}`;
+    const tooltip = escHtml(`MDR: non-susceptible in ${cls.length} relevant categories (${cls.join(', ')}) — organism group: ${group}`);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${c.date || '—'}</td>
-      <td>${c.patient_name || '—'}</td>
-      <td>${c.age_group || '—'}</td>
-      <td>${c.organism || '—'}</td>
-      <td>${c.specimen || '—'}</td>
-      <td><small style="color:#f87171" title="${tooltip}">${cls.join(', ')}</small></td>
+      <td>${escHtml(c.date) || '—'}</td>
+      <td>${escHtml(c.patient_name) || '—'}</td>
+      <td>${escHtml(c.age_group) || '—'}</td>
+      <td>${escHtml(c.organism) || '—'}</td>
+      <td>${escHtml(c.specimen) || '—'}</td>
+      <td><small style="color:#f87171" title="${tooltip}">${cls.map(escHtml).join(', ')}</small></td>
     `;
     tbody.appendChild(tr);
   });
@@ -1321,7 +1321,7 @@ function renderGuidelines() {
 
     const borderColor = belowThreshold ? 'var(--orange)' : 'var(--border)';
     const alertBanner = belowThreshold
-      ? `<div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:6px;padding:8px 12px;margin-top:10px;font-size:12px;color:var(--orange)">⚠️ Local susceptibility below ${THRESHOLD}% threshold: ${alertDrugs.join('; ')}. Consider reviewing this protocol.</div>`
+      ? `<div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:6px;padding:8px 12px;margin-top:10px;font-size:12px;color:var(--orange)">⚠️ Local susceptibility below ${THRESHOLD}% threshold: ${alertDrugs.map(escHtml).join('; ')}. Consider reviewing this protocol.</div>`
       : '';
 
     const card = document.createElement('div');

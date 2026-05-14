@@ -87,6 +87,9 @@ const ORGANISMS = [
 const SPECIMEN_TYPES = ['Blood','CSF','ETT','Peritoneal Fluid','Stool','Urine','Wound','Other'];
 const AGE_GROUPS     = ['Neonate','Infant','Child'];
 
+const PWA_FALLBACK_PROMPT_DELAY_MS = 1800;
+const GUIDELINE_SUSCEPTIBILITY_THRESHOLD = 70;
+
 const PALETTE = [
   '#3b82f6','#06b6d4','#10b981','#8b5cf6','#f59e0b',
   '#ef4444','#f97316','#ec4899','#14b8a6','#a3e635',
@@ -202,7 +205,7 @@ function setPwaStatus(state, detail) {
 
 function createClientId(prefix = 'antibiome') {
   return crypto.randomUUID
-    ? crypto.randomUUID()
+    ? `${prefix}-${crypto.randomUUID()}`
     : `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
@@ -255,7 +258,8 @@ function buildStewardshipBriefing(data) {
     const lastMonthCount = data.filter(c => c.date?.startsWith(lastMonth)).length;
     const prevMonthCount = data.filter(c => c.date?.startsWith(prevMonth)).length;
     const delta = lastMonthCount - prevMonthCount;
-    items.push({ tone: 'neutral', text: `${fmtMonth(lastMonth)} recorded ${lastMonthCount} culture${lastMonthCount === 1 ? '' : 's'}${prevMonth ? ` (${delta >= 0 ? '+' : ''}${delta} vs ${fmtMonth(prevMonth)})` : ''}.` });
+    const deltaText = prevMonth ? ` (${delta >= 0 ? '+' : ''}${delta} vs ${fmtMonth(prevMonth)})` : '';
+    items.push({ tone: 'neutral', text: `${fmtMonth(lastMonth)} recorded ${lastMonthCount} culture${lastMonthCount === 1 ? '' : 's'}${deltaText}.` });
   }
 
   const exactPairs = {};
@@ -1586,7 +1590,7 @@ function renderGuidelines() {
   }
 
   protocols.forEach(proto => {
-    const THRESHOLD = 70;
+    const THRESHOLD = GUIDELINE_SUSCEPTIBILITY_THRESHOLD;
     const linesToCheck = [proto.line1, proto.line2, proto.line3].filter(Boolean);
     let belowThreshold = false;
     const alertDrugs = [];

@@ -28,7 +28,14 @@ export const GUIDELINES_PASSCODE = '';
 
 let db = null;
 let useFirebase = true;
-const GUIDELINES_HOSPITAL_ID = 'default';
+const GUIDELINES_HOSPITAL_ID = (() => {
+  try {
+    const configured = localStorage.getItem('antibiome-hospital-id')?.trim();
+    return configured || 'default';
+  } catch {
+    return 'default';
+  }
+})();
 const isPermissionDenied = err =>
   err?.code === 'permission-denied' ||
   /PERMISSION_DENIED|insufficient permissions/i.test(err?.message || '');

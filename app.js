@@ -270,6 +270,7 @@ function escHtml(str) {
    PWA INSTALL PROMPT
 ══════════════════════════════════════════════════════════ */
 (function initPwaInstallPrompt() {
+  const IOS_INSTALL_TEXT = 'Install app: Share → “Add to Home Screen”.';
   const banner = document.getElementById('pwa-install-banner');
   if (!banner) return;
   const textEl = document.getElementById('pwa-install-text');
@@ -283,6 +284,7 @@ function escHtml(str) {
     return;
   }
 
+  // iOS Safari does not emit beforeinstallprompt, so we show manual install guidance.
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let deferredPrompt = null;
@@ -301,7 +303,7 @@ function escHtml(str) {
   dismissBtn.addEventListener('click', dismissBanner);
 
   if (isIOS) {
-    showBanner('Install app: Share → “Add to Home Screen”.', false);
+    showBanner(IOS_INSTALL_TEXT, false);
     return;
   }
 

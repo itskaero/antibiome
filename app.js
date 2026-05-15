@@ -410,6 +410,7 @@ function renderInsightsBriefing(data) {
   const textEl = document.getElementById('pwa-install-text');
   const installBtn = document.getElementById('pwa-install-btn');
   const dismissBtn = document.getElementById('pwa-install-dismiss');
+  const sidebarBtn = document.getElementById('sidebar-install-btn');
 
   const dismissed = localStorage.getItem('antibiome-pwa-dismissed') === '1';
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -418,6 +419,10 @@ function renderInsightsBriefing(data) {
     textEl.textContent = text;
     installBtn.style.display = showInstall ? '' : 'none';
     banner.style.display = dismissed && !showInstall ? 'none' : 'flex';
+  }
+
+  function showSidebarInstall(show) {
+    if (sidebarBtn) sidebarBtn.style.display = show ? '' : 'none';
   }
 
   function dismissBanner() {
@@ -429,6 +434,7 @@ function renderInsightsBriefing(data) {
 
   if (isStandalone) {
     banner.style.display = 'none';
+    showSidebarInstall(false);
     setPwaStatus('Installed', 'Antibiome is already running like an app on this device');
     return;
   }
@@ -446,7 +452,14 @@ function renderInsightsBriefing(data) {
 
   if (isIOS) {
     showBanner(IOS_INSTALL_TEXT, false);
+    showSidebarInstall(true);
     setPwaStatus('Manual install', 'On iPhone/iPad, use Share → Add to Home Screen');
+    if (sidebarBtn) {
+      sidebarBtn.addEventListener('click', () => {
+        showBanner(IOS_INSTALL_TEXT, false);
+        banner.style.display = 'flex';
+      });
+    }
     return;
   }
 
@@ -458,27 +471,33 @@ function renderInsightsBriefing(data) {
     setPwaStatus('Menu install', 'Use the browser menu if no install button appears');
   }, PWA_FALLBACK_PROMPT_DELAY_MS);
 
-  window.addEventListener('beforeinstallprompt', (event) => {
-    event.preventDefault();
-    window.clearTimeout(fallbackTimer);
-    deferredPrompt = event;
-    showBanner('Install Antibiome for faster access and offline support.', true);
-    setPwaStatus('Install available', 'The browser supports an install prompt for this app');
-  });
-
-  window.addEventListener('appinstalled', () => {
-    banner.style.display = 'none';
-    localStorage.removeItem('antibiome-pwa-dismissed');
-    setPwaStatus('Installed', 'Antibiome has been installed for quick launch and offline shell caching');
-  });
-
-  installBtn.addEventListener('click', async () => {
+  async function triggerInstall() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     deferredPrompt = null;
     banner.style.display = 'none';
+    showSidebarInstall(false);
+  }
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    window.clearTimeout(fallbackTimer);
+    deferredPrompt = event;
+    showBanner('Install Antibiome for faster access and offline support.', true);
+    showSidebarInstall(true);
+    setPwaStatus('Install available', 'The browser supports an install prompt for this app');
   });
+
+  window.addEventListener('appinstalled', () => {
+    banner.style.display = 'none';
+    showSidebarInstall(false);
+    localStorage.removeItem('antibiome-pwa-dismissed');
+    setPwaStatus('Installed', 'Antibiome has been installed for quick launch and offline shell caching');
+  });
+
+  installBtn.addEventListener('click', triggerInstall);
+  if (sidebarBtn) sidebarBtn.addEventListener('click', triggerInstall);
 })();
 
 /* ══════════════════════════════════════════════════════════
@@ -1521,6 +1540,132 @@ function localSusceptibility(drug, organismTarget, ward = '') {
   return compute(wardSpecific) ?? (ward ? compute(matching) : null);
 }
 
+/**
+ * Analyse all protocols for the given ward against local culture susceptibility data.
+ * Returns an array of result objects, one per protocol, with:
+ *   - protocol  : the original protocol object
+ *   - lines     : [{drug, pct|null, status}] for each drug in lines 1-3
+ *   - suggestions: [{drug, cls, pct}] — alternatives with good coverage (>=80%)
+ *   - hasData   : boolean — whether any susceptibility data was found
+ */
+function analyseGuidelineCoverage(protocols, ward) {
+  const GOOD_THRESHOLD = 80;
+  const WARN_THRESHOLD = GUIDELINE_SUSCEPTIBILITY_THRESHOLD;
+
+  return protocols.map(proto => {
+    // Parse all drugs from the three lines
+    const lines = [];
+    ['line1', 'line2', 'line3'].forEach((key, lineIdx) => {
+      if (!proto[key]) return;
+      proto[key].split(/[,+/]/).map(d => d.trim()).filter(Boolean).forEach(raw => {
+        const matched = ALL_ANTIBIOTICS.find(ab => ab.name.toLowerCase() === raw.toLowerCase());
+        const drugName = matched?.name || raw;
+        const pct = localSusceptibility(drugName, proto.organism_target, ward);
+        let status = pct === null ? 'no-data' : pct >= GOOD_THRESHOLD ? 'good' : pct >= WARN_THRESHOLD ? 'moderate' : 'poor';
+        lines.push({ drug: drugName, pct, status, line: lineIdx + 1 });
+      });
+    });
+
+    // Find alternative antibiotics with good local coverage for the same target
+    const currentDrugNames = new Set(lines.map(l => l.drug.toLowerCase()));
+    const suggestions = [];
+    ALL_ANTIBIOTICS.forEach(ab => {
+      if (currentDrugNames.has(ab.name.toLowerCase())) return;
+      const pct = localSusceptibility(ab.name, proto.organism_target, ward);
+      if (pct !== null && pct >= GOOD_THRESHOLD) {
+        suggestions.push({ drug: ab.name, cls: ab.cls, pct });
+      }
+    });
+    suggestions.sort((a, b) => b.pct - a.pct);
+
+    const hasData = lines.some(l => l.pct !== null);
+    return { protocol: proto, lines, suggestions: suggestions.slice(0, 5), hasData };
+  });
+}
+
+/** Render the coverage analysis panel for the currently selected ward. */
+function renderAnalysisPanel(ward, protocols) {
+  const panel = document.getElementById('gl-analysis-panel');
+  if (!panel) return;
+
+  if (!allCultures.length) {
+    panel.innerHTML = `<div class="card gl-analysis-card">
+      <p style="color:var(--text-muted);font-size:13px">No culture data available yet. Add cultures via the <strong>Add Culture</strong> page to generate guideline analysis.</p>
+    </div>`;
+    panel.style.display = '';
+    return;
+  }
+
+  const results = analyseGuidelineCoverage(protocols, ward);
+
+  if (!results.length) {
+    panel.innerHTML = `<div class="card gl-analysis-card"><p style="color:var(--text-muted);font-size:13px">No protocols defined for this ward. Create a protocol first.</p></div>`;
+    panel.style.display = '';
+    return;
+  }
+
+  const statusIcon = s => s === 'good' ? '\u2705' : s === 'moderate' ? '\u26a0\ufe0f' : s === 'poor' ? '\u274c' : '\u2753';
+  const statusColor = s => s === 'good' ? 'var(--green)' : s === 'moderate' ? 'var(--orange)' : s === 'poor' ? 'var(--red)' : 'var(--text-muted)';
+
+  let html = `<div class="card gl-analysis-card">
+    <h3 class="card-title" style="margin-bottom:4px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      Culture-Based Guideline Analysis — ${escHtml(ward)}
+    </h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Coverage scored against local susceptibility data. \u2705\u00a080\u2013100\u00a0\u25cf\u00a0Good &nbsp;\u26a0\ufe0f\u00a070\u201379\u00a0\u25cf\u00a0Moderate &nbsp;\u274c\u00a0&lt;70\u00a0\u25cf\u00a0Poor &nbsp;\u2753\u00a0No data (\u22653 isolates required).</p>`;
+
+  results.forEach(r => {
+    const proto = r.protocol;
+    html += `<div class="gl-analysis-proto">
+      <div class="gl-analysis-proto-title">
+        <span class="gl-proto-pill">${escHtml(proto.infection_type) || '\u2014'}</span>
+        <span style="color:var(--text-dim);font-size:12px">Target: <strong>${escHtml(proto.organism_target) || 'Any'}</strong></span>
+      </div>`;
+
+    if (!r.hasData) {
+      html += `<p class="gl-analysis-nodata">\u2753 No local susceptibility data for this organism target yet — coverage cannot be assessed.</p>`;
+    } else {
+      html += `<div class="gl-analysis-lines">`;
+      ['1st Line','2nd Line','3rd Line'].forEach((label, idx) => {
+        const lineItems = r.lines.filter(l => l.line === idx + 1);
+        if (!lineItems.length) return;
+        html += `<div class="gl-analysis-line-row">
+          <span class="gl-line-label gl-line-${idx+1}">${escHtml(label)}:</span>
+          <span class="gl-analysis-drugs">`;
+        lineItems.forEach(item => {
+          const icon = statusIcon(item.status);
+          const col = statusColor(item.status);
+          const pctLabel = item.pct !== null ? ` <span style="color:${col};font-weight:600">${item.pct}%</span>` : ` <span style="color:var(--text-muted)">no data</span>`;
+          html += `<span class="gl-analysis-drug-chip" style="border-color:${col}">${icon} ${escHtml(item.drug)}${pctLabel}</span>`;
+        });
+        html += `</span></div>`;
+      });
+      html += `</div>`;
+
+      if (r.suggestions.length) {
+        html += `<div class="gl-analysis-suggestions">
+          <span class="gl-analysis-suggest-label">\u2b50 Alternatives with good local coverage:</span>
+          <span class="gl-analysis-drugs">`;
+        r.suggestions.forEach(s => {
+          html += `<span class="gl-analysis-drug-chip gl-analysis-alt-chip">${escHtml(s.drug)} <span style="color:var(--green);font-weight:600">${s.pct}%</span> <span style="color:var(--text-muted);font-size:11px">(${escHtml(s.cls)})</span></span>`;
+        });
+        html += `</span></div>`;
+      } else {
+        const poorLines = r.lines.filter(l => l.status === 'poor');
+        if (poorLines.length) {
+          html += `<p class="gl-analysis-nodata" style="color:var(--orange)">\u26a0\ufe0f No alternative antibiotics with \u226580% local coverage found for this target — review carbapenem or escalation options.</p>`;
+        }
+      }
+    }
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  panel.innerHTML = html;
+  panel.style.display = '';
+}
+
+
 function renderGuidelines() {
   const wards = [...new Set(allGuidelines.map(p => p.ward).filter(Boolean))].sort();
 
@@ -1569,6 +1714,8 @@ function renderGuidelines() {
   document.getElementById('gl-protocols-area').style.display = '';
   addBtn.style.display = '';
   document.getElementById('gl-ward-title').textContent = selectedWard + ' — Protocols';
+  const analysisPanel = document.getElementById('gl-analysis-panel');
+  if (analysisPanel) analysisPanel.style.display = 'none';
   currentGuidelineWard = selectedWard;
 
   const protocols = allGuidelines
@@ -1673,6 +1820,15 @@ async function deleteGuidelineProtocol(id) {
 }
 
 // Wire up guidelines buttons
+document.getElementById('gl-analyse-btn').addEventListener('click', () => {
+  const ward = currentGuidelineWard;
+  if (!ward) return;
+  const protocols = allGuidelines
+    .filter(p => p.ward === ward && !isWardEntry(p))
+    .sort((a, b) => (a.infection_type || '').localeCompare(b.infection_type || ''));
+  renderAnalysisPanel(ward, protocols);
+});
+
 document.getElementById('gl-ward-select').addEventListener('change', () => {
   currentGuidelineWard = document.getElementById('gl-ward-select').value;
   renderGuidelines();

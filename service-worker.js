@@ -4,7 +4,7 @@
 //  Firestore / CDN resources, offline fallback to index.html.
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME  = 'antibiome-v3';
+const CACHE_NAME  = 'antibiome-v4';
 const STATIC_URLS = [
   './',
   './index.html',

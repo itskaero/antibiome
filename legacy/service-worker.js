@@ -4,7 +4,8 @@
 //  Firestore / CDN resources, offline fallback to index.html.
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME  = 'antibiome-v4';
+// Renamed when the app moved to /legacy/ so the root clean-up worker never touches this cache.
+const CACHE_NAME  = 'antibiome-legacy-v1';
 const STATIC_URLS = [
   './',
   './index.html',

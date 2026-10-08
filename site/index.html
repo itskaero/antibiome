@@ -4,203 +4,208 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Antibiome PICU</title>
-<meta name="description" content="Antibiome PICU: a desktop intelligence layer for paediatric intensive care. Fast bedside entry from the PC or a phone, risk-adjusted outcomes, stewardship, research and QI — all on the unit's own computer.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23000104%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2710%27 fill=%27none%27 stroke=%27%238ea2ff%27 stroke-width=%273%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%274%27 fill=%27%23eef1f8%27/%3E%3C/svg%3E">
+<meta name="description" content="Antibiome PICU turns paediatric intensive care data into intelligence: fast bedside entry on the unit PC or a phone, therapy charts, Phoenix sepsis scoring, stewardship, research and QI — on the unit's own computer.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%230b0e16%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279.5%27 fill=%27none%27 stroke=%27%23ff6b35%27 stroke-width=%273%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%273.5%27 fill=%27%23ff6b35%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Ms+Madi&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one dark night-shift stage. A live blue "fluid" hero behind a pill nav, then quiet
-   sections; the Docs tab swaps in a sidebar + long-form guide. Single committed dark look. */
+/* Layout: a living painting of a ward window at first light behind a left-aligned headline; the
+   product rises out of the bottom of the scene. Below, quiet night-shift sections in the same
+   dusk palette. Committed single dark look (the scene only works at night). */
 :root {
-  --ink-0: #000104;        /* page */
-  --ink-1: #07090f;        /* raised panels */
-  --ink-2: #0e121c;        /* insets, code */
-  --line: #1b2131;
-  --line-2: #2a3247;
-  --fg: #eef1f8;
-  --fg-2: #a8b0c4;
-  --fg-3: #6c7590;
-  --blue: #2346ff;         /* the fluid's core blue */
-  --blue-ink: #8ea2ff;     /* blue for text on black */
-  --ice: #dfe6ff;
-  --good: #57d9a3;
-  --warn: #ffb547;
-  --font-sans: "Geist", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --font-script: "Ms Madi", "Segoe Script", "Brush Script MT", cursive;
-  --step--1: 0.8125rem; --step-0: 0.9375rem; --step-1: 1.125rem; --step-2: 1.5rem; --step-3: 2.25rem; --step-4: clamp(2.6rem, 6.4vw, 4.6rem);
-  --r-pill: 999px; --r-win: 18px;
+  --night: #070a12;        /* page */
+  --night-2: #0c111d;      /* raised */
+  --night-3: #131a29;      /* insets, code */
+  --line: #1d2638;
+  --line-2: #2b3650;
+  --fg: #f3efe7;           /* warm paper white */
+  --fg-2: #b4b2ad;
+  --fg-3: #77798a;
+  --dawn: #ffb46b;         /* window light */
+  --ember: #ff6b35;        /* Antibiome orange, from the app */
+  --tide: #6f8fd8;         /* night blue for secondary marks */
+  --good: #5fd3a3;
+  --warn: #ffbf5e;
+  --font: "Hanken Grotesk", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --s--1: 0.8125rem; --s-0: 0.96875rem; --s-1: 1.125rem; --s-2: 1.5rem; --s-3: clamp(1.9rem, 3.4vw, 2.6rem); --s-4: clamp(2.5rem, 5.6vw, 4.25rem);
+  --pill: 999px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--ink-0); color: var(--fg); font: 400 var(--step-0)/1.6 var(--font-sans); -webkit-font-smoothing: antialiased; }
-a { color: var(--blue-ink); text-underline-offset: 3px; }
+body { margin: 0; background: var(--night); color: var(--fg); font: 400 var(--s-0)/1.6 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: var(--dawn); text-underline-offset: 3px; }
 img { max-width: 100%; display: block; }
-:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: 3px; border-radius: 6px; }
-h1, h2, h3 { text-wrap: balance; margin: 0; font-weight: 500; letter-spacing: -0.02em; }
+:focus-visible { outline: 2px solid var(--dawn); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -0.025em; text-wrap: balance; }
 p { margin: 0; }
-.wrap { width: min(1120px, 100%); margin-inline: auto; padding-inline: 20px; }
-.mono { font-family: var(--font-mono); font-size: 0.86em; }
-.eyebrow { font: 500 var(--step--1)/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+.wrap { width: min(1180px, 100%); margin-inline: auto; padding-inline: 20px; }
+.mono { font-family: var(--mono); font-size: 0.86em; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+[hidden] { display: none !important; }
 
-/* ── Nav: centred pill, like a control strip ───────────── */
-.nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 20; padding-inline: 16px; }
-.nav-inner { margin-inline: auto; width: min(760px, 100%); display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 16px;
-  background: rgba(7, 9, 15, 0.72); border: 1px solid var(--line); border-radius: var(--r-pill); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-.brand { display: flex; align-items: center; gap: 8px; color: var(--fg); text-decoration: none; font-weight: 600; letter-spacing: -0.01em; margin-right: auto; white-space: nowrap; }
-.tabs { display: flex; gap: 2px; }
-.tab { appearance: none; border: 0; background: none; color: var(--fg-2); font: 500 var(--step--1) var(--font-sans); padding: 8px 14px; border-radius: var(--r-pill); cursor: pointer; }
+/* ── Nav: one rounded bar, white pill on the right ─────── */
+.nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 30; padding-inline: 20px; }
+.nav-inner { margin-inline: auto; width: min(1100px, 100%); display: flex; align-items: center; gap: 6px; padding: 7px 7px 7px 18px;
+  background: rgba(10, 13, 22, 0.55); border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 20px; backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); }
+.brand { display: flex; align-items: center; gap: 9px; color: var(--fg); text-decoration: none; font-weight: 600; font-size: 1.05rem; margin-right: 22px; white-space: nowrap; }
+.brand svg { color: var(--ember); }
+.tabs { display: flex; gap: 2px; margin-right: auto; }
+.tab { appearance: none; border: 0; background: none; color: var(--fg-2); font: 500 var(--s--1) var(--font); padding: 8px 13px; border-radius: 12px; cursor: pointer; }
 .tab:hover { color: var(--fg); }
-.tab[aria-selected="true"] { color: var(--fg); background: var(--ink-2); }
-.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: var(--r-pill); padding: 9px 18px; font: 500 var(--step--1) var(--font-sans); text-decoration: none; cursor: pointer; border: 1px solid transparent; white-space: nowrap; }
-.pill-white { background: var(--fg); color: #05070d; }
+.tab[aria-selected="true"] { color: var(--fg); background: rgba(255, 255, 255, 0.07); }
+.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: var(--pill); padding: 10px 19px; font: 500 var(--s--1) var(--font); text-decoration: none; cursor: pointer; border: 1px solid transparent; white-space: nowrap; transition: transform .2s ease, background .2s ease; }
+.pill:active { transform: scale(0.98); }
+.pill-white { background: var(--fg); color: #0b0e16; }
 .pill-white:hover { background: #fff; }
-.pill-ghost { color: var(--fg); border-color: var(--line-2); background: rgba(255, 255, 255, 0.04); }
-.pill-ghost:hover { border-color: var(--fg-3); }
+.pill-ghost { color: var(--fg); border-color: rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.04); }
+.pill-ghost:hover { border-color: rgba(255, 255, 255, 0.35); }
+.link-quiet { color: var(--fg); text-decoration: none; font: 500 var(--s--1) var(--font); padding: 8px 12px; }
 
-/* ── Hero: live fluid behind script + sans headline ───── */
-.hero { position: relative; margin-top: -64px; padding-top: 140px; overflow: hidden; isolation: isolate; }
-#fluid { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; background:
-  radial-gradient(60% 50% at 75% 60%, rgba(35, 70, 255, 0.85), transparent 70%), radial-gradient(40% 40% at 15% 80%, rgba(223, 230, 255, 0.5), transparent 70%), var(--ink-0); }
-.hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 160px; z-index: -1; background: linear-gradient(to bottom, transparent, var(--ink-0)); pointer-events: none; }
-.hero-copy { text-align: center; display: grid; justify-items: center; gap: 14px; }
-.script { font: 400 clamp(3.4rem, 9vw, 6.2rem)/0.7 var(--font-script); color: rgba(238, 241, 248, 0.82); letter-spacing: 0; transform: translateY(0.18em) rotate(-3deg); }
-.hero h1 { font-size: var(--step-4); line-height: 1.02; font-weight: 500; letter-spacing: -0.035em; max-width: 14ch; }
-.hero .lede { max-width: 54ch; color: var(--fg-2); font-size: var(--step-1); line-height: 1.5; }
-.hero-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; }
+/* ── Hero: the painting ─────────────────────────────────── */
+.hero { position: relative; margin-top: -72px; padding-top: 150px; isolation: isolate; overflow: hidden; }
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; display: block;
+  background: radial-gradient(50% 60% at 72% 42%, rgba(255, 180, 107, 0.45), transparent 70%), radial-gradient(80% 80% at 20% 30%, #121a2c, var(--night)); }
+.hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 220px; z-index: -1; background: linear-gradient(to bottom, rgba(7, 10, 18, 0), var(--night) 85%); pointer-events: none; }
+.hero-copy { display: grid; gap: 22px; justify-items: start; max-width: 600px; padding-top: 30px; }
+.badge { display: inline-flex; align-items: center; gap: 9px; padding: 6px 14px 6px 11px; border-radius: var(--pill); border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(10, 13, 22, 0.45); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: var(--s--1); color: var(--fg); }
+.badge i { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.18); }
+.hero h1 { font-size: var(--s-4); line-height: 1.04; letter-spacing: -0.035em; max-width: 13ch; text-shadow: 0 2px 30px rgba(7, 10, 18, 0.5); }
+.hero .lede { color: #d8d3ca; font-size: var(--s-1); line-height: 1.55; max-width: 46ch; text-shadow: 0 1px 18px rgba(7, 10, 18, 0.8); }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
 
-/* product window with the floating question bar */
-.stage { position: relative; margin-top: 64px; padding-bottom: 40px; }
-.window { position: relative; border-radius: var(--r-win); border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(5, 7, 13, 0.75); box-shadow: 0 40px 120px -40px rgba(35, 70, 255, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4); overflow: hidden; }
-.window-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: #3a4157; }
+.stage { position: relative; margin-top: 110px; }
+.window { position: relative; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.14); background: #0b0e16; overflow: hidden;
+  box-shadow: 0 -30px 120px -40px rgba(255, 180, 107, 0.35), 0 50px 120px -50px rgba(0, 0, 0, 0.9); }
+.window-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); background: #0e121c; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
 .dot:nth-child(1) { background: #ff5f57; } .dot:nth-child(2) { background: #febc2e; } .dot:nth-child(3) { background: #28c840; }
-.window-bar .addr { margin-left: 10px; color: var(--fg-3); font: 400 12px var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.window img { width: 100%; height: auto; aspect-ratio: 1440 / 893; }
-.ask { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); width: min(620px, calc(100% - 24px)); display: flex; align-items: center; gap: 10px;
-  padding: 7px 7px 7px 16px; border-radius: var(--r-pill); background: rgba(14, 18, 28, 0.82); border: 1px solid rgba(255, 255, 255, 0.16); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.8); z-index: 2; }
-.ask svg { flex: none; color: var(--fg-3); }
-.ask-q { flex: 1; min-width: 0; color: var(--fg-2); font-size: var(--step--1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ask-q::after { content: ""; display: inline-block; width: 1px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--fg-2); animation: caret 1s steps(1) infinite; }
-@keyframes caret { 50% { opacity: 0; } }
+.window-bar .addr { margin-left: 10px; color: var(--fg-3); font: 400 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.window img { width: 100%; height: auto; aspect-ratio: 1424 / 855; }
 
-/* standards strip (marquee) */
-.strip { margin-top: 8px; border-block: 1px solid var(--line); overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
-.strip-track { display: flex; gap: 44px; width: max-content; padding-block: 18px; animation: slide 46s linear infinite; }
-.strip-track span { color: var(--fg-3); font: 500 var(--step--1) var(--font-mono); letter-spacing: 0.02em; white-space: nowrap; }
-.strip-track span b { color: var(--fg-2); font-weight: 500; }
-@keyframes slide { to { transform: translateX(-50%); } }
+/* ── Sections ───────────────────────────────────────────── */
+section.block { padding-block: 110px 0; }
+.block-head { display: grid; gap: 14px; max-width: 64ch; margin-bottom: 44px; }
+.block-head h2 { font-size: var(--s-3); line-height: 1.08; }
+.block-head p { color: var(--fg-2); font-size: var(--s-1); line-height: 1.55; }
 
-/* ── Product sections ───────────────────────────────── */
-section.block { padding-block: 96px 0; }
-.block-head { display: grid; gap: 12px; max-width: 62ch; margin-bottom: 40px; }
-.block-head h2 { font-size: var(--step-3); line-height: 1.08; }
-.block-head p { color: var(--fg-2); font-size: var(--step-1); line-height: 1.5; }
+/* the story: data → information → patterns → intelligence */
+.story { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line-2); }
+.story div { padding: 22px 22px 0 0; display: grid; gap: 8px; align-content: start; min-width: 0; position: relative; }
+.story div::before { content: ""; position: absolute; top: -4px; left: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--dawn); box-shadow: 0 0 18px var(--dawn); }
+.story b { font-weight: 500; font-size: var(--s-1); }
+.story span { color: var(--fg-2); font-size: var(--s--1); }
 
-.features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
-.feature { background: var(--ink-1); padding: 26px 24px 28px; display: grid; gap: 10px; align-content: start; min-width: 0; }
-.feature h3 { font-size: var(--step-1); letter-spacing: -0.01em; }
-.feature p { color: var(--fg-2); font-size: var(--step-0); }
-.feature .fact { margin-top: 6px; color: var(--blue-ink); font: 500 12.5px var(--font-mono); }
+.feature-row { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr); gap: 56px; align-items: center; padding-block: 56px; border-top: 1px solid var(--line); }
+.feature-row:nth-child(even) { grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr); }
+.feature-row:nth-child(even) .copy { order: 2; }
+.feature-row .copy { display: grid; gap: 14px; min-width: 0; }
+.feature-row h3 { font-size: var(--s-2); line-height: 1.15; }
+.feature-row p { color: var(--fg-2); }
+.feature-row ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; color: var(--fg-2); font-size: var(--s--1); }
+.feature-row li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; }
+.feature-row li::before { content: ""; width: 6px; height: 6px; margin-top: 0.62em; border-radius: 50%; background: var(--dawn); }
+.fact { font: 500 12.5px var(--mono); color: var(--dawn); }
+.shot { border-radius: 14px; border: 1px solid var(--line-2); overflow: hidden; background: var(--night-2); box-shadow: 0 40px 90px -50px rgba(255, 180, 107, 0.4); }
+.shot img { width: 100%; height: auto; }
 
-.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 48px; align-items: center; }
-.split .copy { display: grid; gap: 16px; min-width: 0; }
-.split h2 { font-size: var(--step-3); line-height: 1.08; }
-.split .copy > p { color: var(--fg-2); font-size: var(--step-1); line-height: 1.5; }
-.ticks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; color: var(--fg-2); }
-.ticks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; }
-.ticks li::before { content: ""; width: 7px; height: 7px; margin-top: 0.62em; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 4px rgba(35, 70, 255, 0.18); }
+.grid-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.grid-feats div { background: var(--night-2); padding: 24px 22px 26px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.grid-feats h3 { font-size: var(--s-1); letter-spacing: -0.01em; }
+.grid-feats p { color: var(--fg-2); font-size: var(--s--1); }
+
 .phones { display: flex; gap: 14px; justify-content: center; align-items: flex-end; }
-.phone { width: min(220px, 31%); border-radius: 26px; padding: 6px; background: #151a27; border: 1px solid var(--line-2); box-shadow: 0 30px 70px -30px rgba(35, 70, 255, 0.5); }
+.phone { width: min(210px, 31%); border-radius: 26px; padding: 6px; background: #161c2a; border: 1px solid var(--line-2); box-shadow: 0 30px 70px -30px rgba(255, 180, 107, 0.35); }
 .phone img { border-radius: 20px; aspect-ratio: 390 / 664; width: 100%; height: auto; }
 .phone:nth-child(2) { transform: translateY(-26px); }
-.shot { border-radius: 14px; border: 1px solid var(--line-2); overflow: hidden; box-shadow: 0 30px 80px -40px rgba(35, 70, 255, 0.45); }
-.shot img { width: 100%; height: auto; aspect-ratio: 1440 / 893; }
 
-.gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.gallery figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
-.gallery figcaption { color: var(--fg-3); font-size: var(--step--1); }
-
-.privacy { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.privacy { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
 .privacy div { border-top: 1px solid var(--line-2); padding-top: 16px; display: grid; gap: 6px; min-width: 0; }
 .privacy b { font-weight: 500; }
-.privacy span { color: var(--fg-2); font-size: var(--step--1); }
+.privacy span { color: var(--fg-2); font-size: var(--s--1); }
 
-.closing { margin-block: 110px 0; padding: 56px 24px; text-align: center; border-radius: 24px; border: 1px solid var(--line); display: grid; justify-items: center; gap: 14px;
-  background: radial-gradient(80% 120% at 50% 120%, rgba(35, 70, 255, 0.35), transparent 60%), var(--ink-1); }
-.closing .script { font-size: clamp(2.6rem, 6vw, 4rem); transform: rotate(-3deg); }
-.closing h2 { font-size: var(--step-3); }
+.closing { margin-block: 120px 0; padding: 64px 24px; text-align: center; border-radius: 26px; border: 1px solid var(--line); display: grid; justify-items: center; gap: 16px;
+  background: radial-gradient(70% 120% at 50% 120%, rgba(255, 150, 80, 0.28), transparent 60%), var(--night-2); }
+.closing h2 { font-size: var(--s-3); line-height: 1.1; max-width: 18ch; }
 .closing p { color: var(--fg-2); max-width: 52ch; }
 
-footer { margin-top: 80px; border-top: 1px solid var(--line); padding-block: 28px 40px; color: var(--fg-3); font-size: var(--step--1); }
+footer { margin-top: 90px; border-top: 1px solid var(--line); padding-block: 28px 40px; color: var(--fg-3); font-size: var(--s--1); }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
 
-/* ── Docs ────────────────────────────────────────────── */
-.docs { padding-block: 72px 0; }
+/* film modal */
+.film { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; background: rgba(4, 6, 10, 0.86); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.film video { width: min(1100px, 100%); border-radius: 14px; border: 1px solid var(--line-2); background: #000; }
+.film button { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 18px); right: 18px; }
+
+/* ── Docs ───────────────────────────────────────────────── */
+.docs { padding-block: 80px 0; }
 .docs-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; align-items: start; }
-.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 92px); display: grid; gap: 2px; }
-.toc a { color: var(--fg-3); text-decoration: none; font-size: var(--step--1); padding: 6px 10px; border-radius: 8px; border-left: 1px solid var(--line); border-radius: 0 8px 8px 0; }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 96px); display: grid; gap: 2px; }
+.toc a { color: var(--fg-3); text-decoration: none; font-size: var(--s--1); padding: 6px 10px; border-left: 1px solid var(--line); border-radius: 0 8px 8px 0; }
 .toc a:hover { color: var(--fg); }
-.toc a.on { color: var(--fg); border-left-color: var(--blue-ink); background: rgba(35, 70, 255, 0.08); }
+.toc a.on { color: var(--fg); border-left-color: var(--dawn); background: rgba(255, 180, 107, 0.07); }
 .doc { min-width: 0; max-width: 72ch; }
 .doc-title { display: grid; gap: 12px; margin-bottom: 28px; }
-.doc-title h1 { font-size: var(--step-3); line-height: 1.05; }
-.doc-title p { color: var(--fg-2); font-size: var(--step-1); }
-.doc section { padding-top: 44px; scroll-margin-top: 90px; }
-.doc h2 { font-size: var(--step-2); margin-bottom: 14px; }
-.doc h3 { font-size: var(--step-1); margin: 22px 0 8px; }
+.doc-title h1 { font-size: var(--s-3); line-height: 1.05; }
+.doc-title p { color: var(--fg-2); font-size: var(--s-1); }
+.doc section { padding-top: 44px; scroll-margin-top: 96px; }
+.doc h2 { font-size: var(--s-2); margin-bottom: 14px; }
+.doc h3 { font-size: var(--s-1); margin: 22px 0 8px; }
 .doc p, .doc li { color: var(--fg-2); }
 .doc p + p { margin-top: 12px; }
 .doc ul, .doc ol { padding-left: 1.2em; margin: 10px 0 0; display: grid; gap: 6px; }
 .doc strong { color: var(--fg); font-weight: 500; }
 .steps { list-style: none; padding: 0 !important; counter-reset: s; gap: 14px !important; }
 .steps > li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; }
-.steps > li::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line-2); color: var(--fg); font: 500 12px var(--font-mono); }
-.code { position: relative; margin-top: 12px; background: var(--ink-2); border: 1px solid var(--line); border-radius: 12px; }
-.code pre { margin: 0; padding: 14px 76px 14px 16px; overflow-x: auto; font: 400 13px/1.6 var(--font-mono); color: var(--ice); }
-.code button { position: absolute; top: 8px; right: 8px; font: 500 11.5px var(--font-sans); color: var(--fg-2); background: var(--ink-1); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 9px; cursor: pointer; }
+.steps > li::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line-2); color: var(--fg); font: 500 12px var(--mono); }
+.code { position: relative; margin-top: 12px; background: var(--night-3); border: 1px solid var(--line); border-radius: 12px; }
+.code pre { margin: 0; padding: 14px 76px 14px 16px; overflow-x: auto; font: 400 13px/1.6 var(--mono); color: #f1e3cf; }
+.code button { position: absolute; top: 8px; right: 8px; font: 500 11.5px var(--font); color: var(--fg-2); background: var(--night-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 9px; cursor: pointer; }
 .code button:hover { color: var(--fg); }
-.note { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--ink-1); color: var(--fg-2); font-size: var(--step--1); }
-.note.warn { border-color: rgba(255, 181, 71, 0.35); }
+.note { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--night-2); color: var(--fg-2); font-size: var(--s--1); }
+.note.warn { border-color: rgba(255, 191, 94, 0.35); }
 .note b { color: var(--fg); font-weight: 500; }
 .table-wrap { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; }
-table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+table { border-collapse: collapse; width: 100%; font-size: var(--s--1); }
 th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { color: var(--fg-3); font-weight: 500; background: var(--ink-1); }
+th { color: var(--fg-3); font-weight: 500; background: var(--night-2); }
 tr:last-child td { border-bottom: 0; }
 td { color: var(--fg-2); }
 td:first-child { color: var(--fg); }
-kbd { font: 500 11.5px var(--font-mono); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; color: var(--fg); }
+kbd { font: 500 11.5px var(--mono); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; color: var(--fg); }
 
-[hidden] { display: none !important; }
-
-@media (max-width: 900px) {
-  .features, .gallery { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 960px) {
+  .story { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 28px; }
+  .feature-row, .feature-row:nth-child(even) { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .feature-row:nth-child(even) .copy { order: 0; }
+  .grid-feats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .privacy { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .split { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .docs-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .toc { position: static; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  .toc a { border: 1px solid var(--line); border-radius: var(--r-pill); padding: 5px 11px; }
-  .toc a.on { border-color: var(--blue-ink); }
+  .toc a { border: 1px solid var(--line); border-radius: var(--pill); padding: 5px 11px; }
+  .toc a.on { border-color: var(--dawn); }
 }
-@media (max-width: 560px) {
-  .features, .gallery, .privacy { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 600px) {
+  .nav { padding-inline: 12px; }
   .nav-inner { padding-left: 12px; }
-  .brand span { display: none; }
-  .tab { padding: 8px 11px; }
+  .brand span, .link-quiet { display: none; }
+  .brand { margin-right: 6px; }
+  .tab { padding: 8px 10px; }
   .nav .pill-white { padding: 9px 13px; }
   .hero { padding-top: 120px; }
-  .stage { margin-top: 48px; }
+  .hero .lede { color: var(--fg); font-size: 1.0625rem; }
+  /* On phones the text sits over the window: veil the scene behind it. */
+  .hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 760px; z-index: -1; pointer-events: none;
+    background: linear-gradient(180deg, rgba(7, 10, 18, 0.25) 0%, rgba(7, 10, 18, 0.72) 32%, rgba(7, 10, 18, 0.72) 70%, rgba(7, 10, 18, 0) 100%); }
+  .stage { margin-top: 64px; }
+  .story, .grid-feats, .privacy { grid-template-columns: minmax(0, 1fr); }
   .phone:nth-child(2) { transform: none; }
-  section.block { padding-top: 72px; }
+  section.block { padding-top: 80px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  .strip-track { animation: none; }
-  .ask-q::after { animation: none; }
-}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
 </head>
 <body>
@@ -208,100 +213,126 @@ kbd { font: 500 11.5px var(--font-mono); border: 1px solid var(--line-2); border
 <header class="nav">
   <div class="nav-inner">
     <a class="brand" href="#product" data-go="product" aria-label="Antibiome PICU home">
-      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="3"/><ellipse cx="16" cy="16" rx="15" ry="6" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-28 16 16)" opacity="0.6"/><circle cx="16" cy="16" r="4.5" fill="currentColor"/></svg>
-      <span>Antibiome PICU</span>
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="3"/><ellipse cx="16" cy="16" rx="15" ry="6" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-28 16 16)" opacity="0.55"/><circle cx="16" cy="16" r="4" fill="currentColor"/></svg>
+      <span>Antibiome</span>
     </a>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button class="tab" role="tab" id="tab-product" aria-controls="product" aria-selected="true" data-go="product">Product</button>
       <button class="tab" role="tab" id="tab-docs" aria-controls="docs" aria-selected="false" data-go="docs">Docs</button>
     </nav>
-    <a class="pill pill-white" href="https://github.com/itskaero/antibiome">Source</a>
+    <a class="link-quiet" href="https://github.com/itskaero/antibiome">Source</a>
+    <button class="pill pill-white" data-go="docs">Get started</button>
   </div>
 </header>
 
 <!-- ══════════════ PRODUCT ══════════════ -->
 <main id="product" role="tabpanel" aria-labelledby="tab-product">
   <div class="hero">
-    <canvas id="fluid" aria-hidden="true"></canvas>
+    <canvas id="scene" aria-hidden="true"></canvas>
     <div class="wrap">
       <div class="hero-copy">
-        <span class="script" aria-hidden="true">Bedside</span>
-        <h1>intelligence for the PICU</h1>
-        <p class="lede">Admit a child in under a minute — on the unit PC or a phone at the bedside — and get risk-adjusted outcomes, stewardship and research answers from your own unit's data, on your own computer.</p>
+        <span class="badge"><i></i>New · Phoenix sepsis scoring and therapy charts</span>
+        <h1>Turn PICU data into intelligence</h1>
+        <p class="lede">Record a child's stay in seconds at the bedside. Antibiome PICU turns every admission, culture, antibiotic and vital sign into patterns your unit can act on — on your own computer, with nothing sent to the cloud.</p>
         <div class="hero-cta">
-          <button class="pill pill-white" data-go="docs">Set it up</button>
-          <a class="pill pill-ghost" href="#features">See what it does</a>
+          <button class="pill pill-white" data-go="docs">Set it up →</button>
+          <button class="pill pill-ghost" id="watch" hidden>▶ Watch the film</button>
+          <a class="pill pill-ghost" href="#story">See how it works</a>
         </div>
       </div>
-
       <div class="stage">
-        <div class="ask" aria-hidden="true">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <span class="ask-q" id="askq">Septic shock admissions this year: antibiotics within 60 minutes?</span>
-          <span class="pill pill-white" style="padding:7px 14px">Ask</span>
-        </div>
         <div class="window">
-          <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="addr">Antibiome PICU — Command centre · 14 beds</span></div>
-          <img src="assets/home-dark.png" alt="The command centre: census, admissions, mortality with 12-month PIM3 SMR, ventilator days and what changed this month" width="1440" height="893">
+          <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="addr">Antibiome PICU — Command centre · 12 of 14 beds</span></div>
+          <img src="assets/home-dark.png" alt="The command centre: who is in the unit, admissions, ventilation, mortality with a 12-month PIM3 SMR, and what changed this month" width="1424" height="855">
         </div>
       </div>
-    </div>
-  </div>
-
-  <div class="strip" aria-label="Methods and standards used">
-    <div class="strip-track">
-      <span><b>PIM3</b> 2013 equation</span><span><b>SMR</b> with Byar 95% CI</span><span><b>IPSCC 2005</b> age bands</span><span><b>WHO AWaRe</b> groups</span><span><b>DOT</b> per 1,000 patient-days</span><span><b>First-isolate</b> antibiogram</span><span><b>Fisher's exact</b> · Mann–Whitney</span><span><b>Logistic regression</b> with EPV ≥ 10</span><span><b>SQLite</b> on the unit PC</span><span><b>HTTPS</b> to paired phones</span>
-      <span aria-hidden="true"><b>PIM3</b> 2013 equation</span><span aria-hidden="true"><b>SMR</b> with Byar 95% CI</span><span aria-hidden="true"><b>IPSCC 2005</b> age bands</span><span aria-hidden="true"><b>WHO AWaRe</b> groups</span><span aria-hidden="true"><b>DOT</b> per 1,000 patient-days</span><span aria-hidden="true"><b>First-isolate</b> antibiogram</span><span aria-hidden="true"><b>Fisher's exact</b> · Mann–Whitney</span><span aria-hidden="true"><b>Logistic regression</b> with EPV ≥ 10</span><span aria-hidden="true"><b>SQLite</b> on the unit PC</span><span aria-hidden="true"><b>HTTPS</b> to paired phones</span>
     </div>
   </div>
 
   <div class="wrap">
-    <section class="block" id="features">
+    <section class="block" id="story">
       <div class="block-head">
-        <span class="eyebrow">What it does</span>
-        <h2>Recorded once at the bedside, counted everywhere</h2>
-        <p>Nurses and doctors record what they already do. Everything else — ventilator days, antibiotic exposure, severity, adherence — is derived.</p>
+        <span class="eyebrow">From the bedside to the unit</span>
+        <h2>PICU data is everywhere. The intelligence is hidden inside it.</h2>
+        <p>Cultures in one book, antibiotics in another, vitals on a chart, outcomes in a register. Antibiome connects them for every admission, so the unit can see what it is actually doing.</p>
       </div>
-      <div class="features">
-        <div class="feature"><h3>Census &amp; admission</h3><p>Defaults everywhere, one-tap chips and a visible entry timer. Returning patients are recognised by MRN.</p><span class="fact">target &lt; 60 s per admission</span></div>
-        <div class="feature"><h3>Vitals at key moments</h3><p>Admission, deterioration, review. Age-specific flags, S/F ratio, shock index and the worst first-24 h values, derived.</p><span class="fact">HR · RR · SpO₂ · FiO₂ · BP · GCS · glucose</span></div>
-        <div class="feature"><h3>Severity &amp; outcomes</h3><p>PIM3 from the first hour, pre-filled from the record. A rolling 12-month standardised mortality ratio on the dashboard.</p><span class="fact">SMR 1.76 (95% CI 1.36–2.24) in the demo</span></div>
-        <div class="feature"><h3>Stewardship &amp; microbiology</h3><p>Days of therapy, AWaRe mix, MDR isolates and a first-isolate antibiogram that flags groups under 30.</p><span class="fact">DOT / 1,000 patient-days</span></div>
-        <div class="feature"><h3>Research Explorer</h3><p>Build a cohort from any recorded field, compare groups, adjust with logistic regression. Optional AI turns a typed question into a query you confirm.</p><span class="fact">association, never causation</span></div>
-        <div class="feature"><h3>Protocols &amp; QI</h3><p>Write local protocols as measurable rules — time windows, if/then, conditions — and see adherence against target with run charts.</p><span class="fact">sepsis first-hour bundle built in</span></div>
+      <div class="story">
+        <div><b>Recorded</b><span>Admission, support, drugs, vitals, labs and cultures — one tap each, on the PC or a phone.</span></div>
+        <div><b>Organised</b><span>Every value belongs to an admission and a moment. Days on the ventilator and on each antibiotic are derived, not counted by hand.</span></div>
+        <div><b>Patterns</b><span>Antibiograms, days of therapy, adherence and severity across months, with first isolates and small groups flagged.</span></div>
+        <div><b>Intelligence</b><span>Risk-adjusted mortality, Phoenix sepsis, protocol run charts and a research Explorer that states its limits.</span></div>
+      </div>
+    </section>
+
+    <section class="block" style="padding-top:70px">
+      <div class="feature-row">
+        <div class="copy">
+          <span class="eyebrow">One patient</span>
+          <h3>The whole stay on one chart</h3>
+          <p>Respiratory support, every vasoactive and antimicrobial as bars across the days, cultures and complications where they happened, and vital-sign trends underneath on the same scale.</p>
+          <ul>
+            <li>Antimicrobials coloured by WHO AWaRe group, with days of therapy</li>
+            <li>Phoenix Sepsis Score per moment and worst in the first 24 h</li>
+            <li>Every past admission of the child one click away</li>
+          </ul>
+        </div>
+        <div class="shot"><img src="assets/therapy-chart.png" alt="A patient's therapy chart with support, antibiotics, cultures and vitals across six days" width="1052" height="560" loading="lazy"></div>
+      </div>
+      <div class="feature-row">
+        <div class="copy">
+          <span class="eyebrow">Many cultures</span>
+          <h3>A cumulative antibiogram that knows its limits</h3>
+          <p>Susceptibility by organism and drug from your own cultures, first isolate per patient, with groups under 30 isolates marked so nobody over-reads a percentage.</p>
+          <span class="fact">CLSI M39 first-isolate rule · MDR definition v1</span>
+        </div>
+        <div class="shot"><img src="assets/antibiogram.png" alt="Cumulative antibiogram by organism and antibiotic" width="1052" height="560" loading="lazy"></div>
+      </div>
+      <div class="feature-row">
+        <div class="copy">
+          <span class="eyebrow">The whole unit</span>
+          <h3>Ask a question, get an honest answer</h3>
+          <p>Build a cohort from anything recorded, compare groups and adjust with logistic regression. Every result is written out in plain words, labelled as association, never cause.</p>
+          <ul>
+            <li>Optional AI turns a typed question into a query you confirm (Claude or DeepSeek; no patient data sent)</li>
+            <li>Protocols as measurable rules, with adherence and run charts</li>
+          </ul>
+        </div>
+        <div class="shot"><img src="assets/explorer.png" alt="Research Explorer comparing mortality in septic shock by Phoenix criteria" width="620" height="521" loading="lazy"></div>
+      </div>
+    </section>
+
+    <section class="block" style="padding-top:60px">
+      <div class="block-head">
+        <span class="eyebrow">Everything a PICU records</span>
+        <h2>Built around the unit's day</h2>
+      </div>
+      <div class="grid-feats">
+        <div><h3>Census &amp; admission</h3><p>Defaults everywhere and one-tap chips. 182 paediatric diagnoses with ICD-10 codes and PIM3 groups.</p><span class="fact">target &lt; 60 s per admission</span></div>
+        <div><h3>Vitals, labs &amp; scores</h3><p>Recorded at key moments. Age-specific flags, S/F ratio, shock index, Brighton PEWS and Phoenix.</p><span class="fact">IPSCC 2005 · Phoenix 2024</span></div>
+        <div><h3>Severity &amp; outcomes</h3><p>PIM3 from the first hour and a rolling 12-month standardised mortality ratio with its confidence interval.</p><span class="fact">SMR with Byar 95% CI</span></div>
+        <div><h3>Stewardship</h3><p>Days of therapy per 1,000 days present, AWaRe mix, why courses were started and how long they ran.</p><span class="fact">NHSN days-present denominator</span></div>
+        <div><h3>Patients archive</h3><p>Every admission, current and past, searchable by MRN, name, diagnosis, ICD-10 or bed.</p><span class="fact">names for clinical roles only</span></div>
+        <div><h3>Disease modules</h3><p>Add fields for sepsis, GBS, DKA or your own protocol without breaking earlier records.</p><span class="fact">versioned, with introduction dates</span></div>
       </div>
     </section>
 
     <section class="block">
-      <div class="split">
+      <div class="feature-row" style="border-top:0;padding-top:0">
         <div class="copy">
           <span class="eyebrow">Phones on the ward Wi-Fi</span>
-          <h2>The PC stays the record. Phones bring it to the bed.</h2>
-          <p>Turn on phone access and pair a phone with a single-use QR code. Staff sign in with their own accounts; changes appear on every open screen.</p>
-          <ul class="ticks">
-            <li>Encrypted HTTPS to the unit PC; nothing about patients stored on the phone</li>
+          <h3>The PC keeps the record. Phones bring it to the bed.</h3>
+          <p>Pair a phone with a single-use QR code. Staff sign in with their own accounts, and changes appear on every open screen.</p>
+          <ul>
+            <li>Encrypted connection to the unit PC; nothing about patients stored on the phone</li>
             <li>Locks after 5 minutes; names hidden on phones unless the unit turns them on</li>
             <li>Bedside work only — research, exports and settings stay on the PC</li>
-            <li>Every action names the phone it came from in the audit trail</li>
           </ul>
         </div>
         <div class="phones">
-          <div class="phone"><img src="assets/phone-census.png" alt="Phone census with one-tap respiratory support" width="390" height="664" loading="lazy"></div>
-          <div class="phone"><img src="assets/phone-vitals.png" alt="Recording vital signs on a phone with live age-specific flags" width="390" height="664" loading="lazy"></div>
-          <div class="phone"><img src="assets/phone-patient.png" alt="Patient page on a phone showing the latest vital signs" width="390" height="664" loading="lazy"></div>
+          <div class="phone"><img src="assets/phone-census.png" alt="Census on a phone with one-tap respiratory support" width="390" height="664" loading="lazy"></div>
+          <div class="phone"><img src="assets/phone-vitals.png" alt="Recording vital signs on a phone" width="390" height="664" loading="lazy"></div>
+          <div class="phone"><img src="assets/phone-patient.png" alt="Patient page on a phone" width="390" height="664" loading="lazy"></div>
         </div>
-      </div>
-    </section>
-
-    <section class="block">
-      <div class="block-head">
-        <span class="eyebrow">On the PC</span>
-        <h2>Built for the unit's own questions</h2>
-      </div>
-      <div class="gallery">
-        <figure><div class="shot"><img src="assets/patient-vitals.png" alt="Patient page with vital-sign trends, worst first-24 h values and the timeline" width="1440" height="893" loading="lazy"></div><figcaption>Patient: vitals, therapy and a day-by-day timeline</figcaption></figure>
-        <figure><div class="shot"><img src="assets/explorer.png" alt="Research Explorer comparing outcomes between two groups" width="1440" height="893" loading="lazy"></div><figcaption>Research Explorer with a plain-words summary</figcaption></figure>
-        <figure><div class="shot"><img src="assets/protocols.png" alt="Protocol adherence cards and a run chart" width="1440" height="893" loading="lazy"></div><figcaption>Protocol adherence and run charts</figcaption></figure>
       </div>
     </section>
 
@@ -319,10 +350,10 @@ kbd { font: 500 11.5px var(--font-mono); border: 1px solid var(--line-2); border
     </section>
 
     <div class="closing">
-      <span class="script" aria-hidden="true">Ready when</span>
-      <h2>you are on shift</h2>
-      <p>Install on one Windows PC, create the unit, and admit the first patient. The setup guide walks through every step, including phones and IT.</p>
-      <button class="pill pill-white" data-go="docs">Open the setup guide</button>
+      <span class="eyebrow">Antibiome PICU 0.1.0 · Windows</span>
+      <h2>Turn PICU data into intelligence.</h2>
+      <p>Install on one Windows PC, create the unit and admit the first patient. The setup guide covers every step, including phones and IT.</p>
+      <button class="pill pill-white" data-go="docs">Open the setup guide →</button>
     </div>
   </div>
 </main>
@@ -413,6 +444,12 @@ npm install</pre></div></div></li>
             <li>Record vital signs on admission, at a deterioration or at review — any subset is fine.</li>
             <li><strong>Daily reconcile</strong> (<kbd>R</kbd>) checks every bed's support and drugs in one grid.</li>
           </ul>
+          <h3>Vitals, labs and scores</h3>
+          <p>Press <strong>Record</strong> on the vitals card. Add <em>Labs</em> (lactate, PaO₂, platelets, INR, D-dimer, fibrinogen, fixed pupils) or <em>PEWS</em> to the same set when you have them. The app works out the <strong>Phoenix Sepsis Score</strong> for that moment and the worst in the first 24 h, and flags Phoenix sepsis and septic shock. Inputs that were not recorded count as zero, and the card says which ones are missing.</p>
+          <h3>The therapy chart</h3>
+          <p>At the top of every patient page: respiratory support, vasoactives and each antimicrobial across the days of the stay, cultures and complications where they happened, and vitals underneath. Hover any mark for exact times.</p>
+          <h3>Finding past patients</h3>
+          <p><strong>Patients</strong> in the sidebar lists every admission, current and past. Search by MRN, name, diagnosis, ICD-10 code or bed, and filter by outcome or admission date. Other admissions of the same child are linked from the patient page.</p>
           <h3>Discharge</h3>
           <p>Choose the outcome and time; anything still running is closed at that time, and the sheet asks only for module fields still missing.</p>
         </section>
@@ -500,12 +537,18 @@ npm install</pre></div></div></li>
   </div>
 </div>
 
+
 <footer>
   <div class="wrap">
     <span>Antibiome PICU 0.1.0 · descriptive and associational analytics for quality improvement and research. It does not give treatment advice.</span>
     <a href="https://github.com/itskaero/antibiome">github.com/itskaero/antibiome</a>
   </div>
 </footer>
+
+<div class="film" id="film" hidden>
+  <button class="pill pill-white" id="film-close">Close</button>
+  <video id="film-video" controls playsinline preload="none"></video>
+</div>
 
 <script>
 // ── Tabs (deep-linkable with #product / #docs / #d-section) ──
@@ -544,18 +587,14 @@ npm install</pre></div></div></li>
   fromHash();
   window.addEventListener('hashchange', fromHash);
 
-  // Highlight the current docs section.
   var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
   if ('IntersectionObserver' in window) {
     var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (en.isIntersecting) links.forEach(function (l) { l.classList.toggle('on', l.getAttribute('href') === '#' + en.target.id); });
-      });
+      entries.forEach(function (en) { if (en.isIntersecting) links.forEach(function (l) { l.classList.toggle('on', l.getAttribute('href') === '#' + en.target.id); }); });
     }, { rootMargin: '-30% 0px -60% 0px' });
     document.querySelectorAll('.doc section').forEach(function (s) { io.observe(s); });
   }
 
-  // Copy buttons.
   document.querySelectorAll('.code button').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var pre = btn.parentNode.querySelector('pre');
@@ -565,35 +604,99 @@ npm install</pre></div></div></li>
     });
   });
 
-  // Example questions in the floating bar (illustration only).
-  var qs = ['Septic shock admissions this year: antibiotics within 60 minutes?', 'Pneumonia: mortality by highest respiratory support', 'Lowest first-24 h systolic BP in children who died vs survived', 'Meropenem days per 1,000 patient-days, last 6 months'];
-  var el = document.getElementById('askq'), qi = 0;
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(function () { qi = (qi + 1) % qs.length; el.textContent = qs[qi]; }, 4200);
+  // The launch film, shown only when it has been published next to the page.
+  var watch = document.getElementById('watch'), film = document.getElementById('film'), video = document.getElementById('film-video');
+  fetch('assets/film.mp4', { method: 'HEAD' }).then(function (r) { if (r.ok) watch.hidden = false; }).catch(function () {});
+  watch.addEventListener('click', function () { if (!video.src) video.src = 'assets/film.mp4'; film.hidden = false; video.play().catch(function () {}); });
+  function closeFilm() { film.hidden = true; video.pause(); }
+  document.getElementById('film-close').addEventListener('click', closeFilm);
+  film.addEventListener('click', function (e) { if (e.target === film) closeFilm(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !film.hidden) closeFilm(); });
 })();
 
-// ── Hero fluid: domain-warped noise in deep blue and ice, with a fine dither ──
+// ── The scene: a ward window at first light, painted live in a fragment shader ──
+//  Sky with lit cloud banks and a low sun, sea and reflection, window frame, two sheer curtains
+//  drifting in the draught, paper cranes crossing the window, warm light spilling into the room,
+//  and a brush-stroke texture so it reads as a painting rather than a render.
 (function () {
-  var c = document.getElementById('fluid');
+  var c = document.getElementById('scene');
   var gl = c.getContext('webgl', { antialias: false, premultipliedAlpha: false });
   if (!gl) return; // CSS gradient fallback stays
   var vs = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
   var fs = [
-    'precision highp float;uniform vec2 r;uniform float t;',
+    'precision highp float;uniform vec2 r;uniform float t;uniform vec4 win;uniform float dim;',
     'float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
     'float n(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y);}',
-    'float fbm(vec2 p){float v=0.,a=.5;for(int k=0;k<5;k++){v+=a*n(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}',
-    'void main(){vec2 uv=gl_FragCoord.xy/r.y;float s=t*.045;',
-    'vec2 q=vec2(fbm(uv*1.3+vec2(0.,s)),fbm(uv*1.3+vec2(5.2,1.3)-s));',
-    'vec2 w=vec2(fbm(uv*1.1+3.*q+vec2(1.7,9.2)+s*.7),fbm(uv*1.1+3.*q+vec2(8.3,2.8)-s*.6));',
-    'float f=fbm(uv*1.05+3.2*w);',
-    'vec3 col=mix(vec3(0.,0.,.012),vec3(.07,.14,1.),smoothstep(.46,.76,f));',
-    'col=mix(col,vec3(.86,.9,1.),smoothstep(.78,.97,f)*.9);',
-    'float vy=gl_FragCoord.y/r.y;col*=smoothstep(.0,.45,vy)*.55+.45;',
-    'col+= (h(gl_FragCoord.xy+t)-.5)*.045;',
-    'vec2 g=mod(gl_FragCoord.xy,3.);col*=.9+.1*step(1.,g.x)*step(1.,g.y);',
-    'gl_FragColor=vec4(col,1.);}'
-  ].join('');
-  function sh(type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null; }
+    'float fbm(vec2 p){float v=0.,a=.5;for(int k=0;k<5;k++){v+=a*n(p);p=p*2.02+vec2(3.1,1.7);a*=.5;}return v;}',
+    'vec3 sky(vec2 q,float ar){',
+    '  vec3 top=vec3(.07,.10,.22),mid=vec3(.36,.30,.45),low=vec3(1.,.60,.30);',
+    '  vec3 c=mix(low,mid,smoothstep(.10,.50,q.y));c=mix(c,top,smoothstep(.45,1.,q.y));',
+    '  vec2 sp=vec2(.62,.30);float d=length((q-sp)*vec2(ar,1.));',
+    '  c+=vec3(1.,.70,.38)*exp(-d*5.)*.85+vec3(1.,.93,.78)*smoothstep(.055,.035,d);',
+    '  float w=fbm(q*3.+vec2(t*.015,0.));',
+    '  float cl=fbm(vec2(q.x*1.6+t*.01,q.y*5.5)+w*1.4);',
+    '  float band=smoothstep(.40,.70,cl)*smoothstep(1.02,.30,q.y);',
+    '  float lit=clamp(smoothstep(.65,.1,q.y)*1.1+exp(-d*3.5)*.8,0.,1.);',
+    '  float edge=smoothstep(.40,.62,cl)-smoothstep(.62,.80,cl);',
+    '  vec3 cc=mix(vec3(.13,.14,.28),vec3(1.,.62,.34),lit)+vec3(1.,.75,.5)*edge*lit*.6;',
+    '  c=mix(c,cc,band);',
+    '  float hz=.22+.018*sin(q.x*6.+1.)+.025*fbm(vec2(q.x*7.,2.));',
+    '  if(q.y<hz){c=mix(vec3(.04,.06,.12),vec3(.25,.18,.22),pow(q.y/hz,1.5));',
+    '    float rl=exp(-abs(q.x-sp.x)*ar*7.)*(.45+.55*n(vec2(q.x*30.,q.y*240.+t*1.5)));',
+    '    c+=vec3(1.,.62,.32)*rl*.65*smoothstep(0.,hz,q.y);}',
+    '  return c;}',
+    'void main(){',
+    '  vec2 uv=gl_FragCoord.xy/r;float a=r.x/r.y;',
+    '  vec2 ws=win.zw-win.xy;float ar=ws.x*a/ws.y;',
+    '  vec2 q=(uv-win.xy)/ws;',
+    // room
+    '  vec3 col=mix(vec3(.02,.028,.055),vec3(.055,.07,.12),smoothstep(0.,1.,uv.y));',
+    '  vec2 wc=(win.xy+win.zw)*.5;vec2 dd=(uv-wc)*vec2(a,1.);',
+    '  col+=vec3(1.,.58,.30)*exp(-length(dd)*2.)*.20;',
+    // light pool on the floor below the window
+    '  vec2 fp=vec2((uv.x-wc.x+(win.y-uv.y)*.55)/(ws.x*1.1),(win.y-uv.y)/(ws.y*.55));',
+    '  if(uv.y<win.y){float pool=smoothstep(.55,.0,abs(fp.x))*smoothstep(1.,.0,fp.y)*smoothstep(0.,.08,fp.y);col+=vec3(1.,.62,.32)*pool*.16;}',
+    '  bool inside=q.x>0.&&q.x<1.&&q.y>0.&&q.y<1.;',
+    '  vec3 behind=col;',
+    '  if(inside){vec3 s=sky(q,ar);',
+    // paper cranes
+    '    for(int i=0;i<5;i++){float fi=float(i);',
+    '      float spd=.010+.008*h(vec2(fi,1.));',
+    '      vec2 c0=vec2(fract(h(vec2(fi,2.))+t*spd)*1.5-.25,.42+.42*h(vec2(fi,3.))+.025*sin(t*.35+fi*2.));',
+    '      float sc=.022+.018*h(vec2(fi,4.));',
+    '      vec2 pp=(q-c0)/sc;pp.x*=ar;pp.x/=1.6;',
+    '      float flap=.35+.45*sin(t*1.6+fi*1.9);',
+    '      float dv=abs(pp.y-abs(pp.x)*flap)-.07*(1.-abs(pp.x));',
+    '      float m=smoothstep(.12,.0,dv)*smoothstep(1.,.75,abs(pp.x));',
+    '      s=mix(s,vec3(.10,.10,.18),m*.9);}',
+    // frame and mullions
+    '    float b=min(min(q.x*ar,(1.-q.x)*ar),min(q.y,1.-q.y));',
+    '    float fr=step(b,.02)+step(abs(q.x-.5)*ar,.008)+step(abs(q.y-.6),.008);',
+    '    behind=s;col=mix(s,vec3(.025,.03,.05),clamp(fr,0.,1.));}',
+    // sheer curtains, billowing in the draught
+    '  float yy=q.y;',
+    '  if(yy>-.25&&yy<1.06){',
+    '    float eL=.17+.06*sin(yy*3.+t*.55)+.03*sin(yy*7.3-t*.9)+.04*smoothstep(.4,-.2,yy)*sin(t*.4);',
+    '    float eR=.83-.05*sin(yy*2.6+t*.5+1.3)-.03*sin(yy*8.1+t*.8)-.04*smoothstep(.4,-.2,yy)*sin(t*.37+2.);',
+    '    float inL=smoothstep(.0,.035,eL-q.x)*smoothstep(-.22,-.15,q.x);',
+    '    float inR=smoothstep(.0,.035,q.x-eR)*smoothstep(1.22,1.15,q.x);',
+    '    float cur=max(inL,inR)*smoothstep(1.06,1.0,yy)*smoothstep(-.25,-.18,yy);',
+    '    if(cur>0.){',
+    '      float fold=.5+.5*sin(q.x*ar*38.+2.2*sin(yy*2.2+t*.45)+fbm(q*vec2(3.,1.5)+t*.05)*4.);',
+    '      float lum=dot(behind,vec3(.3,.5,.2));',
+    '      vec3 sheer=mix(vec3(.55,.5,.55),vec3(1.,.86,.70),clamp(lum*1.6,0.,1.))*(.16+1.3*lum)*(.62+.6*fold);',
+    '      float al=(.5+.32*fold)*cur;',
+    '      col=mix(col,sheer,al*.85);}}',
+    // painting: brush strokes, quantised light, vignette, readable left side, grain
+    '  float st=fbm(vec2(uv.x*a*70.,uv.y*11.)+fbm(uv*6.)*2.);',
+    '  col*=.9+.2*st;',
+    '  col=floor(col*48.)/48.;',
+    '  col*=mix(1.,smoothstep(1.25,.25,length((uv-vec2(.62,.55))*vec2(a*.8,1.))),.55);',
+    '  col*=mix(1.,smoothstep(.05,.62,uv.x),dim);',
+    '  col+=(h(gl_FragCoord.xy+fract(t))-.5)*.035;',
+    '  gl_FragColor=vec4(col,1.);}'
+  ].join('\n');
+  function sh(type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.warn(gl.getShaderInfoLog(s)); return null; } return s; }
   var v = sh(gl.VERTEX_SHADER, vs), f = sh(gl.FRAGMENT_SHADER, fs);
   if (!v || !f) return;
   var pr = gl.createProgram(); gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr);
@@ -602,18 +705,31 @@ npm install</pre></div></div></li>
   var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
   var loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  var ur = gl.getUniformLocation(pr, 'r'), ut = gl.getUniformLocation(pr, 't');
-  var scale = Math.min(window.devicePixelRatio || 1, 1.5) * 0.6; // render small, let CSS upscale (softer, cheaper)
-  function size() { var w = Math.max(1, Math.round(c.clientWidth * scale)), hh = Math.max(1, Math.round(c.clientHeight * scale)); if (c.width !== w || c.height !== hh) { c.width = w; c.height = hh; gl.viewport(0, 0, w, hh); } }
-  var still = matchMedia('(prefers-reduced-motion: reduce)').matches, t0 = performance.now(), visible = true;
-  function frame(now) {
-    size(); gl.uniform2f(ur, c.width, c.height); gl.uniform1f(ut, 20 + (still ? 0 : (now - t0) / 1000));
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    if (!still && visible) requestAnimationFrame(frame);
+  var ur = gl.getUniformLocation(pr, 'r'), ut = gl.getUniformLocation(pr, 't'), uw = gl.getUniformLocation(pr, 'win'), ud = gl.getUniformLocation(pr, 'dim');
+  var scale = Math.min(window.devicePixelRatio || 1, 1.5) * 0.65;
+  function layout() {
+    var W = c.clientWidth, H = c.clientHeight, narrow = W < 760;
+    // Window in CSS pixels from the top-left, converted to shader UV (origin bottom-left).
+    var x0 = narrow ? 0.1 * W : 0.56 * W, x1 = narrow ? 0.9 * W : Math.min(0.9 * W, x0 + 560);
+    // Keep the window clear of the product window that rises from the bottom of the hero.
+    var st = document.querySelector('.stage'), stageTop = st ? st.getBoundingClientRect().top - c.getBoundingClientRect().top : H * 0.6;
+    var yTop = narrow ? 80 : 96, yBot = Math.max(yTop + 260, stageTop - (narrow ? 30 : 60));
+    gl.uniform4f(uw, x0 / W, 1 - yBot / H, x1 / W, 1 - yTop / H);
+    gl.uniform1f(ud, narrow ? 0.25 : 0.62);
   }
-  if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { var was = visible; visible = e[0].isIntersecting; if (visible && !was && !still) requestAnimationFrame(frame); }).observe(c);
-  window.addEventListener('resize', function () { if (still) requestAnimationFrame(frame); });
-  requestAnimationFrame(frame);
+  function size() {
+    var w = Math.max(1, Math.round(c.clientWidth * scale)), hh = Math.max(1, Math.round(c.clientHeight * scale));
+    if (c.width !== w || c.height !== hh) { c.width = w; c.height = hh; gl.viewport(0, 0, w, hh); layout(); }
+  }
+  var still = matchMedia('(prefers-reduced-motion: reduce)').matches, t0 = performance.now(), visible = true, raf = 0;
+  function frame(now) {
+    raf = 0; size(); gl.uniform2f(ur, c.width, c.height); gl.uniform1f(ut, 30 + (still ? 0 : (now - t0) / 1000));
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (!still && visible) raf = requestAnimationFrame(frame);
+  }
+  if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { visible = e[0].isIntersecting; if (visible && !raf && !still) raf = requestAnimationFrame(frame); }).observe(c);
+  window.addEventListener('resize', function () { c.width = 0; if (!raf) raf = requestAnimationFrame(frame); });
+  raf = requestAnimationFrame(frame);
 })();
 </script>
 </body>

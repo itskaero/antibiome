@@ -19,7 +19,8 @@ A real-time antibiogram and culture surveillance dashboard built with vanilla Ja
 > **New: Antibiome PICU (desktop).** A standalone PICU intelligence app with a local SQLite database lives in
 > [`desktop/`](desktop/README.md). It keeps this web app's antibiogram and MDR logic and adds admissions,
 > respiratory/vasoactive/antimicrobial tracking, outcomes, stewardship, data quality and an audit trail.
-> Design and roadmap: [`docs/PICU_INTELLIGENCE_PLAN.md`](docs/PICU_INTELLIGENCE_PLAN.md). The web app below is unchanged.
+> Design and roadmap: [`docs/PICU_INTELLIGENCE_PLAN.md`](docs/PICU_INTELLIGENCE_PLAN.md). Product page and setup guide:
+> [`site/index.html`](site/index.html) (static; open it in a browser or serve the `site/` folder). The web app below is unchanged.
 
 ---
 

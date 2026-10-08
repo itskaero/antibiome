@@ -90,7 +90,7 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
     if (dx === 'SEPSIS' || dx === 'SEPTIC_SHOCK') {
       const shock = dx === 'SEPTIC_SHOCK' || c.isVaso;
       const fluid = Math.round(between(10, 60));
-      put('sepsis.recognised_at', L(c.admitT - between(0, 3) * 3_600_000));
+      put('sepsis.recognised_at', L(c.admitT - between(0, 1) * 3_600_000));
       put('sepsis.source', pick(['Lung', 'Lung', 'Bloodstream / unknown', 'Bloodstream / unknown', 'CNS', 'Urinary', 'Abdominal', 'Skin / soft tissue', 'Device / line']));
       put('sepsis.lactate_initial', Math.round(between(shock ? 2.5 : 1, shock ? 9 : 4) * 10) / 10);
       put('sepsis.fluid_first_hour', fluid);
@@ -199,7 +199,8 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
         const culture = r() < p.cultureP;
         const abxEnd = admitT + Math.min(los, between(4, 10)) * DAY_MS;
         regimen.forEach(drug => {
-          const s = admitT + between(0.02, 0.15) * DAY_MS;
+          // Sepsis pathways start antimicrobials sooner (≈ 10 min – 2 h); other diagnoses within a few hours.
+          const s = admitT + (p.dx === 'SEPSIS' || p.dx === 'SEPTIC_SHOCK' ? between(0.007, 0.08) : between(0.02, 0.15)) * DAY_MS;
           const e = Math.min(abxEnd, endT ?? Infinity);
           insEp.run(randomUUID(), aid, 'abx', drug, 'empiric', L(s), e < now ? L(e) : null, e < now ? (died ? 'death' : 'completed') : null, L(s));
         });

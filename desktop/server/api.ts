@@ -18,7 +18,9 @@ import { isMDR, relevantResistantClasses, MDR_DEFINITION_VERSION } from '../shar
 import { DAY_MS, ms, nowLocal, shiftMonth, toLocal } from '../shared/time';
 import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/pim3';
 import { buildExplorer } from './explorer';
-import { describeSpec, runCohort, validateSpec } from '../shared/explorer';
+import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
+import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
+import { describeCondition, describeSpec, runCohort, validateSpec } from '../shared/explorer';
 import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
 import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
 
@@ -681,6 +683,55 @@ export const routes: Record<string, Route> = {
     if (r.created_by !== session.user!.id && session.user!.role !== 'admin') fail('Only the author or an admin can delete this cohort');
     db.prepare('DELETE FROM saved_cohorts WHERE id = ?').run(p.id);
     audit(db, session, 'delete', 'cohort', p.id, `Deleted cohort "${r.name}"`);
+    return true;
+  } },
+
+  // Protocols / QI monitoring
+  'protocols.list': { roles: ALL, fn: (_p, { db, session, now }) => {
+    const { fields } = buildExplorer(db, now());
+    const tp = timePoints(db);
+    return {
+      protocols: loadProtocols(db, session.user!.role === 'admin').map(p => ({
+        ...p, ruleText: Object.fromEntries(p.rules.map(r => [r.id, describeRule(r, fields, tp)])),
+        eligibilityText: p.eligibility.length ? p.eligibility.map(c => describeCondition(c, fields)).join(' AND ') : 'every admission',
+      })),
+      timePoints: tp,
+    };
+  } },
+  'protocols.results': { roles: ALL, fn: (p, { db, session, now }) => {
+    const t = now();
+    const { cases } = buildProtocolCases(db, t);
+    const end = toLocal(new Date(t)).slice(0, 7);
+    const months = Array.from({ length: 12 }, (_, i) => shiftMonth(end, i - 11));
+    const inRange = cases.filter(c => (!p?.from || c.admitAt.slice(0, 10) >= p.from) && (!p?.to || c.admitAt.slice(0, 10) <= p.to));
+    return loadProtocols(db).filter(x => !p?.id || x.id === p.id).map(proto => {
+      const r = evaluateProtocol(proto, inRange, months);
+      // Case lists are for clinical review only; researchers get aggregates.
+      return session.user!.role === 'researcher' ? { ...r, failures: [] } : { ...r, failures: r.failures.slice(0, 200) };
+    });
+  } },
+  'protocols.save': { roles: ['admin'], fn: (p, { db, session, now }) => {
+    const { fields } = buildExplorer(db, now());
+    const v = (() => { try { return validateProtocol(p, fields, timePoints(db)); } catch (e: any) { return fail(e.message); } })();
+    const t = nowLocal();
+    let id = p.id as string | undefined;
+    if (id) {
+      if (!db.prepare('SELECT 1 FROM protocols WHERE id = ?').get(id)) fail('Protocol not found');
+      db.prepare('UPDATE protocols SET name = ?, description = ?, eligibility = ?, rules = ?, active = ?, updated_at = ? WHERE id = ?')
+        .run(v.name, v.description, JSON.stringify(v.eligibility), JSON.stringify(v.rules), v.active ? 1 : 0, t, id);
+    } else {
+      id = randomUUID();
+      db.prepare('INSERT INTO protocols(id, name, description, eligibility, rules, active, built_in, created_at, updated_at) VALUES (?,?,?,?,?,?,0,?,?)')
+        .run(id, v.name, v.description, JSON.stringify(v.eligibility), JSON.stringify(v.rules), v.active ? 1 : 0, t, t);
+    }
+    audit(db, session, p.id ? 'update' : 'add', 'protocol', id, `${p.id ? 'Updated' : 'Created'} protocol "${v.name}" (${v.rules.length} rules)`);
+    return { id };
+  } },
+  'protocols.delete': { roles: ['admin'], fn: (p, { db, session }) => {
+    const r = db.prepare('SELECT * FROM protocols WHERE id = ?').get(p.id) as any ?? fail('Protocol not found');
+    if (r.built_in) fail('Built-in protocols can be deactivated but not deleted');
+    db.prepare('DELETE FROM protocols WHERE id = ?').run(p.id);
+    audit(db, session, 'delete', 'protocol', p.id, `Deleted protocol "${r.name}"`);
     return true;
   } },
 

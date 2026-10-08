@@ -63,7 +63,7 @@ export function buildExplorer(db: DB, now: number): { fields: ExplorerField[]; r
     const cults = ds.cultures.filter(c => c.admissionId === a.id);
     const abx = [...new Set(eps.filter(e => e.kind === 'abx').map(e => e.detail))];
     const row: Row = {
-      _admitAt: a.admitAt,
+      _admitAt: a.admitAt, _id: a.id,
       age_months: Math.round(a.ageMonths), age_band: ageBand(a.ageMonths), sex: a.sex, weight_kg: a.weightKg ?? undefined,
       malnutrition: a.malnutrition, chronic: a.chronicCondition, source: a.source, admission_type: a.admissionType,
       primary_dx: a.primaryDx, dx_category: DX_BY_CODE[a.primaryDx]?.category, any_dx: [a.primaryDx, ...a.secondaryDx],

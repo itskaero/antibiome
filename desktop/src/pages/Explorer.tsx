@@ -90,7 +90,7 @@ export function Explorer({ spec, setSpec, autoRun }: { spec: CohortSpec; setSpec
 
 // ── Builder pieces ───────────────────────────────────────────
 
-function FieldSelect({ fields, kinds, value, onChange, placeholder }: { fields: ExplorerField[]; kinds: FieldKind[]; value: string; onChange: (v: string) => void; placeholder: string }) {
+export function FieldSelect({ fields, kinds, value, onChange, placeholder }: { fields: ExplorerField[]; kinds: FieldKind[]; value: string; onChange: (v: string) => void; placeholder: string }) {
   const groups = useMemo(() => {
     const g: Record<string, ExplorerField[]> = {};
     fields.filter(f => kinds.includes(f.kind)).forEach(f => (g[f.group] ??= []).push(f));
@@ -116,7 +116,7 @@ function FieldMulti({ fields, kinds, value, onChange }: { fields: ExplorerField[
   );
 }
 
-function Conditions({ title, list, fields, onChange }: { title: string; list: Condition[]; fields: ExplorerField[]; onChange: (l: Condition[]) => void }) {
+export function Conditions({ title, list, fields, onChange }: { title: string; list: Condition[]; fields: ExplorerField[]; onChange: (l: Condition[]) => void }) {
   const [adding, setAdding] = useState('');
   const defaultOp = (k: FieldKind): Op => ({ number: 'gte', boolean: 'is_true', category: 'in', set: 'includes_any' } as const)[k];
   return (
@@ -133,7 +133,7 @@ function Conditions({ title, list, fields, onChange }: { title: string; list: Co
 
 const MULTI_OPS: Op[] = ['in', 'not_in', 'includes_any', 'includes_all', 'excludes'];
 
-function ConditionRow({ c, fields, onChange, onRemove }: { c: Condition; fields: ExplorerField[]; onChange: (c: Condition) => void; onRemove: () => void }) {
+export function ConditionRow({ c, fields, onChange, onRemove }: { c: Condition; fields: ExplorerField[]; onChange: (c: Condition) => void; onRemove: () => void }) {
   const f = fields.find(x => x.id === c.field);
   if (!f) return null;
   const multi = MULTI_OPS.includes(c.op);

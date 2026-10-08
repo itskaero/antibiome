@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 import { DatabaseSync } from 'node:sqlite';
 import { ensureBuiltInModules } from './modules';
+import { ensureBuiltInProtocols } from './protocols';
 
 export type DB = DatabaseSync;
 
@@ -240,6 +241,7 @@ export function openDatabase(file: string): DB {
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
   migrate(db);
   ensureBuiltInModules(db);
+  ensureBuiltInProtocols(db);
   return db;
 }
 

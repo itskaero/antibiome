@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  Activity, BedDouble, Biohazard, ClipboardCheck, FlaskRound, Layers, FileBarChart2, FlaskConical, Gauge, LayoutDashboard,
+  Activity, BedDouble, Biohazard, ClipboardCheck, ClipboardList, FlaskRound, Layers, FileBarChart2, FlaskConical, Gauge, LayoutDashboard,
   ListChecks, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Wind,
 } from 'lucide-react';
 import { call } from '@/lib/api';
@@ -24,6 +24,7 @@ import { ActivityPage } from '@/pages/ActivityPage';
 import { SettingsPage } from '@/pages/Settings';
 import { Research } from '@/pages/Research';
 import { ModulesAdmin } from '@/pages/ModulesAdmin';
+import { Protocols } from '@/pages/Protocols';
 import type { CensusRow } from '@/pages/types';
 
 export const Logo = ({ size = 22 }: { size?: number }) => (
@@ -122,6 +123,7 @@ const NAV = [
   { id: 'report', label: 'Monthly report', icon: FileBarChart2, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'research', label: 'Research', icon: FlaskRound, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'modules', label: 'Modules & fields', icon: Layers, roles: ['admin', 'clinician', 'viewer'] },
+  { id: 'protocols', label: 'Protocols & QI', icon: ClipboardList, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'quality', label: 'Data quality', icon: ClipboardCheck, roles: ['admin', 'clinician', 'viewer'] },
   { id: 'activity', label: 'Activity', icon: Activity, roles: ['admin', 'clinician', 'viewer'] },
 ] as const;
@@ -178,6 +180,7 @@ function Shell({ user, onSignOut }: { user: User; onSignOut: () => void }) {
       case 'settings': return <SettingsPage user={user} />;
       case 'research': return <Research key={args.join('/')} canExport={user.role === 'admin' || user.role === 'researcher'} args={args} />;
       case 'modules': return <ModulesAdmin isAdmin={user.role === 'admin'} />;
+      case 'protocols': return <Protocols isAdmin={user.role === 'admin'} canSeeCases={user.role !== 'researcher'} />;
       default: return <Dashboard user={user} onAdmit={() => setAdmitOpen(true)} />;
     }
   })();

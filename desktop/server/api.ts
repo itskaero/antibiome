@@ -23,33 +23,51 @@ import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
 import { describeCondition, describeSpec, narrate, runCohort, validateSpec } from '../shared/explorer';
 import { AI_MODEL, AiError, claudeTranslator, containsIdentifier, translateQuestion, type Translator } from './ai';
+import { createPairingCode, listDevices, revokeDevice, touchDevice } from './mobile';
 import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
 import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
 
 export class ApiError extends Error {}
 const fail = (msg: string): never => { throw new ApiError(msg); };
 
-export interface Session { user: User | null; lastActivity: number }
+export type Channel = 'desktop' | 'mobile';
+/** One per device: the PC has a fixed 'local' session; each phone browser tab gets its own. */
+export interface Session { user: User | null; lastActivity: number; channel: Channel; deviceId: string | null; deviceName: string | null }
 export const IDLE_LOCK_MS = 15 * 60_000;
+/** Phones are easy to leave unlocked on a bedside table — they lock sooner. */
+export const MOBILE_IDLE_MS = 5 * 60_000;
+const idleLimit = (s: Session) => (s.channel === 'mobile' ? MOBILE_IDLE_MS : IDLE_LOCK_MS);
+const newSession = (channel: Channel = 'desktop', device?: { id: string; name: string }): Session =>
+  ({ user: null, lastActivity: Date.now(), channel, deviceId: device?.id ?? null, deviceName: device?.name ?? null });
+
+/** Bedside work only. Research, exports, AI, settings, users and configuration stay on the PC. */
+export const MOBILE_METHODS = new Set([
+  'auth.status', 'auth.login', 'auth.logout', 'auth.unpairDevice', 'census.list', 'patient.lookup', 'recent.list',
+  'admission.create', 'admission.get', 'admission.update', 'admission.discharge',
+  'resp.set', 'drug.toggle', 'episode.update', 'episode.delete', 'event.add', 'event.delete',
+  'values.forAdmission', 'values.set', 'modules.list', 'pim3.save',
+  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'culture.save', 'culture.list', 'dashboard.get',
+]);
 
 /** Secrets live outside the database in clear text: the desktop app encrypts them with the OS keychain (safeStorage). */
 export interface SecretStore { available(): boolean; load(key: string): string | null; save(key: string, value: string | null): void }
 export interface ApiEnv { secrets: SecretStore; translator: Translator }
 const memorySecrets = (): SecretStore => { const m = new Map<string, string>(); return { available: () => true, load: k => m.get(k) ?? null, save: (k, v) => { if (v == null) m.delete(k); else m.set(k, v); } }; };
 
-type Handler = (p: any, ctx: { db: DB; session: Session; now: () => number; env: ApiEnv }) => unknown;
+type Handler = (p: any, ctx: { db: DB; session: Session; now: () => number; env: ApiEnv; endDeviceSessions: (deviceId: string) => void }) => unknown;
 interface Route { roles: Role[] | 'public'; fn: Handler }
 
 const ALL: Role[] = ['admin', 'clinician', 'viewer', 'researcher'];
 const CLINICAL: Role[] = ['admin', 'clinician'];
 const NON_RESEARCH: Role[] = ['admin', 'clinician', 'viewer'];
-const canSeeIdentifiers = (s: Session) => !!s.user && CLINICAL.includes(s.user.role);
+/** Names/MRNs: clinical roles only, and on phones only when the unit has switched it on. */
+const canSeeIdentifiers = (s: Session, db: DB) => !!s.user && CLINICAL.includes(s.user.role) && (s.channel === 'desktop' || getSetting(db, 'mobileShowNames', '0') === '1');
 
 // ── Helpers ──────────────────────────────────────────────────
 
 function audit(db: DB, s: Session, action: string, entity: string, entityId: string | null, summary: string) {
   db.prepare('INSERT INTO audit_log(at, user_id, username, action, entity, entity_id, summary) VALUES (?,?,?,?,?,?,?)')
-    .run(nowLocal(), s.user?.id ?? null, s.user?.displayName ?? 'system', action, entity, entityId, summary);
+    .run(nowLocal(), s.user?.id ?? null, s.user?.displayName ?? 'system', action, entity, entityId, s.channel === 'mobile' ? `${summary} · via ${s.deviceName ?? 'phone'}` : summary);
 }
 
 const isLocalDT = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(v);
@@ -197,7 +215,7 @@ function savePim3(db: DB, s: Session, admissionId: string, raw: unknown) {
 function censusRows(db: DB, s: Session, now: number) {
   const ds = loadDataset(db);
   const issues = runQualityChecks(ds, now);
-  const ids = canSeeIdentifiers(s)
+  const ids = canSeeIdentifiers(s, db)
     ? Object.fromEntries((db.prepare('SELECT * FROM patient_identifiers').all() as any[]).map(r => [r.patient_id, r]))
     : {};
   return presentAt(ds, now).sort((a, b) => (a.bed ?? 'zz').localeCompare(b.bed ?? 'zz', undefined, { numeric: true })).map(a => {
@@ -242,9 +260,11 @@ export const routes: Record<string, Route> = {
     needsSetup: (db.prepare('SELECT COUNT(*) n FROM users').get() as any).n === 0,
     user: session.user,
     unitName: getSetting(db, 'unitName', 'PICU'),
+    channel: session.channel, deviceName: session.deviceName, idleMinutes: idleLimit(session) / 60_000,
   }) },
   'auth.setup': { roles: 'public', fn: (p, { db, session }) => {
     if ((db.prepare('SELECT COUNT(*) n FROM users').get() as any).n > 0) fail('Already set up');
+    if (session.channel !== 'desktop') fail('Set up the unit on the PICU PC');
     if (!p.username || !p.displayName) fail('Name and username are required');
     if (!p.password || p.password.length < PASSWORD_MIN) fail(`Password must be at least ${PASSWORD_MIN} characters`);
     const { hash, salt } = hashPassword(p.password);
@@ -261,14 +281,25 @@ export const routes: Record<string, Route> = {
   'auth.login': { roles: 'public', fn: (p, { db, session }) => {
     const r = db.prepare('SELECT * FROM users WHERE username = ?').get(String(p.username ?? '').trim()) as any;
     if (!r || !r.active || !verifyPassword(String(p.password ?? ''), r.pw_hash, r.pw_salt)) {
-      audit(db, { user: null, lastActivity: 0 }, 'login-failed', 'user', null, `Failed sign-in for "${String(p.username ?? '').slice(0, 40)}"`);
+      audit(db, { ...session, user: null }, 'login-failed', 'user', null, `Failed sign-in for "${String(p.username ?? '').slice(0, 40)}"`);
       fail('Incorrect username or password');
     }
+    if (session.channel === 'mobile' && r.role === 'researcher') fail('Research accounts work on the PICU PC only');
     session.user = { id: r.id, username: r.username, displayName: r.display_name, role: r.role, active: !!r.active };
+    session.lastActivity = Date.now();
+    if (session.deviceId) touchDevice(db, session.deviceId, r.display_name);
     audit(db, session, 'login', 'user', String(r.id), `${r.display_name} signed in`);
     return session.user;
   } },
   'auth.logout': { roles: ALL, fn: (_p, { db, session }) => { audit(db, session, 'logout', 'user', String(session.user!.id), `${session.user!.displayName} signed out`); session.user = null; return true; } },
+  /** A phone unpairing itself (from "Me"). */
+  'auth.unpairDevice': { roles: ALL, fn: (_p, { db, session, endDeviceSessions }) => {
+    if (!session.deviceId) fail('Only a paired phone can unpair itself');
+    const d = revokeDevice(db, session.deviceId!);
+    audit(db, session, 'delete', 'device', d.id, `Phone "${d.name}" unpaired itself`);
+    endDeviceSessions(d.id);
+    return true;
+  } },
   'auth.changePassword': { roles: ALL, fn: (p, { db, session }) => {
     const r = db.prepare('SELECT * FROM users WHERE id = ?').get(session.user!.id) as any;
     if (!verifyPassword(String(p.current ?? ''), r.pw_hash, r.pw_salt)) fail('Current password is incorrect');
@@ -281,14 +312,15 @@ export const routes: Record<string, Route> = {
 
   // Census & admissions
   'census.list': { roles: NON_RESEARCH, fn: (_p, { db, session, now }) => ({
-    rows: censusRows(db, session, now()), beds: Number(getSetting(db, 'beds', '12')), showIdentifiers: canSeeIdentifiers(session),
+    rows: censusRows(db, session, now()), beds: Number(getSetting(db, 'beds', '12')), showIdentifiers: canSeeIdentifiers(session, db),
   }) },
-  'patient.lookup': { roles: CLINICAL, fn: (p, { db }) => {
+  'patient.lookup': { roles: CLINICAL, fn: (p, { db, session }) => {
     const r = db.prepare('SELECT i.*, p.sex FROM patient_identifiers i JOIN patients p ON p.id = i.patient_id WHERE i.mrn = ?').get(String(p.mrn ?? '').trim()) as any;
     if (!r) return null;
     const last = db.prepare('SELECT admit_at, discharge_at, age_months, weight_kg FROM admissions WHERE patient_id = ? AND deleted_at IS NULL ORDER BY admit_at DESC LIMIT 1').get(r.patient_id) as any;
     const open = db.prepare('SELECT id FROM admissions WHERE patient_id = ? AND discharge_at IS NULL AND deleted_at IS NULL').get(r.patient_id) as any;
-    return { patientId: r.patient_id, name: r.name, dob: r.dob, sex: r.sex, lastAdmission: last ?? null, openAdmissionId: open?.id ?? null };
+    const named = canSeeIdentifiers(session, db);
+    return { patientId: r.patient_id, name: named ? r.name : null, dob: named ? r.dob : null, sex: r.sex, lastAdmission: last ?? null, openAdmissionId: open?.id ?? null };
   } },
   'admission.create': { roles: CLINICAL, fn: (p, { db, session, now }) => {
     validateAdmissionInput(p);
@@ -333,7 +365,7 @@ export const routes: Record<string, Route> = {
     const r = getAdmissionRow(db, p.id);
     const dx = db.prepare('SELECT code, role FROM diagnoses WHERE admission_id = ?').all(p.id) as any[];
     const admission = rowToAdmission(r, dx);
-    const ident = canSeeIdentifiers(session) ? db.prepare('SELECT mrn, name, dob FROM patient_identifiers WHERE patient_id = ?').get(r.patient_id) as any : null;
+    const ident = canSeeIdentifiers(session, db) ? db.prepare('SELECT mrn, name, dob FROM patient_identifiers WHERE patient_id = ?').get(r.patient_id) as any : null;
     if (ident) audit(db, session, 'view', 'patient', r.patient_id, `Opened record ${admissionLabel(db, p.id)}`);
     const episodes = (db.prepare('SELECT * FROM episodes WHERE admission_id = ? AND deleted_at IS NULL ORDER BY start_at').all(p.id) as any[]).map(rowToEpisode);
     const events = (db.prepare('SELECT * FROM clinical_events WHERE admission_id = ? AND deleted_at IS NULL ORDER BY at').all(p.id) as any[]).map(rowToEvent);
@@ -495,10 +527,10 @@ export const routes: Record<string, Route> = {
   // Microbiology
   'culture.list': { roles: ALL, fn: (p, { db, session }) => {
     const rows = loadCultures(db);
-    const ids = canSeeIdentifiers(session) ? Object.fromEntries((db.prepare('SELECT * FROM patient_identifiers').all() as any[]).map(r => [r.patient_id, r])) : {};
+    const ids = canSeeIdentifiers(session, db) ? Object.fromEntries((db.prepare('SELECT * FROM patient_identifiers').all() as any[]).map(r => [r.patient_id, r])) : {};
     return rows.filter(c => (!p?.unit || c.unit === p.unit)).map(c => ({
       ...c,
-      patientLabel: c.patientId ? (ids[c.patientId]?.name ?? pseudo(c.patientId)) : canSeeIdentifiers(session) ? (c.legacyLabel || '—') : '—',
+      patientLabel: c.patientId ? (ids[c.patientId]?.name ?? pseudo(c.patientId)) : canSeeIdentifiers(session, db) ? (c.legacyLabel || '—') : '—',
       legacyLabel: undefined,
       mdr: isMDR(c), resistantClasses: relevantResistantClasses(c),
     }));
@@ -871,6 +903,24 @@ export const routes: Record<string, Route> = {
     audit(db, session, 'update', 'user', String(p.id), `Updated ${r.display_name}${p.role ? ` → ${p.role}` : ''}${typeof p.active === 'boolean' ? (p.active ? ' (activated)' : ' (deactivated)') : ''}${p.password ? ' (password reset)' : ''}`);
     return true;
   } },
+  // Phone access (configured on the PC by an admin; never reachable from a phone)
+  'mobile.devices': { roles: ['admin'], fn: (_p, { db }) => ({ devices: listDevices(db), showNames: getSetting(db, 'mobileShowNames', '0') === '1' }) },
+  'mobile.pairingCode': { roles: ['admin'], fn: (_p, { db, session, now }) => {
+    const r = createPairingCode(db, session.user!.id, now());
+    audit(db, session, 'add', 'device', null, 'Created a phone pairing code (valid 10 min, single use)');
+    return r;
+  } },
+  'mobile.revoke': { roles: ['admin'], fn: (p, { db, session, endDeviceSessions }) => {
+    const d = (() => { try { return revokeDevice(db, String(p.id)); } catch (e: any) { return fail(e.message); } })();
+    endDeviceSessions(d.id);
+    audit(db, session, 'delete', 'device', d.id, `Revoked phone "${d.name}" — its sessions ended`);
+    return d;
+  } },
+  'mobile.showNames': { roles: ['admin'], fn: (p, { db, session }) => {
+    setSetting(db, 'mobileShowNames', p.on ? '1' : '0');
+    audit(db, session, 'update', 'settings', null, `Patient names on phones ${p.on ? 'shown' : 'hidden'}`);
+    return true;
+  } },
   'settings.get': { roles: ALL, fn: (_p, { db }) => ({ unitName: getSetting(db, 'unitName', 'PICU'), beds: Number(getSetting(db, 'beds', '12')) }) },
   'settings.update': { roles: ['admin'], fn: (p, { db, session }) => {
     if (p.unitName) setSetting(db, 'unitName', String(p.unitName).trim().slice(0, 60));
@@ -882,25 +932,43 @@ export const routes: Record<string, Route> = {
 
 export function createApi(db: DB, nowFn: () => number = Date.now, envIn: Partial<ApiEnv> = {}) {
   const env: ApiEnv = { secrets: envIn.secrets ?? memorySecrets(), translator: envIn.translator ?? claudeTranslator };
-  const session: Session = { user: null, lastActivity: Date.now() };
+  const local = newSession('desktop');
+  const sessions = new Map<string, Session>([['local', local]]);
+  const endDeviceSessions = (deviceId: string) => { for (const [k, s] of sessions) if (s.deviceId === deviceId) sessions.delete(k); };
+  const get = (key: string) => sessions.get(key) ?? fail('SESSION_EXPIRED');
   /** Enforces the idle lock and role for any privileged call (API routes and desktop-only routes alike). */
-  const authorize = (roles: Role[]) => {
-    if (session.user && Date.now() - session.lastActivity > IDLE_LOCK_MS) {
+  const authorize = (roles: Role[], key = 'local') => {
+    const session = get(key);
+    if (session.user && Date.now() - session.lastActivity > idleLimit(session)) {
       audit(db, session, 'lock', 'user', String(session.user.id), `${session.user.displayName} locked out after inactivity`);
       session.user = null;
     }
     if (!session.user) throw new ApiError('SESSION_EXPIRED');
     if (!roles.includes(session.user.role)) throw new ApiError('Your role does not allow this action');
     session.lastActivity = Date.now();
+    return session;
   };
   return {
-    session,
+    /** The PC's own session. */
+    get session() { return local; },
     authorize,
-    async call(method: string, params?: unknown) {
+    /** A new phone session (token kept in the phone's memory only). Stale phone sessions are pruned here. */
+    openSession(device: { id: string; name: string }) {
+      const t = Date.now();
+      for (const [k, s] of sessions) if (s.channel === 'mobile' && s.lastActivity < t - (s.user ? 12 * 3_600_000 : 30 * 60_000)) sessions.delete(k);
+      const token = randomUUID() + randomUUID().replace(/-/g, '');
+      sessions.set(token, newSession('mobile', device));
+      return token;
+    },
+    sessionFor: (key: string) => sessions.get(key) ?? null,
+    endDeviceSessions,
+    async call(method: string, params?: unknown, key = 'local') {
       const route = routes[method];
       if (!route) throw new ApiError(`Unknown method ${method}`);
-      if (route.roles !== 'public') authorize(route.roles);
-      return route.fn(params ?? {}, { db, session, now: nowFn, env });
+      const session = get(key);
+      if (session.channel === 'mobile' && !MOBILE_METHODS.has(method)) throw new ApiError('This is available on the PICU PC only');
+      if (route.roles !== 'public') authorize(route.roles, key);
+      return route.fn(params ?? {}, { db, session, now: nowFn, env, endDeviceSessions });
     },
   };
 }

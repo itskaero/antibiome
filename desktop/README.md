@@ -25,6 +25,16 @@ See [`../docs/PICU_INTELLIGENCE_PLAN.md`](../docs/PICU_INTELLIGENCE_PLAN.md) for
 | ![Modules & fields](docs/screenshots/modules-admin.png) | ![Research Explorer](docs/screenshots/explorer.png) |
 | ![Protocols & QI](docs/screenshots/protocols.png) | ![Vital signs on a patient](docs/screenshots/patient-vitals.png) |
 
+Phones on the hospital Wi-Fi (pair → census → record vitals → patient), and the PC side:
+
+| | | | |
+|---|---|---|---|
+| ![Pair a phone](docs/screenshots/phone-pair.png) | ![Phone census](docs/screenshots/phone-census.png) | ![Record vitals on a phone](docs/screenshots/phone-vitals.png) | ![Patient on a phone](docs/screenshots/phone-patient.png) |
+
+| | |
+|---|---|
+| ![Settings → Phone access](docs/screenshots/pc-phone-access.png) | ![Pairing QR code](docs/screenshots/pc-pair-qr.png) |
+
 *Screenshots use the built-in synthetic demo data.*
 
 
@@ -223,6 +233,45 @@ test at p < 0.05:
 Large changes that fail the test are listed separately as "may be noise". LOS medians are shown as
 descriptive only. All wording is descriptive, never causal.
 
+## Phone access over the hospital Wi-Fi (optional, off by default)
+
+Staff can use their own phones at the bedside. The PC stays the only data store: phones open the
+app in their browser over HTTPS from the PC, and nothing about patients is cached on them.
+
+**Turning it on (admin, on the PC):** Settings → *Phone access* → On. The card shows the PC's
+address (e.g. `https://10.20.0.15:8443`), the certificate's SHA-256 fingerprint, connected phones and
+a **Checklist for IT** (fixed IP or DHCP reservation, firewall rule — the exact `netsh` command is
+shown — Wi-Fi-to-PC network path, certificate, governance). The PC is kept awake while it is on.
+
+**Pairing a phone:** *Pair a phone* shows a QR code (and an 8-character code) that works **once,
+for 10 minutes**. The phone scans it, gets a name ("Dr Khan's phone"), and stores only a device key.
+Every user then signs in with their own account. Admins see each phone's last use and can
+**revoke** it: its sessions end at once and any open screen returns to the pairing page.
+
+**What phones can do — bedside work only:** census with one-tap support changes, admission
+(full-screen sheet), the patient page (support, vasoactives, antimicrobials, vitals, events, module
+fields, PIM3, cultures, discharge) and a read-only unit summary. Research, exports, AI, protocols,
+module editing, users, settings and backups are refused by the server for phone sessions.
+Research accounts cannot sign in on phones.
+
+**Security model**
+
+- TLS always — a certificate generated on the PC (staff confirm the fingerprint on the browser's
+  one-time warning), or preferably one issued by hospital IT and loaded as a PFX (passphrase kept in
+  the OS keychain). There is no plain-HTTP mode.
+- Unpaired devices reach only the pairing endpoint; device keys and pairing codes are stored as hashes.
+- Per-device sessions: the PC and each phone sign in independently. The phone's session token is
+  held in memory only (closing the tab signs out) and locks after **5 minutes** idle.
+- Sign-in attempts are rate-limited per phone and per address.
+- **Names and MRNs are hidden on phones by default** (bed, pseudonymous ID, diagnosis and age
+  instead); an admin can switch them on.
+- The audit trail records which phone each action came from ("… · via Dr Khan's phone").
+- Strict CSP, `no-store` caching, no service worker.
+- Changes made anywhere refresh every open screen, on the PC and on phones.
+
+**Limits to agree locally:** phones cannot block screenshots; personal phones on the clinical
+network need information-governance approval; the PC must be on with the app running.
+
 ## Roles
 
 | Role | Can |
@@ -242,8 +291,10 @@ written to the audit log.
 cd desktop
 npm install
 npm run dev          # Vite + Electron with hot reload
-npm test             # 85 unit + integration tests (analytics, statistics, MDR parity, PIM3, vitals, SQLite API, roles, import, modules, explorer, protocols, AI gate)
+npm test             # 90 unit + integration tests (analytics, statistics, MDR parity, PIM3, vitals, SQLite API, roles, import, modules, explorer, protocols, AI gate, phone pairing/sessions/HTTPS)
 npm run build && npm start
+# End-to-end phone check (built app + phone-sized Chromium; needs Playwright and a display):
+npm run build && NODE_PATH=$(npm root -g) xvfb-run -a node scripts/mobile-e2e.mjs out/
 ```
 
 On first launch you create the unit (name and beds) and the administrator account. From an empty
@@ -275,8 +326,8 @@ The SQLite file is **not** encrypted by the app itself.
 
 ```
 desktop/
-├── electron/      main process (owns the DB, IPC, dialogs, backups) + preload bridge
-├── server/        SQLite schema & migrations, API with role checks + audit, demo seeder, legacy import
+├── electron/      main process (owns the DB, IPC, dialogs, backups, phone server lifecycle) + preload bridge
+├── server/        SQLite schema & migrations, API with role checks + audit, phone pairing + HTTPS server, demo seeder, legacy import
 ├── shared/        pure TS: reference data, MDR v1 (ported verbatim), antibiogram, analytics, stats, data quality
 ├── src/           React renderer: pages, components, charts
 │   └── vendor/    WatermelonUI + ReactBits components (see vendor/README.md)
@@ -285,12 +336,14 @@ desktop/
 ```
 
 The renderer is sandboxed: context isolation is on, Node is off, a strict CSP applies, and navigation
-and new windows are blocked. Its only access to data is one whitelisted IPC call.
+and new windows are blocked. Its only access to data is one whitelisted IPC call (or, on a paired
+phone, the same API over HTTPS with the phone allow-list applied by the server).
 
 ## Known limits
 
-- **Single computer.** One SQLite file, with no simultaneous entry from several PCs. The repository
-  layer keeps a path to a network database open.
+- **Single computer.** One SQLite file on the PICU PC. Phones can enter data through it over the
+  hospital Wi-Fi, but other PCs cannot share the database. The repository layer keeps a path to a
+  network database open.
 - **No encryption by the app.** The database file is not encrypted by the app, so use BitLocker.
 - **Statistics are for screening, not publication.** They are exact or standard methods, but a
   publication-grade analysis should be repeated in a statistics package from the de-identified export.

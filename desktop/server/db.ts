@@ -253,6 +253,24 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (set_id, code)
   );
   `,
+  // v5 — phones on the hospital Wi-Fi: paired devices and one-time pairing codes (hashes only).
+  `
+  CREATE TABLE devices (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    secret_hash TEXT NOT NULL,
+    paired_by INTEGER REFERENCES users(id),
+    paired_at TEXT NOT NULL,
+    last_seen TEXT,
+    last_user TEXT,
+    revoked_at TEXT
+  );
+  CREATE TABLE pairing_codes (
+    code_hash TEXT PRIMARY KEY,
+    created_by INTEGER REFERENCES users(id),
+    expires_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export function openDatabase(file: string): DB {

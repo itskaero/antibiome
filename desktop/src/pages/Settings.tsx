@@ -4,6 +4,7 @@ import { call } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { Button, CardHeader, Chip, ErrorNote, Field, Modal, PageHeader, Toggle, useToast } from '@/components/ui';
 import { ROLE_LABEL, type Role, type User } from '@shared/types';
+import { MobileAccessCard } from './MobileAccess';
 
 export function SettingsPage({ user }: { user: User }) {
   const isAdmin = user.role === 'admin';
@@ -72,6 +73,7 @@ export function SettingsPage({ user }: { user: User }) {
           </div>
         )}
 
+        {isAdmin && <MobileAccessCard />}
         {isAdmin && <AiCard />}
 
         <div className="card p-5">

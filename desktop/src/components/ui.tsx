@@ -118,19 +118,19 @@ export function Modal({ open, onClose, title, subtitle, children, width = 640, f
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-6 backdrop-blur-[3px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-          <motion.div role="dialog" aria-modal className="card flex max-h-[90vh] w-full flex-col overflow-hidden" style={{ maxWidth: width }}
+        <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-0 backdrop-blur-[3px] sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+          <motion.div role="dialog" aria-modal className="card flex h-full w-full flex-col overflow-hidden max-sm:!max-w-none max-sm:rounded-none max-sm:border-0 sm:h-auto sm:max-h-[90vh]" style={{ maxWidth: width }}
             initial={{ y: 14, scale: 0.98, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ y: 8, scale: 0.98, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 420, damping: 34 }} onMouseDown={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+            <div className="flex items-start justify-between gap-4 border-b border-line px-4 pt-[max(env(safe-area-inset-top),16px)] pb-4 sm:px-6 sm:pt-4">
               <div>
                 <h2 className="text-[17px] font-semibold">{title}</h2>
                 {subtitle && <p className="mt-0.5 text-[12.5px] text-ink-3">{subtitle}</p>}
               </div>
               <button onClick={onClose} className="rounded-lg p-1.5 text-ink-3 hover:bg-panel-2 hover:text-ink" aria-label="Close"><X size={16} /></button>
             </div>
-            <div className="scroll-thin flex-1 overflow-y-auto px-6 py-5">{children}</div>
-            {footer && <div className="flex items-center justify-end gap-2 border-t border-line bg-panel-2/40 px-6 py-3">{footer}</div>}
+            <div className="scroll-thin flex-1 overflow-y-auto px-4 py-5 sm:px-6">{children}</div>
+            {footer && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-panel-2/40 px-4 py-3 pb-[max(env(safe-area-inset-bottom),12px)] sm:px-6 sm:pb-3">{footer}</div>}
           </motion.div>
         </motion.div>
       )}
@@ -153,7 +153,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed right-6 bottom-6 z-[60] flex flex-col items-end gap-2">
+      <div className="pointer-events-none fixed right-4 bottom-20 z-[60] sm:right-6 sm:bottom-6 flex flex-col items-end gap-2">
         <AnimatePresence>
           {items.map(t => (
             <motion.div key={t.id} layout initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 20 }}

@@ -103,11 +103,11 @@ export function AdmitModal({ open, onClose }: { open: boolean; onClose: () => vo
             <Timer size={14} />Entry time <span className="tnum font-medium">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>
           </span>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={submit} disabled={saving}>Admit patient <span className="kbd border-white/30 bg-white/10 text-white/80">Ctrl ↵</span></Button>
+          <Button variant="primary" onClick={submit} disabled={saving}>Admit patient <span className="kbd hidden border-white/30 bg-white/10 text-white/80 sm:inline">Ctrl ↵</span></Button>
         </>
       }>
       <div className="flex flex-col gap-5">
-        <section className="grid grid-cols-[1.1fr_1.4fr_auto] items-end gap-3">
+        <section className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1.1fr_1.4fr_auto]">
           <Field label="MRN" required><input className="field" value={f.mrn} onChange={e => set('mrn', e.target.value)} onBlur={lookup} autoFocus placeholder="Hospital number" /></Field>
           <Field label="Name" hint="Visible to clinical roles only"><input className="field" value={f.name} onChange={e => set('name', e.target.value)} placeholder="Optional" /></Field>
           <Field label="Sex" required><ChoiceChips options={['M', 'F'] as const} value={f.sex || null} onChange={v => set('sex', v)} labels={{ M: 'Male', F: 'Female' }} /></Field>
@@ -119,25 +119,25 @@ export function AdmitModal({ open, onClose }: { open: boolean; onClose: () => vo
           </div>
         )}
 
-        <section className="grid grid-cols-[repeat(2,72px)_100px_110px_1fr] items-end gap-3">
-          <Field label="Age · yrs"><input className="field tnum" type="number" min={0} max={18} value={f.years} onChange={e => set('years', e.target.value)} /></Field>
-          <Field label="· months"><input className="field tnum" type="number" min={0} max={11} value={f.months} onChange={e => set('months', e.target.value)} /></Field>
-          <Field label="Weight kg"><input className="field tnum" type="number" step="0.1" min={0} value={f.weightKg} onChange={e => set('weightKg', e.target.value)} /></Field>
+        <section className="grid grid-cols-3 items-end gap-3 sm:grid-cols-[repeat(2,72px)_100px_110px_1fr]">
+          <Field label="Age · yrs"><input className="field tnum" type="number" inputMode="numeric" min={0} max={18} value={f.years} onChange={e => set('years', e.target.value)} /></Field>
+          <Field label="· months"><input className="field tnum" type="number" inputMode="numeric" min={0} max={11} value={f.months} onChange={e => set('months', e.target.value)} /></Field>
+          <Field label="Weight kg"><input className="field tnum" type="number" inputMode="decimal" step="0.1" min={0} value={f.weightKg} onChange={e => set('weightKg', e.target.value)} /></Field>
           <Field label="Bed">
             <select className="field" value={f.bed} onChange={e => set('bed', e.target.value)}>
               <option value="">—</option>
               {freeBeds.map(b => <option key={b} value={b}>Bed {b}</option>)}
             </select>
           </Field>
-          <Field label="Admitted at"><input className="field" type="datetime-local" value={f.admitAt} onChange={e => set('admitAt', e.target.value)} /></Field>
+          <Field label="Admitted at" className="col-span-2 sm:col-span-1"><input className="field" type="datetime-local" value={f.admitAt} onChange={e => set('admitAt', e.target.value)} /></Field>
         </section>
 
-        <section className="grid grid-cols-[1fr_auto] items-end gap-3">
+        <section className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_auto]">
           <Field label="Admitted from"><ChoiceChips options={ADMISSION_SOURCES} value={f.source} onChange={v => set('source', v)} /></Field>
           <Toggle checked={f.elective} onChange={v => set('elective', v)} label="Elective" />
         </section>
 
-        <section className="grid grid-cols-2 gap-3">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Primary diagnosis" required><DxPicker value={f.primaryDx} onChange={c => set('primaryDx', c)} /></Field>
           <Field label="Secondary diagnoses" hint={f.secondaryDx.length ? undefined : 'Optional, up to 3'}>
             <DxPicker value={secondary} exclude={[f.primaryDx ?? '', ...f.secondaryDx]} placeholder="Add a secondary diagnosis…"

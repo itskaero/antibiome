@@ -4,7 +4,7 @@ import {
   Activity, BedDouble, Biohazard, ClipboardCheck, ClipboardList, FlaskRound, Layers, FileBarChart2, FlaskConical, Gauge, LayoutDashboard,
   ListChecks, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Wind,
 } from 'lucide-react';
-import { call } from '@/lib/api';
+import { call, getDevice, isPhone } from '@/lib/api';
 import { go, useApi, useHotkey, useRoute } from '@/lib/hooks';
 import { cx, losLabel } from '@/lib/format';
 import { Button, ErrorNote, Field, SegmentMeter, ToastProvider } from '@/components/ui';
@@ -26,6 +26,7 @@ import { Research } from '@/pages/Research';
 import { ModulesAdmin } from '@/pages/ModulesAdmin';
 import { Protocols } from '@/pages/Protocols';
 import type { CensusRow } from '@/pages/types';
+import { MobileShell, PairScreen } from '@/pages/mobile/Mobile';
 
 export const Logo = ({ size = 22 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
@@ -41,17 +42,31 @@ function useTheme() {
   return [theme, setTheme] as const;
 }
 
-export default function App() {
-  const [status, setStatus] = useState<{ needsSetup: boolean; user: User | null; unitName: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const refresh = useCallback(() => call('auth.status').then(setStatus).catch(e => setError(e.message)), []);
-  useEffect(() => { refresh(); const h = () => refresh(); window.addEventListener('antibiome:locked', h); return () => window.removeEventListener('antibiome:locked', h); }, [refresh]);
+type Status = { needsSetup: boolean; user: User | null; unitName: string; channel?: 'desktop' | 'mobile'; idleMinutes?: number };
 
-  if (error) return <div className="grid h-full place-items-center p-8"><ErrorNote text={error} /></div>;
+export default function App() {
+  const phone = isPhone();
+  const [paired, setPaired] = useState(() => !phone || !!getDevice());
+  const [status, setStatus] = useState<Status | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useTheme();
+  const refresh = useCallback(() => { if (paired) call('auth.status').then(s => { setStatus(s); setError(null); }).catch(e => setError(e.message)); }, [paired]);
+  useEffect(() => {
+    refresh();
+    const h = () => refresh(), u = () => { setPaired(false); setStatus(null); };
+    window.addEventListener('antibiome:locked', h); window.addEventListener('antibiome:unpaired', u);
+    return () => { window.removeEventListener('antibiome:locked', h); window.removeEventListener('antibiome:unpaired', u); };
+  }, [refresh]);
+
+  if (phone && !paired) return <ToastProvider><PairScreen Frame={AuthFrame} onDone={() => setPaired(true)} /></ToastProvider>;
+  if (error) return <div className="grid h-full place-items-center p-8"><div className="flex flex-col items-center gap-3"><ErrorNote text={error} />{phone && <Button onClick={refresh}>Try again</Button>}</div></div>;
   if (!status) return null;
   return (
     <ToastProvider>
-      {status.needsSetup ? <Setup onDone={refresh} /> : !status.user ? <Login unitName={status.unitName} onDone={refresh} /> : <Shell user={status.user} onSignOut={refresh} />}
+      {status.needsSetup ? (phone ? <AuthFrame title="Not set up yet" subtitle="Set up the unit on the PICU PC first."><span /></AuthFrame> : <Setup onDone={refresh} />)
+        : !status.user ? <Login unitName={status.unitName} idleMinutes={status.idleMinutes ?? 15} onDone={refresh} />
+        : phone ? <MobileShell user={status.user} unitName={status.unitName} theme={theme} setTheme={setTheme} onSignOut={refresh} />
+        : <Shell user={status.user} onSignOut={refresh} theme={theme} setTheme={setTheme} />}
     </ToastProvider>
   );
 }
@@ -60,13 +75,13 @@ export default function App() {
 
 function AuthFrame({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div className="grid h-full place-items-center p-6">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card w-full max-w-[420px] p-8">
+    <div className="grid h-full place-items-center overflow-y-auto p-4 sm:p-6">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card w-full max-w-[420px] p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-2.5"><Logo size={28} /><span className="text-[19px] font-semibold tracking-tight">Antibiome <span className="text-accent-ink">PICU</span></span></div>
         <h1 className="text-[20px] font-semibold">{title}</h1>
         <p className="mt-1 mb-6 text-[13px] text-ink-3">{subtitle}</p>
         {children}
-        <p className="mt-6 flex items-center gap-1.5 text-[11.5px] text-ink-3"><ShieldCheck size={13} />Data stays on this computer in a local database.</p>
+        <p className="mt-6 flex items-center gap-1.5 text-[11.5px] text-ink-3"><ShieldCheck size={13} />{isPhone() ? 'Data stays on the PICU PC — nothing is stored on this phone.' : 'Data stays on this computer in a local database.'}</p>
       </motion.div>
     </div>
   );
@@ -97,11 +112,11 @@ function Setup({ onDone }: { onDone: () => void }) {
   );
 }
 
-function Login({ unitName, onDone }: { unitName: string; onDone: () => void }) {
+function Login({ unitName, idleMinutes, onDone }: { unitName: string; idleMinutes: number; onDone: () => void }) {
   const [username, setU] = useState(''); const [password, setP] = useState(''); const [err, setErr] = useState<string | null>(null);
   const submit = async (e: React.FormEvent) => { e.preventDefault(); try { await call('auth.login', { username, password }); onDone(); } catch (x: any) { setErr(x.message); } };
   return (
-    <AuthFrame title={`Sign in to ${unitName}`} subtitle="The session locks after 15 minutes without activity.">
+    <AuthFrame title={`Sign in to ${unitName}`} subtitle={`The session locks after ${idleMinutes} minutes without activity.`}>
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field label="Username"><input className="field" value={username} onChange={e => setU(e.target.value)} autoFocus autoComplete="username" /></Field>
         <Field label="Password"><input className="field" type="password" value={password} onChange={e => setP(e.target.value)} autoComplete="current-password" /></Field>
@@ -128,9 +143,8 @@ const NAV = [
   { id: 'activity', label: 'Activity', icon: Activity, roles: ['admin', 'clinician', 'viewer'] },
 ] as const;
 
-function Shell({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: () => void; theme: 'dark' | 'light'; setTheme: (t: 'dark' | 'light') => void }) {
   const [route, args] = useRoute();
-  const [theme, setTheme] = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);

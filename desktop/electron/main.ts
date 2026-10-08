@@ -2,8 +2,8 @@
 //  Electron main process — owns the database. The renderer is sandboxed
 //  (no Node, context isolation) and can only reach the whitelisted API.
 // ═══════════════════════════════════════════════════════════
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { app, BrowserWindow, dialog, ipcMain, Menu, powerSaveBlocker, safeStorage, shell } from 'electron';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDatabase, getSetting, setSetting } from '../server/db';
 import { ApiError, createApi, type SecretStore } from '../server/api';
@@ -11,6 +11,9 @@ import type { Role } from '../shared/types';
 import { seedDemo } from '../server/demo';
 import { importLegacy, parseLegacy } from '../server/legacy';
 import { nowLocal, toDateStr } from '../shared/time';
+import { lanAddresses, startMobileServer, type MobileServer } from '../server/mobileServer';
+import { generateCertificate, serverFingerprint } from '../server/tls';
+import { QUIET_METHODS, isRead } from '../shared/apiMethods';
 
 const dataDir = process.env.ANTIBIOME_DATA_DIR || join(app.getPath('userData'), 'data');
 mkdirSync(dataDir, { recursive: true });
@@ -47,6 +50,59 @@ function dailyBackup() {
 }
 
 const requireRole = (...roles: Role[]) => api.authorize(roles);
+const auditDesktop = (action: string, entity: string, summary: string) =>
+  db.prepare('INSERT INTO audit_log(at, user_id, username, action, entity, summary) VALUES (?,?,?,?,?,?)').run(nowLocal(), api.session.user?.id ?? null, api.session.user?.displayName ?? 'system', action, entity, summary);
+
+// ── Phone access over the hospital Wi-Fi (off by default) ──────────
+const tlsDir = join(dataDir, 'tls');
+const DEFAULT_PORT = 8443;
+let mobile: MobileServer | null = null;
+let mobileError: string | null = null;
+let mobileFingerprint: string | null = null;
+let blocker: number | null = null;
+
+/** IT-issued PFX if loaded (passphrase in the OS keychain), else the generated certificate (created once). */
+async function tlsOptions() {
+  mkdirSync(tlsDir, { recursive: true });
+  const pfx = join(tlsDir, 'hospital.pfx');
+  if (existsSync(pfx)) return { pfx: readFileSync(pfx), passphrase: secrets.load('mobile-pfx-passphrase') ?? undefined };
+  const keyFile = join(tlsDir, 'key.pem'), certFile = join(tlsDir, 'cert.pem');
+  if (!existsSync(keyFile) || !existsSync(certFile)) {
+    const g = await generateCertificate(lanAddresses());
+    writeFileSync(keyFile, g.key, { mode: 0o600 }); try { chmodSync(keyFile, 0o600); } catch { /* Windows: ACLs of the data folder apply */ }
+    writeFileSync(certFile, g.cert);
+  }
+  return { key: readFileSync(keyFile), cert: readFileSync(certFile) };
+}
+
+async function startMobile() {
+  await stopMobile();
+  mobileError = null;
+  try {
+    const port = Number(getSetting(db, 'mobilePort', String(DEFAULT_PORT)));
+    mobile = await startMobileServer({ api, db, distDir: join(__dirname, '../dist'), tls: await tlsOptions(), port, onPhoneMutation: () => win?.webContents.send('changed') });
+    mobileFingerprint = await serverFingerprint(mobile.port);
+    if (blocker == null) blocker = powerSaveBlocker.start('prevent-app-suspension');
+  } catch (e: any) {
+    mobile = null;
+    mobileError = e?.code === 'EADDRINUSE' ? 'That port is already in use — choose another.' : e?.message ?? String(e);
+    console.error('[mobile]', e);
+  }
+}
+async function stopMobile() {
+  if (mobile) { await mobile.close(); mobile = null; }
+  if (blocker != null) { powerSaveBlocker.stop(blocker); blocker = null; }
+}
+function mobileStatus() {
+  const port = mobile?.port ?? Number(getSetting(db, 'mobilePort', String(DEFAULT_PORT)));
+  const addresses = lanAddresses();
+  return {
+    enabled: getSetting(db, 'mobileEnabled') === '1', running: !!mobile, error: mobileError, port, addresses,
+    urls: addresses.map(a => `https://${a}:${port}`), fingerprint: mobile ? mobileFingerprint : null,
+    certificate: existsSync(join(tlsDir, 'hospital.pfx')) ? 'hospital' : 'generated', clients: mobile?.clients() ?? 0,
+    secureStorage: secrets.available(),
+  };
+}
 
 // Desktop-only operations that need native dialogs.
 const desktopRoutes: Record<string, (p: any) => unknown> = {
@@ -84,12 +140,49 @@ const desktopRoutes: Record<string, (p: any) => unknown> = {
     if (n > 0) throw new ApiError('Demo data can only be loaded into an empty database');
     return seedDemo(db);
   },
+  'desktop.mobileStatus': () => { requireRole('admin'); return mobileStatus(); },
+  'desktop.mobileEnable': async (p: { on: boolean; port?: number }) => {
+    requireRole('admin');
+    if (p.port != null) {
+      const port = Number(p.port);
+      if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new ApiError('Port must be between 1024 and 65535');
+      setSetting(db, 'mobilePort', String(port));
+    }
+    setSetting(db, 'mobileEnabled', p.on ? '1' : '0');
+    if (p.on) await startMobile(); else { await stopMobile(); mobileError = null; }
+    auditDesktop('update', 'settings', p.on ? `Phone access turned on (port ${mobileStatus().port})${mobileError ? ` — failed: ${mobileError}` : ''}` : 'Phone access turned off');
+    return mobileStatus();
+  },
+  'desktop.mobileLoadPfx': async (p: { passphrase?: string }) => {
+    requireRole('admin');
+    if (p.passphrase && !secrets.available()) throw new ApiError('Secure storage is not available on this computer, so a certificate passphrase cannot be stored safely.');
+    const res = await dialog.showOpenDialog(win!, { title: 'Hospital certificate (PFX / PKCS#12)', properties: ['openFile'], filters: [{ name: 'Certificate', extensions: ['pfx', 'p12'] }] });
+    if (res.canceled || !res.filePaths[0]) return null;
+    const buf = readFileSync(res.filePaths[0]);
+    try { (await import('node:tls')).createSecureContext({ pfx: buf, passphrase: p.passphrase || undefined }); } catch { throw new ApiError('Could not open that certificate — check the file and passphrase.'); }
+    mkdirSync(tlsDir, { recursive: true });
+    writeFileSync(join(tlsDir, 'hospital.pfx'), buf, { mode: 0o600 });
+    secrets.save('mobile-pfx-passphrase', p.passphrase || null);
+    auditDesktop('update', 'settings', 'Hospital TLS certificate loaded for phone access');
+    if (mobile) await startMobile();
+    return mobileStatus();
+  },
+  'desktop.mobileResetCert': async () => {
+    requireRole('admin');
+    ['hospital.pfx', 'key.pem', 'cert.pem'].forEach(f => rmSync(join(tlsDir, f), { force: true }));
+    secrets.save('mobile-pfx-passphrase', null);
+    auditDesktop('update', 'settings', 'Phone-access certificate reset (new self-signed certificate)');
+    if (mobile) await startMobile();
+    return mobileStatus();
+  },
   'desktop.print': () => { requireRole('admin', 'clinician', 'viewer', 'researcher'); win?.webContents.print({ printBackground: true }); return true; },
 };
 
 ipcMain.handle('api', async (_e, method: string, params: unknown) => {
   try {
     const data = method.startsWith('desktop.') ? await desktopRoutes[method]?.(params) : await api.call(method, params);
+    // Tell open phones to refresh after a change made on the PC.
+    if (mobile && !isRead(method) && !QUIET_METHODS.has(method) && !method.startsWith('desktop.')) mobile.broadcast();
     return { ok: true, data };
   } catch (err) {
     const known = err instanceof ApiError;
@@ -143,6 +236,7 @@ Menu.setApplicationMenu(Menu.buildFromTemplate([
 app.whenReady().then(() => {
   try { dailyBackup(); } catch (e) { console.error('[backup]', e); }
   createWindow();
+  if (getSetting(db, 'mobileEnabled') === '1') startMobile();
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-app.on('window-all-closed', () => { db.close(); app.quit(); });
+app.on('window-all-closed', async () => { await stopMobile(); db.close(); app.quit(); });

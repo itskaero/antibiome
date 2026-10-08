@@ -1,0 +1,69 @@
+{
+  "name": "antibiome-picu",
+  "productName": "Antibiome PICU",
+  "version": "0.1.0",
+  "description": "PICU Intelligence \u2014 standalone desktop app with a local SQLite database",
+  "main": "dist-electron/main.cjs",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build:renderer": "vite build",
+    "build": "npm run typecheck && npm run build:renderer && npm run build:electron",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "org.antibiome.picu",
+    "productName": "Antibiome PICU",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "clsx": "^2.1.1",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "lucide-react": "^1.53.0",
+    "motion": "^14.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "recharts": "^3.10.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  },
+  "author": "Antibiome"
+}

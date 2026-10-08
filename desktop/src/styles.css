@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+/* ═══ Design tokens ═══════════════════════════════════════════
+   Dark (default) takes after the "Orbit" reference: near-black shell on a
+   diagonal-hatch backdrop, warm orange accent. Light takes after "pokecut":
+   soft grey canvas, white cards. Charts use the validated dataviz palette. */
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  --backdrop: #0a0a0a;
+  --hatch: rgba(255,255,255,0.025);
+  --shell: #121212;
+  --panel: #1a1a1a;
+  --panel-2: #212121;
+  --panel-3: #2a2a2a;
+  --line: #262626;
+  --line-2: #333333;
+  --text: #f1f1f1;
+  --text-2: #a8a8a8;
+  --text-3: #6e6e6e;
+  --accent: #f26b3a;
+  --accent-ink: #ff8a5c;
+  --accent-soft: rgba(242,107,58,0.13);
+  --good: #0ca30c;  --good-ink: #4cc76a;  --good-soft: rgba(12,163,12,0.14);
+  --warn: #fab219;  --warn-ink: #f8c04a;  --warn-soft: rgba(250,178,25,0.13);
+  --crit: #d03b3b;  --crit-ink: #f07070;  --crit-soft: rgba(208,59,59,0.15);
+  --info-soft: rgba(57,135,229,0.14); --info-ink: #6aa8f0;
+  /* chart roles (dataviz reference palette, dark steps) */
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --seq-1: #86b6ef; --seq-2: #5598e7; --seq-3: #2a78d6; --seq-4: #1c5cab;
+  --grid: #262626;
+  --shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 20px 40px -24px rgba(0,0,0,0.6);
+}
+[data-theme="light"] {
+  color-scheme: light;
+  --backdrop: #e9e9eb;
+  --hatch: rgba(0,0,0,0.025);
+  --shell: #f6f6f7;
+  --panel: #ffffff;
+  --panel-2: #f4f4f5;
+  --panel-3: #ebebee;
+  --line: #e7e7ea;
+  --line-2: #dcdce0;
+  --text: #18181b;
+  --text-2: #52525b;
+  --text-3: #8b8b93;
+  --accent: #eb5f2a;
+  --accent-ink: #c2410c;
+  --accent-soft: rgba(235,95,42,0.10);
+  --good: #0ca30c;  --good-ink: #157a2a;  --good-soft: rgba(12,163,12,0.10);
+  --warn: #fab219;  --warn-ink: #92600a;  --warn-soft: rgba(250,178,25,0.16);
+  --crit: #d03b3b;  --crit-ink: #b42323;  --crit-soft: rgba(208,59,59,0.10);
+  --info-soft: rgba(42,120,214,0.10); --info-ink: #1f63b8;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --seq-1: #86b6ef; --seq-2: #5598e7; --seq-3: #2a78d6; --seq-4: #1c5cab;
+  --grid: #ececef;
+  --shadow: 0 1px 2px rgba(16,24,40,0.04), 0 8px 24px -16px rgba(16,24,40,0.12);
+}
+
+@theme inline {
+  --color-backdrop: var(--backdrop);
+  --color-shell: var(--shell);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-panel-3: var(--panel-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good); --color-good-ink: var(--good-ink); --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn); --color-warn-ink: var(--warn-ink); --color-warn-soft: var(--warn-soft);
+  --color-crit: var(--crit); --color-crit-ink: var(--crit-ink); --color-crit-soft: var(--crit-soft);
+  --color-info-soft: var(--info-soft); --color-info-ink: var(--info-ink);
+  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background-color: var(--backdrop);
+  background-image: repeating-linear-gradient(135deg, var(--hatch) 0 1px, transparent 1px 9px);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+.tnum { font-variant-numeric: tabular-nums; }
+::selection { background: var(--accent-soft); }
+*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+.scroll-thin { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 8px; }
+
+@layer components {
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+.inset { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; }
+
+.field {
+  width: 100%; height: 38px; padding: 0 12px; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--text); outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field::placeholder { color: var(--text-3); }
+select.field { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%), linear-gradient(135deg, var(--text-3) 50%, transparent 50%); background-position: calc(100% - 16px) 16px, calc(100% - 11px) 16px; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 28px; }
+textarea.field { height: auto; padding: 10px 12px; }
+input[type="datetime-local"].field, input[type="date"].field { color-scheme: inherit; }
+
+.kbd { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-2); color: var(--text-3); background: var(--panel-2); }
+
+}
+
+@media print {
+  body { background: #fff !important; }
+  .no-print { display: none !important; }
+  .print-area { position: static !important; overflow: visible !important; }
+  .card { box-shadow: none !important; break-inside: avoid; }
+}

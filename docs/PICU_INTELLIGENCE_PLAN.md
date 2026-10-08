@@ -1,7 +1,7 @@
 # Antibiome → PICU Intelligence Layer
 ## Architecture assessment & migration plan
 
-> Status: **planning document — no application code has been changed.**
+> Status: planning document. **Update:** the MVP has since been built as a standalone desktop app. See the addendum at the end and [`desktop/README.md`](../desktop/README.md).
 > Audit baseline: `main` @ `c837727` (PR #4, sidebar PWA install + guideline coverage).
 > Scope: how to evolve Antibiome from NICU culture surveillance into a PICU clinical, operational, QI and research intelligence layer **without breaking the existing microbiology functionality**.
 
@@ -577,3 +577,31 @@ Disease modules, Research Explorer, protocol engine, AI, Postgres.
 | Staff feedback (short survey) | Field-level "remove / keep / add" list feeds Phase 2 pruning |
 
 After the pilot, choose the first disease modules from the **observed** diagnosis volume, then build the Research Explorer on data that is known to be complete and accurate.
+
+
+---
+
+## Addendum: decision to build a standalone desktop MVP with a local database
+
+After this assessment, the unit decided that the app will run on the **PICU's own PC as a standalone
+application with a local database**. That replaces the "stay on Firebase for the MVP" recommendation
+in §6. The rest of the plan stands.
+
+| Plan element | How the desktop MVP implements it |
+|---|---|
+| Storage (§6, §7) | SQLite file via Node's built-in `node:sqlite` inside Electron, using the same relational schema as §7 (patients / patient_identifiers / admissions / diagnoses / episodes / clinical_events / cultures / susceptibility_results / users / audit_log / settings). Versioned migrations. |
+| Security (§14) | Local accounts with scrypt-hashed passwords and four roles. Identifiers sit in a separate table the analytics layer never reads. The audit log is append-only, enforced by triggers. 15-minute idle lock. Sandboxed renderer. |
+| Minimum dataset (§9) | Admission sheet, one-tap census changes, daily reconcile grid and discharge, as specified, with an entry timer. |
+| Analytics (§11) | One `monthSummary()` metric source and change detection with size and exact-test gates. Monthly report. DOT per 1,000 patient-days and AWaRe. |
+| Microbiology (§3, §4) | MDR v1 ported verbatim, with tests pinning parity. Antibiogram adds first-isolate de-duplication and n < 30 flags. Legacy CSV/JSON import keeps NICU history. |
+| Data quality (§14 of the brief) | Rule engine with warnings that are never auto-corrected. |
+
+**Trade-offs of local storage**
+- **Single machine.** There is no simultaneous multi-PC entry.
+- **Backups are on the unit.** The app takes a daily automatic snapshot plus manual backups, but
+  storing a copy off the machine is an operational duty.
+- **No encryption by the app.** The database file is not encrypted by the app, so the PC needs
+  BitLocker and per-user Windows accounts.
+
+The repository layer keeps the PostgreSQL path from §15 open if the unit later needs multi-user
+network access.

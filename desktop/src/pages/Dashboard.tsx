@@ -75,7 +75,7 @@ export function Dashboard({ user, onAdmit }: { user: User; onAdmit: () => void }
           spark={d.series.map(s => s.admissions)} sub={`${c.emergency} emergency · ${c.admissions - c.emergency} elective`} />
         <Tile label="Ventilated patients" value={c.support.MV.patients} sub={`${fmt1(c.support.MV.days)} ventilator-days · ${fmtPct(c.patientsManaged ? (c.support.MV.patients / c.patientsManaged) * 100 : null)} of patients`}
           delta={delta(c.support.MV.patients / Math.max(1, c.patientsManaged), p.support.MV.patients / Math.max(1, p.patientsManaged))} deltaNote="vs last month" upIsBad />
-        <Tile label="Mortality" value={c.mortalityPct ?? 0} decimals={1} suffix="%" sub={`${c.deaths} deaths of ${c.discharges} discharges · crude, not risk-adjusted`}
+        <Tile label="Mortality" value={c.mortalityPct ?? 0} decimals={1} suffix="%" sub={c.smr ? `SMR ${c.smr.smr.toFixed(2)} (95% CI ${c.smr.lo.toFixed(2)}–${c.smr.hi.toFixed(2)}) · PIM3 in ${Math.round(c.smr.coverage)}%` : `${c.deaths} deaths of ${c.discharges} discharges · crude (no PIM3 yet)`}
           delta={c.mortalityPct != null && p.mortalityPct != null ? c.mortalityPct - p.mortalityPct : null} deltaNote="vs last month" deltaIsPoints upIsBad />
         <Tile label="Median length of stay" value={c.los?.median ?? 0} decimals={1} suffix=" d" sub={c.los ? `IQR ${fmt1(c.los.q1)}–${fmt1(c.los.q3)} d · ${c.los.n} discharges` : 'No discharges yet'}
           delta={delta(c.los?.median, p.los?.median)} deltaNote="vs last month" upIsBad />

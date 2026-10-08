@@ -199,6 +199,40 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_pv_adm ON parameter_values(admission_id, param_id);
   `,
+  // v3 — severity (PIM3), saved research cohorts, QI protocols
+  `
+  CREATE TABLE pim3_assessments (
+    admission_id TEXT PRIMARY KEY REFERENCES admissions(id) ON DELETE CASCADE,
+    inputs TEXT NOT NULL,
+    logit REAL NOT NULL,
+    risk REAL NOT NULL,
+    version TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE saved_cohorts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    spec TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE protocols (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    eligibility TEXT NOT NULL,   -- JSON: { dx: string[] } (empty = all admissions)
+    rules TEXT NOT NULL,         -- JSON array of measurable rules
+    active INTEGER NOT NULL DEFAULT 1,
+    built_in INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export function openDatabase(file: string): DB {

@@ -16,6 +16,7 @@ import { runQualityChecks, QUALITY_RULES } from '../shared/quality';
 import { buildAntibiogram } from '../shared/antibiogram';
 import { isMDR, relevantResistantClasses, MDR_DEFINITION_VERSION } from '../shared/mdr';
 import { DAY_MS, ms, nowLocal, shiftMonth, toLocal } from '../shared/time';
+import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/pim3';
 import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
 import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
 
@@ -78,8 +79,9 @@ export function loadDataset(db: DB): Dataset {
   const dxRows = db.prepare('SELECT admission_id, code, role FROM diagnoses').all() as any[];
   const dxBy: Record<string, { code: string; role: string }[]> = {};
   dxRows.forEach(d => (dxBy[d.admission_id] ??= []).push(d));
-  const admissions = (db.prepare(`SELECT a.*, p.sex FROM admissions a JOIN patients p ON p.id = a.patient_id WHERE a.deleted_at IS NULL`).all() as any[])
-    .map(r => rowToAdmission(r, dxBy[r.id] ?? []));
+  const admissions = (db.prepare(`SELECT a.*, p.sex, s.risk AS pim3_risk FROM admissions a JOIN patients p ON p.id = a.patient_id
+      LEFT JOIN pim3_assessments s ON s.admission_id = a.id WHERE a.deleted_at IS NULL`).all() as any[])
+    .map(r => ({ ...rowToAdmission(r, dxBy[r.id] ?? []), pim3Risk: r.pim3_risk ?? null }));
   const episodes = (db.prepare('SELECT * FROM episodes WHERE deleted_at IS NULL').all() as any[]).map(rowToEpisode);
   const events = (db.prepare('SELECT * FROM clinical_events WHERE deleted_at IS NULL').all() as any[]).map(rowToEvent);
   return { admissions, episodes, events, cultures: loadCultures(db), beds: Number(getSetting(db, 'beds', '12')) };
@@ -145,6 +147,16 @@ function applyModuleValues(db: DB, s: Session, admissionId: string, values: Reco
     try { setValue(db, admissionId, paramId, v, s.user?.id ?? null, recordedAt); } catch (e: any) { fail(e.message); }
   });
   return entries.length;
+}
+
+function savePim3(db: DB, s: Session, admissionId: string, raw: unknown) {
+  const input = (() => { try { return validatePim3(raw); } catch (e: any) { return fail(e.message); } })();
+  const logit = pim3Logit(input), risk = 1 / (1 + Math.exp(-logit)), t = nowLocal();
+  db.prepare(`INSERT INTO pim3_assessments(admission_id, inputs, logit, risk, version, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)
+    ON CONFLICT(admission_id) DO UPDATE SET inputs = excluded.inputs, logit = excluded.logit, risk = excluded.risk, version = excluded.version, updated_at = excluded.updated_at`)
+    .run(admissionId, JSON.stringify(input), logit, risk, PIM3_VERSION, s.user?.id ?? null, t, t);
+  audit(db, s, 'update', 'pim3', admissionId, `${admissionLabel(db, admissionId)}: PIM3 recorded (${(risk * 100).toFixed(1)}%)`);
+  return { risk };
 }
 
 function censusRows(db: DB, s: Session, now: number) {
@@ -276,6 +288,7 @@ export const routes: Record<string, Route> = {
         .forEach((v: string) => insertEpisode(db, session, { admissionId: id, kind: 'vaso', detail: v, intent: null, startAt: p.admitAt }));
       (p.antimicrobials ?? []).forEach((d: string) => insertEpisode(db, session, { admissionId: id, kind: 'abx', detail: d, intent: 'empiric', startAt: p.admitAt }));
       const nModule = applyModuleValues(db, session, id, p.moduleValues, p.admitAt);
+      if (p.pim3) savePim3(db, session, id, p.pim3);
       audit(db, session, 'admit', 'admission', id, `Admitted ${admissionLabel(db, id)} from ${p.source}${nModule ? ` (+${nModule} module fields)` : ''}`);
       return { id };
     });
@@ -294,6 +307,9 @@ export const routes: Record<string, Route> = {
     return {
       admission, label: pseudo(r.patient_id), identifiers: ident ?? null, episodes, events, cultures,
       losDays: losDays(admission, now()), peakSupport: peakSupport(admission, episodes),
+      pim3: (() => { const s = db.prepare('SELECT * FROM pim3_assessments WHERE admission_id = ?').get(p.id) as any; return s ? { inputs: JSON.parse(s.inputs), risk: s.risk, version: s.version, updatedAt: s.updated_at } : null; })(),
+      pim3Suggestion: { riskDx: suggestRiskDx(admission.primaryDx), elective: admission.admissionType === 'elective',
+        mvFirstHour: episodes.some(e => e.kind === 'resp' && e.detail === 'MV' && ms(e.startAt) <= ms(admission.admitAt) + 3_600_000) },
       issues: [...runQualityChecks(ds, now()), ...moduleIssues(loadModules(db), ds, loadValues(db, p.id))].filter(i => i.admissionId === p.id),
       previousAdmissions: previous,
     };
@@ -353,6 +369,7 @@ export const routes: Record<string, Route> = {
   } },
 
   // Episodes & events
+  'pim3.save': { roles: CLINICAL, fn: (p, { db, session }) => { getAdmissionRow(db, p.admissionId); return tx(db, () => savePim3(db, session, p.admissionId, p.inputs)); } },
   'resp.set': { roles: CLINICAL, fn: (p, { db, session }) => tx(db, () => setResp(db, session, p.admissionId, p.level, reqDT(p.at ?? nowLocal(), 'Time'))) },
   'drug.toggle': { roles: CLINICAL, fn: (p, { db, session }) => {
     if (!['vaso', 'abx'].includes(p.kind)) fail('Unknown therapy type');
@@ -537,7 +554,7 @@ export const routes: Record<string, Route> = {
     const sid = (pid: string) => { if (!studyIds.has(pid)) studyIds.set(pid, `S${String(studyIds.size + 1).padStart(4, '0')}`); return studyIds.get(pid)!; };
     const header = ['study_id', 'admission_seq', 'admit_month', 'age_months', 'sex', 'weight_kg', 'source', 'admission_type', 'primary_dx', 'primary_dx_icd10',
       'secondary_dx', 'chronic_condition', 'malnutrition', 'arrival_support', 'shock_on_arrival', 'coma_on_arrival', 'peak_support',
-      'mv_days', 'vaso_days', 'antimicrobials', 'dot_total', 'positive_cultures', 'mdr_isolates', 'los_days', 'disposition'];
+      'mv_days', 'vaso_days', 'antimicrobials', 'dot_total', 'positive_cultures', 'mdr_isolates', 'los_days', 'disposition', 'pim3_risk'];
     const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const moduleCols = p?.includeModules === false ? [] : moduleExportColumns(db, loadModules(db, { includeInactive: true }), ds, loadValues(db), t);
     header.push(...moduleCols.map(c => c.name));
@@ -553,7 +570,7 @@ export const routes: Record<string, Route> = {
         +a.shockOnArrival, +a.comaOnArrival, peakSupport(a, eps), days('resp', 'MV').toFixed(1), days('vaso').toFixed(1),
         [...new Set(eps.filter(e => e.kind === 'abx').map(e => e.detail))].join(';'),
         eps.filter(e => e.kind === 'abx').reduce((s, e) => s + Math.max(1, Math.ceil((end(e) - ms(e.startAt)) / DAY_MS)), 0),
-        cult.length, cult.filter(isMDR).length, losDays(a, t).toFixed(1), a.disposition ?? 'In PICU', ...moduleCols.map(c => c.cell(a))].map(esc).join(',');
+        cult.length, cult.filter(isMDR).length, losDays(a, t).toFixed(1), a.disposition ?? 'In PICU', a.pim3Risk != null ? a.pim3Risk.toFixed(4) : '', ...moduleCols.map(c => c.cell(a))].map(esc).join(',');
     });
     audit(db, session, 'export', 'research', null, `De-identified export: ${rows.length} admissions, ${header.length} columns`);
     const dictHeader = ['column', 'module', 'label', 'type', 'unit', 'codes', 'capture', 'introduced', 'versions'];

@@ -30,6 +30,8 @@ export interface Admission {
   dischargeAt: LocalDateTime | null;
   disposition: Disposition | null;
   notes: string | null;
+  /** PIM3 predicted risk of death (0–1) when assessed. */
+  pim3Risk?: number | null;
 }
 
 export type EpisodeKind = 'resp' | 'vaso' | 'abx';

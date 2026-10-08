@@ -9,6 +9,8 @@ import { Button, CardHeader, ChoiceChips, Chip, Empty, ErrorNote, Field, Modal, 
 import { DxPicker } from '@/components/DxPicker';
 import { CultureForm } from '@/components/CultureForm';
 import { ModuleFormSection, ModulesPanel } from '@/components/ModuleFields';
+import { Pim3Card } from '@/components/Pim3Form';
+import type { Pim3Input } from '@shared/pim3';
 import type { ModuleDef, ParamValue, StoredValue } from '@shared/modules';
 import {
   ABX_INTENTS, COMPLICATIONS, DISPOSITIONS, PRESCRIBABLE_ANTIMICROBIALS, PROCEDURES, RESP_LABEL, VASOACTIVES, awareGroup, dxLabel, type RespLevel,
@@ -19,6 +21,7 @@ import type { Admission, ClinicalEvent, Episode } from '@shared/types';
 interface Detail {
   admission: Admission; label: string; identifiers: { mrn: string; name: string | null; dob: string | null } | null;
   episodes: Episode[]; events: ClinicalEvent[]; cultures: any[]; losDays: number; peakSupport: RespLevel;
+  pim3: { inputs: Pim3Input; risk: number; updatedAt: string } | null; pim3Suggestion: Partial<Pim3Input>;
   issues: { id: string; message: string; severity: string }[]; previousAdmissions: { admit_at: string; discharge_at: string | null }[];
 }
 
@@ -104,6 +107,7 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
             </div>
           </div>
 
+          <Pim3Card admissionId={id} saved={d.pim3} suggestion={d.pim3Suggestion} canEdit={canEdit} />
           <ModulesPanel admissionId={id} canEdit={canEdit} />
 
           {editable && (

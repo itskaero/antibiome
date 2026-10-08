@@ -5,6 +5,7 @@ import { type DB, setSetting, tx } from './db';
 import { DAY_MS, toLocal } from '../shared/time';
 import type { RespLevel } from '../shared/reference';
 import { ensureBuiltInModules } from './modules';
+import { PIM3_VERSION, pim3Logit, suggestRiskDx, type Pim3Input } from '../shared/pim3';
 
 function rng(seed: number) {
   return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -77,6 +78,7 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
   const insEv = db.prepare('INSERT INTO clinical_events(id, admission_id, type, label, at, note, created_at) VALUES (?,?,?,?,?,?,?)');
   const insCult = db.prepare('INSERT INTO cultures(id, admission_id, patient_id, unit, collected_at, specimen, organism, source, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
   const insRes = db.prepare('INSERT INTO susceptibility_results(culture_id, drug, result) VALUES (?,?,?)');
+  const insPim = db.prepare('INSERT INTO pim3_assessments(admission_id, inputs, logit, risk, version, created_at, updated_at) VALUES (?,?,?,?,?,?,?)');
   const insVal = db.prepare('INSERT INTO parameter_values(id, admission_id, param_id, param_version, value, recorded_at, created_at) VALUES (?,?,?,1,?,?,?)');
   /** Synthetic module values (≈10% left blank, as in real data entry). */
   const moduleValues = (aid: string, dx: string, c: { admitT: number; endT: number | null; isMV: boolean; isVaso: boolean; died: boolean }) => {
@@ -233,6 +235,17 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
         if (isMV && r() < 0.04 && endT) insEv.run(randomUUID(), aid, 'complication', 'Unplanned extubation', L(admitT + 0.4 * los * DAY_MS), null, L(admitT));
         if (r() < 0.2) insEv.run(randomUUID(), aid, 'procedure', 'Central line', L(admitT + 0.1 * DAY_MS), null, L(admitT));
         moduleValues(aid, p.dx, { admitT, endT, isMV, isVaso, died });
+        if (r() < 0.85) { // PIM3 recorded for most admissions, as in a real pilot
+          const shock = isVaso && r() < 0.7;
+          const pim: Pim3Input = {
+            pupilsFixed: (p.dx === 'HIE' || p.dx === 'TBI') && died && r() < 0.5, elective: p.dx === 'POSTOP' && r() < 0.7,
+            mvFirstHour: arrival === 'MV', baseExcess: r() < 0.7 ? Math.round(between(shock ? -16 : -6, shock ? -4 : 2)) : null,
+            sbp: Math.round(between(shock ? 45 : 80, shock ? 85 : 120)), fio2: arrival === 'MV' || isMV ? Math.round(between(0.3, 0.9) * 100) / 100 : null,
+            pao2: arrival === 'MV' || isMV ? Math.round(between(55, 140)) : null, recovery: p.dx === 'POSTOP' ? 'noncardiac' : 'none', riskDx: suggestRiskDx(p.dx),
+          };
+          const lg = pim3Logit(pim);
+          insPim.run(aid, JSON.stringify(pim), lg, 1 / (1 + Math.exp(-lg)), PIM3_VERSION, L(admitT), L(admitT));
+        }
         count++;
       }
     }

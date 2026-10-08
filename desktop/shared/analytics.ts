@@ -8,6 +8,7 @@ import { RESP_LEVELS, awareGroup, dxLabel, type AwareGroup, type RespLevel } fro
 import { isMDR } from './mdr';
 import { calendarDaysTouched, daysInMonth, DAY_MS, fmtMonth, monthBounds, ms, overlapDays, shiftMonth } from './time';
 import { fisherExact, medianIqr, poissonRateTest } from './stats';
+import { smr } from './pim3';
 
 export const endMs = (a: Admission, now: number) => (a.dischargeAt ? ms(a.dischargeAt) : now);
 export const losDays = (a: Admission, now: number) => Math.max(0, (endMs(a, now) - ms(a.admitAt)) / DAY_MS);
@@ -44,6 +45,8 @@ export interface MonthSummary {
   dot: { total: number; per1000: number | null; byDrug: Record<string, number>; byAware: Record<AwareGroup, number>; exposedPatients: number };
   micro: { cultures: number; positives: number; mdr: number; organisms: Record<string, number>; mdrByOrganism: Record<string, number> };
   completeness: { pct: number; missing: { field: string; n: number }[] };
+  /** Risk-adjusted mortality among discharges with a PIM3 assessment. */
+  smr: { observed: number; expected: number; n: number; coverage: number; smr: number; lo: number; hi: number } | null;
 }
 
 export function monthSummary(ds: Dataset, month: string, now: number): MonthSummary {
@@ -128,7 +131,17 @@ export function monthSummary(ds: Dataset, month: string, now: number): MonthSumm
     },
     micro: { cultures: cultures.length, positives: positives.length, mdr: positives.filter(isMDR).length, organisms, mdrByOrganism },
     completeness: { pct: checks ? Math.round((1 - missingTotal / checks) * 100) : 100, missing },
+    smr: smrFor(discharged),
   };
+}
+
+export function smrFor(discharged: Admission[]): MonthSummary['smr'] {
+  const scored = discharged.filter(a => a.pim3Risk != null);
+  if (!scored.length) return null;
+  const observed = scored.filter(a => a.disposition === 'Died').length;
+  const expected = scored.reduce((s, a) => s + (a.pim3Risk as number), 0);
+  const r = smr(observed, expected);
+  return r ? { observed, expected, n: scored.length, coverage: (scored.length / discharged.length) * 100, ...r } : null;
 }
 
 /** Days with ≥1 overlapping episode (so two vasoactives at once count once). */

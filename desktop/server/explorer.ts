@@ -8,6 +8,7 @@ import { ADMISSION_SOURCES, DISPOSITIONS, DX_CATALOGUE, DX_BY_CODE, RESP_LABEL, 
 import { isMDR } from '../shared/mdr';
 import { peakSupport } from '../shared/analytics';
 import { VITAL_FEATURES, vitalFeatures, type VitalSet } from '../shared/vitals';
+import { infectionSuspected } from '../shared/scores';
 
 const AGE_BANDS = ['Neonate (< 1 month)', 'Infant (1–11 months)', 'Toddler (1–4 years)', 'Child (5–11 years)', 'Adolescent (12–18 years)'];
 const ageBand = (m: number) => (m < 1 ? AGE_BANDS[0] : m < 12 ? AGE_BANDS[1] : m < 60 ? AGE_BANDS[2] : m < 144 ? AGE_BANDS[3] : AGE_BANDS[4]);
@@ -82,7 +83,7 @@ export function buildExplorer(db: DB, now: number): { fields: ExplorerField[]; r
       complications: [...new Set(evs.filter(e => e.type === 'complication').map(e => e.label))],
       disposition: a.disposition ?? undefined,
     };
-    Object.entries(vitalFeatures(vitalsBy.get(a.id) ?? [], a.admitAt, a.ageMonths)).forEach(([k, v]) => { if (v !== undefined) row[k] = v; });
+    Object.entries(vitalFeatures(vitalsBy.get(a.id) ?? [], a.admitAt, a.ageMonths, { episodes: eps, infectionSuspected: infectionSuspected(a, eps, evs, cults) })).forEach(([k, v]) => { if (v !== undefined) row[k] = v; });
     const ctxBase = { admission: a, episodes: eps, cultures: cults, now };
     GENERIC_DERIVED.forEach(d => { try { const v = d.fn({ ...ctxBase, values: {} }); if (v !== null) row[d.id] = v; } catch { /* leave missing */ } });
     modules.forEach(m => {

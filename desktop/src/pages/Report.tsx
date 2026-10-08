@@ -76,11 +76,11 @@ export function Report() {
         </Section>
 
         <Section title="Antimicrobial stewardship">
-          <Big label="Total use" value={`${fmtInt(c.dot.per1000)}`} note="DOT per 1,000 patient-days" />
+          <Big label="Total use" value={`${fmtInt(c.dot.per1000)}`} note="DOT per 1,000 days present" />
           <div className="col-span-2">
             {drugs.map(([drug, dot]) => {
               const prev = p.dot.byDrug[drug] ?? 0;
-              const r = c.patientDays ? (dot / c.patientDays) * 1000 : 0, pr = p.patientDays ? (prev / p.patientDays) * 1000 : 0;
+              const r = c.daysPresent ? (dot / c.daysPresent) * 1000 : 0, pr = p.daysPresent ? (prev / p.daysPresent) * 1000 : 0;
               return <div key={drug} className="flex justify-between border-b border-dashed border-line py-1"><span>{drug}</span><span className="tnum">{fmtInt(r)} <span className="text-[12px] text-ink-3">{pctLine(r, pr)}</span></span></div>;
             })}
           </div>

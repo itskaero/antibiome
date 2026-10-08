@@ -11,6 +11,7 @@ import { CultureForm } from '@/components/CultureForm';
 import { ModuleFormSection, ModulesPanel } from '@/components/ModuleFields';
 import { Pim3Card } from '@/components/Pim3Form';
 import { VitalsCard } from '@/components/VitalsEntry';
+import { TherapyChart } from '@/components/TherapyChart';
 import { VITALS, type VitalCode, type VitalSet } from '@shared/vitals';
 import type { Pim3Input } from '@shared/pim3';
 import type { ModuleDef, ParamValue, StoredValue } from '@shared/modules';
@@ -25,7 +26,7 @@ interface Detail {
   episodes: Episode[]; events: ClinicalEvent[]; cultures: any[]; losDays: number; peakSupport: RespLevel;
   pim3: { inputs: Pim3Input; risk: number; updatedAt: string } | null; pim3Suggestion: Partial<Pim3Input>;
   vitals: VitalSet[];
-  issues: { id: string; message: string; severity: string }[]; previousAdmissions: { admit_at: string; discharge_at: string | null }[];
+  issues: { id: string; message: string; severity: string }[]; previousAdmissions: { id: string; admit_at: string; discharge_at: string | null; disposition: string | null; dx: string }[];
 }
 
 export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boolean; isAdmin: boolean }) {
@@ -68,7 +69,6 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
               {a.comaOnArrival && <Chip tone="warn">Coma on arrival</Chip>}
               {a.malnutrition && <Chip tone="warn">Severe malnutrition</Chip>}
               {a.chronicCondition && <Chip>Chronic condition</Chip>}
-              {d.previousAdmissions.length > 0 && <Chip tone="info">{d.previousAdmissions.length} previous admission{d.previousAdmissions.length > 1 ? 's' : ''}</Chip>}
             </div>
           </div>
         </div>
@@ -77,6 +77,24 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
           {editable && <Button variant="primary" onClick={() => setDischarge(true)}><DoorOpen size={15} />Discharge</Button>}
           {!active && isAdmin && <Button onClick={() => act('admission.reopen', { id }, 'Admission re-opened')}>Re-open</Button>}
         </div>
+      </div>
+
+      {d.previousAdmissions.length > 0 && (
+        <div className="no-print flex flex-wrap items-center gap-2 text-[12.5px]">
+          <span className="text-ink-3">Other admissions for this patient:</span>
+          {d.previousAdmissions.map(x => (
+            <button key={x.id} onClick={() => go(`patient/${x.id}`)}
+              className="rounded-full border border-line-2 bg-panel-2 px-3 py-1 text-ink-2 transition hover:border-accent hover:text-ink">
+              {parse(x.admit_at.slice(0, 10)).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} · {x.dx}
+              <span className="text-ink-3"> · {x.discharge_at ? (x.disposition === 'Died' ? 'died' : `${Math.max(1, Math.round((ms(x.discharge_at) - ms(x.admit_at)) / DAY_MS))} d`) : 'in PICU'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="card p-5">
+        <CardHeader title="Therapy chart" info="The whole stay on one day scale: support, vasoactives and antimicrobials as bars, cultures and events as markers, vitals as trend lanes. Hover any mark for exact times." />
+        <TherapyChart admission={a} episodes={d.episodes} events={d.events} cultures={d.cultures} vitals={d.vitals} />
       </div>
 
       {d.issues.length > 0 && (

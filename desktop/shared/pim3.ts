@@ -6,6 +6,8 @@
 //  recalibration guidance for your region) before formal benchmarking.
 // ═══════════════════════════════════════════════════════════
 
+import { DX_BY_CODE } from './reference';
+
 export const PIM3_VERSION = 'PIM3-2013';
 
 export type Pim3Recovery = 'none' | 'bypass_cardiac' | 'nonbypass_cardiac' | 'noncardiac';
@@ -40,11 +42,9 @@ export const PIM3_RISKDX_HELP: Record<Exclude<Pim3RiskDx, 'none'>, string> = {
 };
 
 /** Suggest the PIM3 diagnosis category from the local diagnosis code (clinician confirms). */
+/** The PIM3 diagnosis group suggested by the catalogue entry; the clinician confirms it. */
 export function suggestRiskDx(dxCode: string): Pim3RiskDx {
-  if (['CARDIAC_ARREST', 'ALF'].includes(dxCode)) return 'very_high';
-  if (['MYOCARDITIS', 'HEART_FAILURE'].includes(dxCode)) return 'high';
-  if (['ASTHMA', 'BRONCHIOLITIS', 'CROUP', 'DKA', 'STATUS_EPILEPTICUS'].includes(dxCode)) return 'low';
-  return 'none';
+  return DX_BY_CODE[dxCode]?.pim3 ?? 'none';
 }
 
 export function pim3Logit(x: Pim3Input): number {

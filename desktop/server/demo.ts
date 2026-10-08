@@ -1,0 +1,310 @@
+// Synthetic demonstration data — clearly flagged, never mixed silently with real data.
+// Deterministic (seeded) so screenshots and tests are reproducible.
+import { randomUUID } from 'node:crypto';
+import { type DB, setSetting, tx } from './db';
+import { DAY_MS, toLocal } from '../shared/time';
+import type { RespLevel } from '../shared/reference';
+import { ensureBuiltInModules } from './modules';
+import { PIM3_VERSION, pim3Logit, suggestRiskDx, type Pim3Input } from '../shared/pim3';
+
+function rng(seed: number) {
+  return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+interface Profile { dx: string; w: number; ageM: [number, number]; mv: number; niv: number; hfnc: number; vaso: number; los: [number, number]; die: number; abx: string[][]; cultureP: number }
+const PROFILES: Profile[] = [
+  { dx: 'PNEUMONIA', w: 14, ageM: [2, 60], mv: 0.15, niv: 0.25, hfnc: 0.35, vaso: 0.08, los: [2, 7], die: 0.04, abx: [['Ceftriaxone'], ['Ampicillin', 'Gentamicin'], ['Piperacillin-Tazobactam']], cultureP: 0.5 },
+  { dx: 'SEVERE_PNEUMONIA', w: 9, ageM: [1, 48], mv: 0.45, niv: 0.3, hfnc: 0.2, vaso: 0.2, los: [4, 12], die: 0.1, abx: [['Ceftriaxone', 'Vancomycin'], ['Meropenem', 'Vancomycin'], ['Piperacillin-Tazobactam', 'Amikacin']], cultureP: 0.8 },
+  { dx: 'SEPSIS', w: 10, ageM: [1, 144], mv: 0.35, niv: 0.15, hfnc: 0.15, vaso: 0.4, los: [3, 10], die: 0.12, abx: [['Ceftriaxone', 'Amikacin'], ['Meropenem', 'Vancomycin'], ['Piperacillin-Tazobactam', 'Amikacin']], cultureP: 0.95 },
+  { dx: 'SEPTIC_SHOCK', w: 5, ageM: [1, 144], mv: 0.7, niv: 0.1, hfnc: 0.1, vaso: 0.95, los: [4, 14], die: 0.25, abx: [['Meropenem', 'Vancomycin'], ['Meropenem', 'Colistin'], ['Meropenem', 'Vancomycin', 'Amikacin']], cultureP: 1 },
+  { dx: 'BRONCHIOLITIS', w: 9, ageM: [1, 18], mv: 0.08, niv: 0.3, hfnc: 0.55, vaso: 0.01, los: [2, 5], die: 0.005, abx: [[], [], ['Ceftriaxone']], cultureP: 0.15 },
+  { dx: 'DKA', w: 5, ageM: [36, 192], mv: 0.03, niv: 0, hfnc: 0, vaso: 0.03, los: [1, 3], die: 0.01, abx: [[], [], ['Ceftriaxone']], cultureP: 0.2 },
+  { dx: 'MENINGITIS', w: 4, ageM: [1, 120], mv: 0.3, niv: 0.05, hfnc: 0.1, vaso: 0.2, los: [5, 14], die: 0.08, abx: [['Ceftriaxone', 'Vancomycin'], ['Meropenem', 'Vancomycin']], cultureP: 1 },
+  { dx: 'ENCEPHALITIS', w: 4, ageM: [6, 144], mv: 0.45, niv: 0.05, hfnc: 0.05, vaso: 0.15, los: [5, 16], die: 0.1, abx: [['Ceftriaxone'], ['Ceftriaxone', 'Vancomycin']], cultureP: 0.8 },
+  { dx: 'STATUS_EPILEPTICUS', w: 6, ageM: [6, 144], mv: 0.35, niv: 0, hfnc: 0.05, vaso: 0.05, los: [1, 4], die: 0.02, abx: [[], ['Ceftriaxone']], cultureP: 0.3 },
+  { dx: 'GBS', w: 2, ageM: [24, 180], mv: 0.3, niv: 0.1, hfnc: 0.05, vaso: 0.05, los: [6, 20], die: 0.03, abx: [[]], cultureP: 0.1 },
+  { dx: 'DENGUE', w: 4, ageM: [24, 192], mv: 0.08, niv: 0.05, hfnc: 0.15, vaso: 0.35, los: [2, 5], die: 0.04, abx: [[], ['Ceftriaxone']], cultureP: 0.2 },
+  { dx: 'ASTHMA', w: 3, ageM: [24, 180], mv: 0.08, niv: 0.3, hfnc: 0.3, vaso: 0.02, los: [1, 3], die: 0.005, abx: [[], ['Azithromycin']], cultureP: 0.05 },
+  { dx: 'SHOCK_HYPOVOLAEMIC', w: 4, ageM: [2, 60], mv: 0.1, niv: 0.02, hfnc: 0.05, vaso: 0.3, los: [1, 4], die: 0.05, abx: [['Ceftriaxone'], []], cultureP: 0.4 },
+  { dx: 'AKI', w: 2, ageM: [6, 180], mv: 0.15, niv: 0.05, hfnc: 0.05, vaso: 0.2, los: [4, 14], die: 0.08, abx: [['Ceftriaxone'], []], cultureP: 0.4 },
+  { dx: 'POISONING', w: 3, ageM: [12, 120], mv: 0.25, niv: 0, hfnc: 0.1, vaso: 0.1, los: [1, 3], die: 0.03, abx: [[]], cultureP: 0.05 },
+  { dx: 'TBI', w: 2, ageM: [12, 180], mv: 0.55, niv: 0, hfnc: 0.05, vaso: 0.2, los: [3, 12], die: 0.1, abx: [[], ['Ceftriaxone']], cultureP: 0.3 },
+  { dx: 'POSTOP', w: 4, ageM: [3, 180], mv: 0.25, niv: 0.05, hfnc: 0.1, vaso: 0.1, los: [1, 3], die: 0.01, abx: [['Cefazolin'], ['Ceftriaxone', 'Metronidazole']], cultureP: 0.1 },
+  { dx: 'ALF', w: 1, ageM: [12, 180], mv: 0.5, niv: 0.05, hfnc: 0.1, vaso: 0.4, los: [4, 14], die: 0.3, abx: [['Ceftriaxone'], ['Meropenem']], cultureP: 0.6 },
+  { dx: 'HIE', w: 1, ageM: [6, 120], mv: 0.8, niv: 0, hfnc: 0.05, vaso: 0.5, los: [3, 12], die: 0.35, abx: [['Ceftriaxone']], cultureP: 0.4 },
+];
+
+/** Age-typical resting values (rough medians) used to centre synthetic vitals. */
+function normals(ageM: number) {
+  return ageM < 1 ? { hr: 140, rr: 38, sbp: 76 } : ageM < 12 ? { hr: 130, rr: 28, sbp: 106 } : ageM < 60 ? { hr: 110, rr: 18, sbp: 104 }
+    : ageM < 144 ? { hr: 92, rr: 15, sbp: 114 } : { hr: 80, rr: 12, sbp: 124 };
+}
+const FEBRILE = new Set(['PNEUMONIA', 'SEVERE_PNEUMONIA', 'SEPSIS', 'SEPTIC_SHOCK', 'MENINGITIS', 'ENCEPHALITIS', 'DENGUE', 'BRONCHIOLITIS']);
+const RESPIRATORY = new Set(['PNEUMONIA', 'SEVERE_PNEUMONIA', 'BRONCHIOLITIS', 'ASTHMA']);
+const NEURO = new Set(['STATUS_EPILEPTICUS', 'ENCEPHALITIS', 'TBI', 'HIE', 'MENINGITIS']);
+
+const ORG_MIX: [string, number][] = [
+  ['Klebsiella pneumoniae', 18], ['Escherichia coli', 12], ['Acinetobacter baumannii', 10], ['Pseudomonas aeruginosa', 8],
+  ['Staphylococcus aureus', 10], ['Coagulase-negative Staphylococci (CoNS)', 9], ['Enterobacter cloacae', 5],
+  ['Streptococcus pneumoniae', 5], ['Candida albicans', 3], ['Enterococcus faecium', 3], ['Salmonella spp.', 2],
+];
+const GN_PANEL = ['Ampicillin', 'Ceftriaxone', 'Cefepime', 'Piperacillin-Tazobactam', 'Meropenem', 'Amikacin', 'Gentamicin', 'Ciprofloxacin', 'Colistin', 'Trimethoprim-Sulfamethoxazole (Septran/Co-trimoxazole)'];
+const GP_PANEL = ['Oxacillin', 'Vancomycin', 'Linezolid', 'Clindamycin', 'Erythromycin', 'Gentamicin', 'Ciprofloxacin', 'Trimethoprim-Sulfamethoxazole (Septran/Co-trimoxazole)'];
+// Baseline %R for a "typical" South-Asian PICU; a time trend is added for carbapenems to show change detection.
+const BASE_R: Record<string, Record<string, number>> = {
+  'Klebsiella pneumoniae': { Ampicillin: 1, Ceftriaxone: 0.75, Cefepime: 0.65, 'Piperacillin-Tazobactam': 0.5, Meropenem: 0.35, Amikacin: 0.35, Gentamicin: 0.55, Ciprofloxacin: 0.6, Colistin: 0.05 },
+  'Escherichia coli': { Ampicillin: 0.85, Ceftriaxone: 0.6, Cefepime: 0.5, 'Piperacillin-Tazobactam': 0.3, Meropenem: 0.15, Amikacin: 0.15, Gentamicin: 0.4, Ciprofloxacin: 0.6, Colistin: 0.02 },
+  'Acinetobacter baumannii': { Ceftriaxone: 0.95, Cefepime: 0.85, 'Piperacillin-Tazobactam': 0.85, Meropenem: 0.75, Amikacin: 0.65, Gentamicin: 0.7, Ciprofloxacin: 0.8, Colistin: 0.05 },
+  'Pseudomonas aeruginosa': { Cefepime: 0.35, 'Piperacillin-Tazobactam': 0.3, Meropenem: 0.3, Amikacin: 0.2, Gentamicin: 0.3, Ciprofloxacin: 0.35, Colistin: 0.03 },
+  'Enterobacter cloacae': { Ampicillin: 1, Ceftriaxone: 0.6, Cefepime: 0.4, 'Piperacillin-Tazobactam': 0.4, Meropenem: 0.2, Amikacin: 0.2, Gentamicin: 0.35, Ciprofloxacin: 0.4, Colistin: 0.05 },
+  'Staphylococcus aureus': { Oxacillin: 0.45, Vancomycin: 0, Linezolid: 0, Clindamycin: 0.3, Erythromycin: 0.5, Gentamicin: 0.2, Ciprofloxacin: 0.4 },
+  'Coagulase-negative Staphylococci (CoNS)': { Oxacillin: 0.75, Vancomycin: 0.02, Linezolid: 0.01, Clindamycin: 0.45, Erythromycin: 0.7, Gentamicin: 0.4, Ciprofloxacin: 0.5 },
+  'Enterococcus faecium': { Ampicillin: 0.8, Vancomycin: 0.2, Linezolid: 0.02, Gentamicin: 0.6 },
+  'Streptococcus pneumoniae': { Erythromycin: 0.4, Clindamycin: 0.2, Vancomycin: 0, Ceftriaxone: 0.05 },
+  'Salmonella spp.': { Ampicillin: 0.6, Ceftriaxone: 0.3, Ciprofloxacin: 0.7, Meropenem: 0.01 },
+};
+
+export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
+  const r = rng(20261008);
+  const now = opts.now ?? Date.now();
+  const months = opts.months ?? 15;
+  const start = new Date(now); start.setMonth(start.getMonth() - months, 1); start.setHours(0, 0, 0, 0);
+  const beds = 14;
+  const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
+  const between = (a: number, b: number) => a + r() * (b - a);
+  const totalW = PROFILES.reduce((s, p) => s + p.w, 0);
+  const choose = () => { let x = r() * totalW; for (const p of PROFILES) { x -= p.w; if (x <= 0) return p; } return PROFILES[0]; };
+  const orgW = ORG_MIX.reduce((s, o) => s + o[1], 0);
+  const chooseOrg = () => { let x = r() * orgW; for (const [o, w] of ORG_MIX) { x -= w; if (x <= 0) return o; } return ORG_MIX[0][0]; };
+  const L = (t: number) => toLocal(new Date(t));
+
+  const insPatient = db.prepare('INSERT INTO patients(id, sex, created_at) VALUES (?,?,?)');
+  const insIdent = db.prepare('INSERT INTO patient_identifiers(patient_id, mrn, name, dob) VALUES (?,?,?,?)');
+  const insAdm = db.prepare(`INSERT INTO admissions(id, patient_id, bed, admit_at, age_months, weight_kg, source, admission_type, chronic_condition, malnutrition,
+    arrival_support, shock_on_arrival, coma_on_arrival, discharge_at, disposition, notes, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const insDx = db.prepare('INSERT INTO diagnoses(admission_id, code, role) VALUES (?,?,?)');
+  const insEp = db.prepare('INSERT INTO episodes(id, admission_id, kind, detail, intent, start_at, end_at, end_reason, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
+  const insEv = db.prepare('INSERT INTO clinical_events(id, admission_id, type, label, at, note, created_at) VALUES (?,?,?,?,?,?,?)');
+  const insCult = db.prepare('INSERT INTO cultures(id, admission_id, patient_id, unit, collected_at, specimen, organism, source, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
+  const insRes = db.prepare('INSERT INTO susceptibility_results(culture_id, drug, result) VALUES (?,?,?)');
+  const insPim = db.prepare('INSERT INTO pim3_assessments(admission_id, inputs, logit, risk, version, created_at, updated_at) VALUES (?,?,?,?,?,?,?)');
+  const insVal = db.prepare('INSERT INTO parameter_values(id, admission_id, param_id, param_version, value, recorded_at, created_at) VALUES (?,?,?,1,?,?,?)');
+  const insVs = db.prepare("INSERT INTO vital_sets(id, admission_id, at, context, created_at) VALUES (?,?,?,?,?)");
+  const insVv = db.prepare('INSERT INTO vital_values(set_id, code, value) VALUES (?,?,?)');
+  // Separate stream so adding vitals did not reshuffle the rest of the demo.
+  const rv = rng(4242);
+  const vb = (a: number, b: number) => a + rv() * (b - a);
+  /** Admission set + 1–4 later sets; physiology follows the same severity as PIM3 and the outcome, improving over time. */
+  const seedVitals = (aid: string, dx: string, c: { admitT: number; endT: number | null; ageM: number; arrival: RespLevel; sick: number; shock: boolean; died: boolean; pimSbp: number | null }) => {
+    const n = normals(c.ageM);
+    const sets: [number, string, number][] = [];
+    if (rv() < 0.9) sets.push([c.admitT + vb(-0.1, rv() < 0.88 ? 0.9 : 3) * 3_600_000, 'admission', 1]);
+    const later = 1 + Math.floor(rv() * 4);
+    for (let i = 0; i < later; i++) sets.push([c.admitT + vb(2, 30) * 3_600_000 * (i + 1) / later, rv() < 0.25 + 0.1 * c.sick ? 'event' : 'routine', Math.max(0, 1 - (i + 1) / (later + 1))]);
+    sets.forEach(([t, context, k], idx) => {
+      if (t >= now || (c.endT && t > c.endT)) return;
+      const sev = c.sick * k + (context === 'event' ? 1 : 0);
+      const shock = c.shock && k > 0.5;
+      const sbp = idx === 0 && context === 'admission' && c.pimSbp != null ? c.pimSbp : Math.round(n.sbp * (shock ? vb(0.5, 0.8) : vb(0.88, 1.12) - 0.04 * sev));
+      const v: Record<string, number> = {
+        hr: Math.round(n.hr * (1 + 0.1 * sev + (shock ? 0.25 : 0) + vb(-0.08, 0.1))),
+        rr: Math.round(n.rr * (1 + 0.12 * sev + (RESPIRATORY.has(dx) ? 0.35 * k : 0) + vb(-0.1, 0.12))),
+        spo2: Math.round(Math.max(72, Math.min(100, 98 - 2 * sev - (RESPIRATORY.has(dx) ? 4 * k : 0) + vb(-2, 2)))),
+        sbp: Math.max(25, sbp), dbp: Math.max(15, Math.round(Math.max(25, sbp) * vb(0.55, 0.65))),
+        temp: Math.round((FEBRILE.has(dx) && rv() < 0.4 + 0.5 * k ? vb(38, 40) : vb(36.4, 37.8)) * 10) / 10,
+        crt: shock ? Math.round(vb(3, 6)) : Math.round(vb(1, 2.4)),
+      };
+      v.map = Math.round((v.sbp + 2 * v.dbp) / 3);
+      const level = idx === 0 ? c.arrival : k > 0.4 ? c.arrival : 'O2';
+      if (level !== 'RA') v.fio2 = Math.round(level === 'MV' || level === 'NIV' ? vb(35, 80 + 20 * (c.died ? 1 : 0)) : level === 'HFNC' ? vb(30, 60) : vb(24, 40));
+      if (NEURO.has(dx) || rv() < 0.4) v.gcs = Math.round(NEURO.has(dx) ? vb(5, 14) * (0.6 + 0.4 * (1 - k)) + 3 * (1 - k) : vb(13, 15.4));
+      v.gcs = v.gcs != null ? Math.max(3, Math.min(15, v.gcs)) : v.gcs;
+      if (dx === 'DKA' || rv() < 0.35) v.glucose = Math.round((dx === 'DKA' ? vb(14, 32) * (0.4 + 0.6 * k) : vb(3.4, 9)) * 10) / 10;
+      if (idx > 0 && rv() < 0.5) v.urine = Math.round((shock || dx === 'AKI' ? vb(0.1, 1) : vb(0.6, 3)) * 10) / 10;
+      if (context !== 'admission' && rv() < 0.3) delete v.crt;
+      const id = randomUUID();
+      insVs.run(id, aid, L(t), context, L(t));
+      Object.entries(v).forEach(([code, val]) => { if (val != null) insVv.run(id, code, val); });
+    });
+  };
+  /** Synthetic module values (≈10% left blank, as in real data entry). */
+  const moduleValues = (aid: string, dx: string, c: { admitT: number; endT: number | null; isMV: boolean; isVaso: boolean; died: boolean }) => {
+    const put = (param: string, v: unknown, at: number | null = null) => { if (r() > 0.1) insVal.run(randomUUID(), aid, param, JSON.stringify(v), at && at < now ? L(at) : null, L(c.admitT)); };
+    const series = (param: string, n: number, gen: (i: number) => number) => {
+      for (let i = 0; i < n; i++) { const at = c.admitT + (i + 0.3) * DAY_MS; if (at < (c.endT ?? now)) insVal.run(randomUUID(), aid, param, JSON.stringify(gen(i)), L(at), L(at)); }
+    };
+    const done = c.endT !== null;
+    if (dx === 'SEPSIS' || dx === 'SEPTIC_SHOCK') {
+      const shock = dx === 'SEPTIC_SHOCK' || c.isVaso;
+      const fluid = Math.round(between(10, 60));
+      put('sepsis.recognised_at', L(c.admitT - between(0, 1) * 3_600_000));
+      put('sepsis.source', pick(['Lung', 'Lung', 'Bloodstream / unknown', 'Bloodstream / unknown', 'CNS', 'Urinary', 'Abdominal', 'Skin / soft tissue', 'Device / line']));
+      put('sepsis.lactate_initial', Math.round(between(shock ? 2.5 : 1, shock ? 9 : 4) * 10) / 10);
+      put('sepsis.fluid_first_hour', fluid);
+      put('sepsis.early_fluids', fluid >= 20);
+      put('sepsis.psofa_admission', Math.round(between(shock ? 6 : 2, shock ? 15 : 8)));
+      series('sepsis.lactate_series', Math.floor(between(0, 3)), i => Math.round(between(0.8, shock ? 5 : 2.5) / (i + 1) * 10) / 10);
+      if (done) put('sepsis.source_control', r() < 0.12);
+    } else if (dx === 'PNEUMONIA' || dx === 'SEVERE_PNEUMONIA' || dx === 'EMPYEMA') {
+      put('pneumonia.spo2_arrival', Math.round(between(c.isMV ? 68 : 78, 96)));
+      put('pneumonia.cxr', pick(['Lobar consolidation', 'Patchy / bronchopneumonia', 'Patchy / bronchopneumonia', 'Effusion / empyema', 'Interstitial', 'Not done']));
+      put('pneumonia.viral_tests', [pick(['RSV', 'Influenza', 'SARS-CoV-2', 'hMPV', 'None positive', 'Not tested', 'Not tested'])]);
+      if (done) put('pneumonia.aetiology', pick(['Bacterial — presumed', 'Bacterial — presumed', 'Bacterial — confirmed', 'Viral — confirmed', 'Mixed', 'Unknown']));
+    } else if (dx === 'GBS') {
+      const hughesIn = c.isMV ? 5 : Math.round(between(3, 4.4));
+      const x = r();
+      const therapy = x < 0.55 ? ['IVIG'] : x < 0.75 ? ['Methylprednisolone'] : x < 0.83 ? ['IVIG', 'Methylprednisolone'] : ['None (supportive)'];
+      put('gbs.onset_days', Math.round(between(2, 14)));
+      put('gbs.hughes_admission', hughesIn);
+      put('gbs.bulbar', r() < 0.3);
+      put('gbs.autonomic', r() < 0.25);
+      series('gbs.mrc_sum', Math.floor(between(2, 5)), i => Math.min(60, Math.round(between(15, 35) + i * between(1, 5))));
+      if (done) {
+        put('gbs.variant', pick(['AIDP', 'AIDP', 'AMAN', 'AMSAN', 'Miller Fisher', 'Not done / unknown']));
+        insVal.run(randomUUID(), aid, 'gbs.immunotherapy', JSON.stringify(therapy), null, L(c.admitT));
+        if (therapy.includes('IVIG')) put('gbs.ivig_start', L(c.admitT + between(0, 2) * DAY_MS).slice(0, 10));
+        insVal.run(randomUUID(), aid, 'gbs.hughes_discharge', JSON.stringify(c.died ? 6 : Math.max(1, hughesIn - Math.round(between(0, 2.4)))), null, L(c.admitT));
+      }
+    } else if (dx === 'DKA') {
+      const ph = Math.round(between(6.85, 7.28) * 100) / 100;
+      put('dka.new_onset', r() < 0.4);
+      put('dka.ph_admission', ph);
+      put('dka.bicarbonate', Math.round(between(3, 14) * 10) / 10);
+      put('dka.severity', ph < 7.1 ? 'Severe (pH < 7.1)' : ph < 7.2 ? 'Moderate (pH 7.1–7.2)' : 'Mild (pH 7.2–7.3)');
+      if (done) { put('dka.resolution_h', Math.round(between(8, 36))); put('dka.cerebral_oedema', r() < 0.03); }
+    }
+  };
+
+  const FIRST = ['Ayaan', 'Fatima', 'Zara', 'Hamza', 'Aisha', 'Omar', 'Hira', 'Bilal', 'Inaya', 'Musa', 'Eman', 'Rayyan', 'Sana', 'Ali', 'Maryam', 'Ibrahim'];
+  const bedFree: number[] = Array(beds).fill(0);
+  let mrnSeq = 100200;
+  let count = 0;
+
+  tx(db, () => {
+    setSetting(db, 'beds', String(beds));
+    setSetting(db, 'demoData', '1');
+    // Demo history predates the modules, so treat every field as introduced at the start of the demo.
+    ensureBuiltInModules(db);
+    db.prepare('UPDATE modules SET introduced_at = ? WHERE built_in = 1').run(toLocal(start).slice(0, 10));
+    db.prepare('UPDATE parameter_definitions SET introduced_at = ? WHERE module_id IN (SELECT id FROM modules WHERE built_in = 1)').run(toLocal(start).slice(0, 10));
+    for (let t = start.getTime(); t < now; t += DAY_MS) {
+      const d = new Date(t);
+      const winter = [11, 0, 1].includes(d.getMonth()) ? 1.35 : [6, 7, 8].includes(d.getMonth()) ? 1.1 : 1;
+      const progress = (t - start.getTime()) / (now - start.getTime());
+      const expected = 3.7 * winter * (0.9 + 0.2 * progress);
+      let k = 0; const L0 = Math.exp(-expected); let pr = 1; do { k++; pr *= r(); } while (pr > L0); k -= 1;
+      for (let i = 0; i < k; i++) {
+        const admitT = t + between(0.5, 23.5) * 3_600_000;
+        const bed = bedFree.findIndex(f => f <= admitT);
+        if (bed === -1) continue; // unit full — real units would divert
+        const p = choose();
+        const ageM = Math.round(between(p.ageM[0], p.ageM[1]));
+        const sex = r() < 0.56 ? 'M' : 'F';
+        const weight = Math.round((ageM < 12 ? 3.2 + ageM * 0.55 : 9 + (ageM - 12) * 0.2) * between(0.75, 1.15) * 10) / 10;
+        const isMV = r() < p.mv, isNIV = !isMV && r() < p.niv, isHF = !isMV && !isNIV && r() < p.hfnc;
+        const isVaso = r() < p.vaso;
+        let los = between(p.los[0], p.los[1]) * (isMV ? 1.6 : 1) * (r() < 0.08 ? 2.5 : 1);
+        const died = r() < p.die * (isMV ? 2 : 0.6) * (isVaso ? 1.5 : 1);
+        if (died) los *= between(0.2, 0.9);
+        let dischargeT: number | null = admitT + los * DAY_MS;
+        if (dischargeT > now) dischargeT = null;
+        bedFree[bed] = (dischargeT ?? now + 30 * DAY_MS) + 2 * 3_600_000;
+
+        const pid = randomUUID(), aid = randomUUID();
+        insPatient.run(pid, sex, L(admitT));
+        insIdent.run(pid, `MR-${mrnSeq++}`, `${pick(FIRST)} (demo)`, null);
+        const source = p.dx === 'POSTOP' ? 'OT' : pick(['ED', 'ED', 'ED', 'Ward', 'Other hospital', 'Ward']);
+        const arrival: RespLevel = isMV ? (r() < 0.5 ? 'MV' : 'NIV') : isNIV ? (r() < 0.5 ? 'NIV' : 'O2') : isHF ? 'HFNC' : r() < 0.4 ? 'O2' : 'RA';
+        const disposition = dischargeT ? (died ? 'Died' : r() < 0.04 ? 'LAMA' : r() < 0.05 ? 'Transfer' : 'Ward') : null;
+        insAdm.run(aid, pid, String(bed + 1), L(admitT), ageM, r() < 0.06 ? null : weight, source, p.dx === 'POSTOP' && r() < 0.7 ? 'elective' : 'emergency',
+          r() < 0.15 ? 1 : 0, r() < 0.12 ? 1 : 0, arrival, isVaso && r() < 0.6 ? 1 : 0, (p.dx === 'STATUS_EPILEPTICUS' || p.dx === 'ENCEPHALITIS' || p.dx === 'TBI') && r() < 0.5 ? 1 : 0,
+          dischargeT ? L(dischargeT) : null, disposition, null, null, L(admitT), L(admitT));
+        insDx.run(aid, p.dx, 'primary');
+        if (r() < 0.25) insDx.run(aid, pick(['SAM', 'AKI', 'SEVERE_ANAEMIA', 'CHD', 'SEPSIS'].filter(c => c !== p.dx)), 'secondary');
+
+        const endT = dischargeT ?? null;
+        // Respiratory course: arrival level → (escalate to MV) → step down → room air.
+        const resp: [RespLevel, number][] = [];
+        if (arrival !== 'RA') resp.push([arrival, admitT]);
+        if (isMV && arrival !== 'MV') resp.push(['MV', admitT + between(0.1, 0.4) * los * DAY_MS]);
+        if (isMV) resp.push(['NIV', admitT + between(0.55, 0.75) * los * DAY_MS]);
+        if (resp.length) resp.push(['O2', admitT + between(0.8, 0.9) * los * DAY_MS]);
+        resp.forEach(([lvl, s], idx) => {
+          const e = resp[idx + 1]?.[1] ?? (endT ? Math.min(endT, admitT + 0.95 * los * DAY_MS) : null);
+          if (s >= now) return;
+          const eClamped = e && e > now ? null : e;
+          insEp.run(randomUUID(), aid, 'resp', lvl, null, L(s), eClamped ? L(eClamped) : died && !resp[idx + 1] ? L(endT!) : null, eClamped ? 'changed' : null, L(s));
+        });
+        if (isVaso) {
+          const s = admitT + between(0, 0.2) * DAY_MS, e = s + between(0.15, 0.5) * los * DAY_MS;
+          insEp.run(randomUUID(), aid, 'vaso', r() < 0.6 ? 'Adrenaline' : 'Noradrenaline', null, L(s), e < now ? L(e) : null, e < now ? 'stopped' : null, L(s));
+          if (r() < 0.3 && e < now) insEp.run(randomUUID(), aid, 'vaso', 'Dobutamine', null, L(s + 0.2 * DAY_MS), L(e), 'stopped', L(s));
+        }
+        // Antimicrobials — meropenem and colistin usage drifts upward in the final quarter to show change detection.
+        let regimen = pick(p.abx);
+        if (progress > 0.8 && regimen.includes('Piperacillin-Tazobactam') && r() < 0.6) regimen = regimen.map(x => (x === 'Piperacillin-Tazobactam' ? 'Meropenem' : x));
+        const culture = r() < p.cultureP;
+        const abxEnd = admitT + Math.min(los, between(4, 10)) * DAY_MS;
+        regimen.forEach(drug => {
+          // Sepsis pathways start antimicrobials sooner (≈ 10 min – 2 h); other diagnoses within a few hours.
+          const s = admitT + (p.dx === 'SEPSIS' || p.dx === 'SEPTIC_SHOCK' ? between(0.007, 0.08) : between(0.02, 0.15)) * DAY_MS;
+          const e = Math.min(abxEnd, endT ?? Infinity);
+          insEp.run(randomUUID(), aid, 'abx', drug, 'empiric', L(s), e < now ? L(e) : null, e < now ? (died ? 'death' : 'completed') : null, L(s));
+        });
+        if (culture) {
+          const cT = admitT + between(0, 0.1) * DAY_MS;
+          if (cT < now) {
+            insEv.run(randomUUID(), aid, 'culture_sent', 'Blood culture sent', L(cT), null, L(cT));
+            const positive = r() < 0.32;
+            const cid = randomUUID();
+            const specimen = p.dx.includes('PNEUMONIA') && r() < 0.4 ? 'ETT' : p.dx === 'MENINGITIS' && r() < 0.5 ? 'CSF' : r() < 0.15 ? 'Urine' : 'Blood';
+            const org = positive ? chooseOrg() : null;
+            insCult.run(cid, aid, pid, 'PICU', L(cT).slice(0, 10), specimen, org, 'picu', L(cT));
+            if (org && BASE_R[org]) {
+              const panel = Object.keys(BASE_R[org]).length ? Object.keys(BASE_R[org]) : (org.includes('Staph') ? GP_PANEL : GN_PANEL);
+              const carbaDrift = progress > 0.75 ? 0.15 : 0;
+              panel.forEach(drug => {
+                const base = BASE_R[org][drug] ?? 0.3;
+                const pr = Math.min(0.98, base + (drug === 'Meropenem' ? carbaDrift : 0));
+                const x = r();
+                insRes.run(cid, drug, x < pr ? 'R' : x < pr + 0.05 ? 'I' : 'S');
+              });
+              // Culture-directed change: escalate to a reserve agent if the isolate is meropenem-resistant.
+              const resultT = cT + between(2, 3) * DAY_MS;
+              const merR = BASE_R[org].Meropenem !== undefined && r() < (BASE_R[org].Meropenem + carbaDrift);
+              if (merR && resultT < (endT ?? now) && resultT < now) {
+                const e = Math.min(resultT + between(5, 10) * DAY_MS, endT ?? Infinity);
+                insEp.run(randomUUID(), aid, 'abx', 'Colistin', 'targeted', L(resultT), e < now ? L(e) : null, e < now ? 'completed' : null, L(resultT));
+              }
+            }
+          }
+        }
+        if (isMV && r() < 0.06 && endT) insEv.run(randomUUID(), aid, 'complication', 'VAP', L(admitT + 0.5 * los * DAY_MS), null, L(admitT));
+        if (isMV && r() < 0.04 && endT) insEv.run(randomUUID(), aid, 'complication', 'Unplanned extubation', L(admitT + 0.4 * los * DAY_MS), null, L(admitT));
+        if (r() < 0.2) insEv.run(randomUUID(), aid, 'procedure', 'Central line', L(admitT + 0.1 * DAY_MS), null, L(admitT));
+        moduleValues(aid, p.dx, { admitT, endT, isMV, isVaso, died });
+        if (r() < 0.85) { // PIM3 recorded for most admissions, as in a real pilot
+          // First-hour physiology tracks the same severity that drives the synthetic outcome, so PIM3 is roughly calibrated.
+          const shock = isVaso && r() < 0.8;
+          const sick = (isMV ? 1 : 0) + (isVaso ? 1 : 0) + (died ? 1 : 0);
+          const pim: Pim3Input = {
+            pupilsFixed: died && r() < (p.dx === 'HIE' || p.dx === 'TBI' || p.dx === 'CARDIAC_ARREST' ? 0.7 : 0.3), elective: p.dx === 'POSTOP' && r() < 0.7,
+            mvFirstHour: arrival === 'MV' || (isMV && r() < (died ? 0.85 : 0.5)),
+            baseExcess: r() < 0.8 ? Math.round(between(shock ? -22 : -8 - 3 * sick, shock ? -6 : 1) - (died ? 6 : 0)) : null,
+            sbp: Math.round(shock ? between(died ? 25 : 45, died ? 60 : 80) : normals(ageM).sbp * between(died ? 0.68 : 0.85, 1.15)),
+            fio2: isMV ? Math.round(between(0.4, 1) * 100) / 100 : null,
+            pao2: isMV ? Math.round(between(died ? 40 : 55, 120)) : null,
+            recovery: p.dx === 'POSTOP' ? 'noncardiac' : 'none', riskDx: suggestRiskDx(p.dx),
+          };
+          const lg = pim3Logit(pim);
+          insPim.run(aid, JSON.stringify(pim), lg, 1 / (1 + Math.exp(-lg)), PIM3_VERSION, L(admitT), L(admitT));
+          seedVitals(aid, p.dx, { admitT, endT, ageM, arrival, sick, shock, died, pimSbp: pim.sbp });
+        } else seedVitals(aid, p.dx, { admitT, endT, ageM, arrival, sick: (isMV ? 1 : 0) + (isVaso ? 1 : 0), shock: isVaso, died, pimSbp: null });
+        count++;
+      }
+    }
+    db.prepare("INSERT INTO audit_log(at, user_id, username, action, entity, entity_id, summary) VALUES (?, NULL, 'system', 'demo', 'system', NULL, ?)")
+      .run(toLocal(new Date(now)), `Loaded ${count} synthetic demo admissions`);
+  });
+  return count;
+}

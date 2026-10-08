@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Antibiome PICU</title>
+<meta name="description" content="Antibiome PICU: a desktop intelligence layer for paediatric intensive care. Fast bedside entry from the PC or a phone, risk-adjusted outcomes, stewardship, research and QI — all on the unit's own computer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Ms+Madi&display=swap">
+<style>
+/* Layout: one dark night-shift stage. A live blue "fluid" hero behind a pill nav, then quiet
+   sections; the Docs tab swaps in a sidebar + long-form guide. Single committed dark look. */
+:root {
+  --ink-0: #000104;        /* page */
+  --ink-1: #07090f;        /* raised panels */
+  --ink-2: #0e121c;        /* insets, code */
+  --line: #1b2131;
+  --line-2: #2a3247;
+  --fg: #eef1f8;
+  --fg-2: #a8b0c4;
+  --fg-3: #6c7590;
+  --blue: #2346ff;         /* the fluid's core blue */
+  --blue-ink: #8ea2ff;     /* blue for text on black */
+  --ice: #dfe6ff;
+  --good: #57d9a3;
+  --warn: #ffb547;
+  --font-sans: "Geist", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-script: "Ms Madi", "Segoe Script", "Brush Script MT", cursive;
+  --step--1: 0.8125rem; --step-0: 0.9375rem; --step-1: 1.125rem; --step-2: 1.5rem; --step-3: 2.25rem; --step-4: clamp(2.6rem, 6.4vw, 4.6rem);
+  --r-pill: 999px; --r-win: 18px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--ink-0); color: var(--fg); font: 400 var(--step-0)/1.6 var(--font-sans); -webkit-font-smoothing: antialiased; }
+a { color: var(--blue-ink); text-underline-offset: 3px; }
+img { max-width: 100%; display: block; }
+:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; font-weight: 500; letter-spacing: -0.02em; }
+p { margin: 0; }
+.wrap { width: min(1120px, 100%); margin-inline: auto; padding-inline: 20px; }
+.mono { font-family: var(--font-mono); font-size: 0.86em; }
+.eyebrow { font: 500 var(--step--1)/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+
+/* ── Nav: centred pill, like a control strip ───────────── */
+.nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 20; padding-inline: 16px; }
+.nav-inner { margin-inline: auto; width: min(760px, 100%); display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 16px;
+  background: rgba(7, 9, 15, 0.72); border: 1px solid var(--line); border-radius: var(--r-pill); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.brand { display: flex; align-items: center; gap: 8px; color: var(--fg); text-decoration: none; font-weight: 600; letter-spacing: -0.01em; margin-right: auto; white-space: nowrap; }
+.tabs { display: flex; gap: 2px; }
+.tab { appearance: none; border: 0; background: none; color: var(--fg-2); font: 500 var(--step--1) var(--font-sans); padding: 8px 14px; border-radius: var(--r-pill); cursor: pointer; }
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] { color: var(--fg); background: var(--ink-2); }
+.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: var(--r-pill); padding: 9px 18px; font: 500 var(--step--1) var(--font-sans); text-decoration: none; cursor: pointer; border: 1px solid transparent; white-space: nowrap; }
+.pill-white { background: var(--fg); color: #05070d; }
+.pill-white:hover { background: #fff; }
+.pill-ghost { color: var(--fg); border-color: var(--line-2); background: rgba(255, 255, 255, 0.04); }
+.pill-ghost:hover { border-color: var(--fg-3); }
+
+/* ── Hero: live fluid behind script + sans headline ───── */
+.hero { position: relative; margin-top: -64px; padding-top: 140px; overflow: hidden; isolation: isolate; }
+#fluid { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; background:
+  radial-gradient(60% 50% at 75% 60%, rgba(35, 70, 255, 0.85), transparent 70%), radial-gradient(40% 40% at 15% 80%, rgba(223, 230, 255, 0.5), transparent 70%), var(--ink-0); }
+.hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 160px; z-index: -1; background: linear-gradient(to bottom, transparent, var(--ink-0)); pointer-events: none; }
+.hero-copy { text-align: center; display: grid; justify-items: center; gap: 14px; }
+.script { font: 400 clamp(3.4rem, 9vw, 6.2rem)/0.7 var(--font-script); color: rgba(238, 241, 248, 0.82); letter-spacing: 0; transform: translateY(0.18em) rotate(-3deg); }
+.hero h1 { font-size: var(--step-4); line-height: 1.02; font-weight: 500; letter-spacing: -0.035em; max-width: 14ch; }
+.hero .lede { max-width: 54ch; color: var(--fg-2); font-size: var(--step-1); line-height: 1.5; }
+.hero-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; }
+
+/* product window with the floating question bar */
+.stage { position: relative; margin-top: 64px; padding-bottom: 40px; }
+.window { position: relative; border-radius: var(--r-win); border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(5, 7, 13, 0.75); box-shadow: 0 40px 120px -40px rgba(35, 70, 255, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4); overflow: hidden; }
+.window-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #3a4157; }
+.dot:nth-child(1) { background: #ff5f57; } .dot:nth-child(2) { background: #febc2e; } .dot:nth-child(3) { background: #28c840; }
+.window-bar .addr { margin-left: 10px; color: var(--fg-3); font: 400 12px var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.window img { width: 100%; height: auto; aspect-ratio: 1440 / 893; }
+.ask { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); width: min(620px, calc(100% - 24px)); display: flex; align-items: center; gap: 10px;
+  padding: 7px 7px 7px 16px; border-radius: var(--r-pill); background: rgba(14, 18, 28, 0.82); border: 1px solid rgba(255, 255, 255, 0.16); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.8); z-index: 2; }
+.ask svg { flex: none; color: var(--fg-3); }
+.ask-q { flex: 1; min-width: 0; color: var(--fg-2); font-size: var(--step--1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ask-q::after { content: ""; display: inline-block; width: 1px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--fg-2); animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+
+/* standards strip (marquee) */
+.strip { margin-top: 8px; border-block: 1px solid var(--line); overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+.strip-track { display: flex; gap: 44px; width: max-content; padding-block: 18px; animation: slide 46s linear infinite; }
+.strip-track span { color: var(--fg-3); font: 500 var(--step--1) var(--font-mono); letter-spacing: 0.02em; white-space: nowrap; }
+.strip-track span b { color: var(--fg-2); font-weight: 500; }
+@keyframes slide { to { transform: translateX(-50%); } }
+
+/* ── Product sections ───────────────────────────────── */
+section.block { padding-block: 96px 0; }
+.block-head { display: grid; gap: 12px; max-width: 62ch; margin-bottom: 40px; }
+.block-head h2 { font-size: var(--step-3); line-height: 1.08; }
+.block-head p { color: var(--fg-2); font-size: var(--step-1); line-height: 1.5; }
+
+.features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+.feature { background: var(--ink-1); padding: 26px 24px 28px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.feature h3 { font-size: var(--step-1); letter-spacing: -0.01em; }
+.feature p { color: var(--fg-2); font-size: var(--step-0); }
+.feature .fact { margin-top: 6px; color: var(--blue-ink); font: 500 12.5px var(--font-mono); }
+
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 48px; align-items: center; }
+.split .copy { display: grid; gap: 16px; min-width: 0; }
+.split h2 { font-size: var(--step-3); line-height: 1.08; }
+.split .copy > p { color: var(--fg-2); font-size: var(--step-1); line-height: 1.5; }
+.ticks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; color: var(--fg-2); }
+.ticks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; }
+.ticks li::before { content: ""; width: 7px; height: 7px; margin-top: 0.62em; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 4px rgba(35, 70, 255, 0.18); }
+.phones { display: flex; gap: 14px; justify-content: center; align-items: flex-end; }
+.phone { width: min(220px, 31%); border-radius: 26px; padding: 6px; background: #151a27; border: 1px solid var(--line-2); box-shadow: 0 30px 70px -30px rgba(35, 70, 255, 0.5); }
+.phone img { border-radius: 20px; aspect-ratio: 390 / 664; width: 100%; height: auto; }
+.phone:nth-child(2) { transform: translateY(-26px); }
+.shot { border-radius: 14px; border: 1px solid var(--line-2); overflow: hidden; box-shadow: 0 30px 80px -40px rgba(35, 70, 255, 0.45); }
+.shot img { width: 100%; height: auto; aspect-ratio: 1440 / 893; }
+
+.gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.gallery figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.gallery figcaption { color: var(--fg-3); font-size: var(--step--1); }
+
+.privacy { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.privacy div { border-top: 1px solid var(--line-2); padding-top: 16px; display: grid; gap: 6px; min-width: 0; }
+.privacy b { font-weight: 500; }
+.privacy span { color: var(--fg-2); font-size: var(--step--1); }
+
+.closing { margin-block: 110px 0; padding: 56px 24px; text-align: center; border-radius: 24px; border: 1px solid var(--line); display: grid; justify-items: center; gap: 14px;
+  background: radial-gradient(80% 120% at 50% 120%, rgba(35, 70, 255, 0.35), transparent 60%), var(--ink-1); }
+.closing .script { font-size: clamp(2.6rem, 6vw, 4rem); transform: rotate(-3deg); }
+.closing h2 { font-size: var(--step-3); }
+.closing p { color: var(--fg-2); max-width: 52ch; }
+
+footer { margin-top: 80px; border-top: 1px solid var(--line); padding-block: 28px 40px; color: var(--fg-3); font-size: var(--step--1); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+
+/* ── Docs ────────────────────────────────────────────── */
+.docs { padding-block: 72px 0; }
+.docs-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; align-items: start; }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 92px); display: grid; gap: 2px; }
+.toc a { color: var(--fg-3); text-decoration: none; font-size: var(--step--1); padding: 6px 10px; border-radius: 8px; border-left: 1px solid var(--line); border-radius: 0 8px 8px 0; }
+.toc a:hover { color: var(--fg); }
+.toc a.on { color: var(--fg); border-left-color: var(--blue-ink); background: rgba(35, 70, 255, 0.08); }
+.doc { min-width: 0; max-width: 72ch; }
+.doc-title { display: grid; gap: 12px; margin-bottom: 28px; }
+.doc-title h1 { font-size: var(--step-3); line-height: 1.05; }
+.doc-title p { color: var(--fg-2); font-size: var(--step-1); }
+.doc section { padding-top: 44px; scroll-margin-top: 90px; }
+.doc h2 { font-size: var(--step-2); margin-bottom: 14px; }
+.doc h3 { font-size: var(--step-1); margin: 22px 0 8px; }
+.doc p, .doc li { color: var(--fg-2); }
+.doc p + p { margin-top: 12px; }
+.doc ul, .doc ol { padding-left: 1.2em; margin: 10px 0 0; display: grid; gap: 6px; }
+.doc strong { color: var(--fg); font-weight: 500; }
+.steps { list-style: none; padding: 0 !important; counter-reset: s; gap: 14px !important; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; }
+.steps > li::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line-2); color: var(--fg); font: 500 12px var(--font-mono); }
+.code { position: relative; margin-top: 12px; background: var(--ink-2); border: 1px solid var(--line); border-radius: 12px; }
+.code pre { margin: 0; padding: 14px 76px 14px 16px; overflow-x: auto; font: 400 13px/1.6 var(--font-mono); color: var(--ice); }
+.code button { position: absolute; top: 8px; right: 8px; font: 500 11.5px var(--font-sans); color: var(--fg-2); background: var(--ink-1); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 9px; cursor: pointer; }
+.code button:hover { color: var(--fg); }
+.note { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--ink-1); color: var(--fg-2); font-size: var(--step--1); }
+.note.warn { border-color: rgba(255, 181, 71, 0.35); }
+.note b { color: var(--fg); font-weight: 500; }
+.table-wrap { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--fg-3); font-weight: 500; background: var(--ink-1); }
+tr:last-child td { border-bottom: 0; }
+td { color: var(--fg-2); }
+td:first-child { color: var(--fg); }
+kbd { font: 500 11.5px var(--font-mono); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; color: var(--fg); }
+
+[hidden] { display: none !important; }
+
+@media (max-width: 900px) {
+  .features, .gallery { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .privacy { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .split { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .docs-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .toc { position: static; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .toc a { border: 1px solid var(--line); border-radius: var(--r-pill); padding: 5px 11px; }
+  .toc a.on { border-color: var(--blue-ink); }
+}
+@media (max-width: 560px) {
+  .features, .gallery, .privacy { grid-template-columns: minmax(0, 1fr); }
+  .nav-inner { padding-left: 12px; }
+  .brand span { display: none; }
+  .tab { padding: 8px 11px; }
+  .nav .pill-white { padding: 9px 13px; }
+  .hero { padding-top: 120px; }
+  .stage { margin-top: 48px; }
+  .phone:nth-child(2) { transform: none; }
+  section.block { padding-top: 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .strip-track { animation: none; }
+  .ask-q::after { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#product" data-go="product" aria-label="Antibiome PICU home">
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="3"/><ellipse cx="16" cy="16" rx="15" ry="6" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-28 16 16)" opacity="0.6"/><circle cx="16" cy="16" r="4.5" fill="currentColor"/></svg>
+      <span>Antibiome PICU</span>
+    </a>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab" role="tab" id="tab-product" aria-controls="product" aria-selected="true" data-go="product">Product</button>
+      <button class="tab" role="tab" id="tab-docs" aria-controls="docs" aria-selected="false" data-go="docs">Docs</button>
+    </nav>
+    <a class="pill pill-white" href="https://github.com/itskaero/antibiome">Source</a>
+  </div>
+</header>
+
+<!-- ══════════════ PRODUCT ══════════════ -->
+<main id="product" role="tabpanel" aria-labelledby="tab-product">
+  <div class="hero">
+    <canvas id="fluid" aria-hidden="true"></canvas>
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="script" aria-hidden="true">Bedside</span>
+        <h1>intelligence for the PICU</h1>
+        <p class="lede">Admit a child in under a minute — on the unit PC or a phone at the bedside — and get risk-adjusted outcomes, stewardship and research answers from your own unit's data, on your own computer.</p>
+        <div class="hero-cta">
+          <button class="pill pill-white" data-go="docs">Set it up</button>
+          <a class="pill pill-ghost" href="#features">See what it does</a>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div class="ask" aria-hidden="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span class="ask-q" id="askq">Septic shock admissions this year: antibiotics within 60 minutes?</span>
+          <span class="pill pill-white" style="padding:7px 14px">Ask</span>
+        </div>
+        <div class="window">
+          <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="addr">Antibiome PICU — Command centre · 14 beds</span></div>
+          <img src="assets/home-dark.png" alt="The command centre: census, admissions, mortality with 12-month PIM3 SMR, ventilator days and what changed this month" width="1440" height="893">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="strip" aria-label="Methods and standards used">
+    <div class="strip-track">
+      <span><b>PIM3</b> 2013 equation</span><span><b>SMR</b> with Byar 95% CI</span><span><b>IPSCC 2005</b> age bands</span><span><b>WHO AWaRe</b> groups</span><span><b>DOT</b> per 1,000 patient-days</span><span><b>First-isolate</b> antibiogram</span><span><b>Fisher's exact</b> · Mann–Whitney</span><span><b>Logistic regression</b> with EPV ≥ 10</span><span><b>SQLite</b> on the unit PC</span><span><b>HTTPS</b> to paired phones</span>
+      <span aria-hidden="true"><b>PIM3</b> 2013 equation</span><span aria-hidden="true"><b>SMR</b> with Byar 95% CI</span><span aria-hidden="true"><b>IPSCC 2005</b> age bands</span><span aria-hidden="true"><b>WHO AWaRe</b> groups</span><span aria-hidden="true"><b>DOT</b> per 1,000 patient-days</span><span aria-hidden="true"><b>First-isolate</b> antibiogram</span><span aria-hidden="true"><b>Fisher's exact</b> · Mann–Whitney</span><span aria-hidden="true"><b>Logistic regression</b> with EPV ≥ 10</span><span aria-hidden="true"><b>SQLite</b> on the unit PC</span><span aria-hidden="true"><b>HTTPS</b> to paired phones</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section class="block" id="features">
+      <div class="block-head">
+        <span class="eyebrow">What it does</span>
+        <h2>Recorded once at the bedside, counted everywhere</h2>
+        <p>Nurses and doctors record what they already do. Everything else — ventilator days, antibiotic exposure, severity, adherence — is derived.</p>
+      </div>
+      <div class="features">
+        <div class="feature"><h3>Census &amp; admission</h3><p>Defaults everywhere, one-tap chips and a visible entry timer. Returning patients are recognised by MRN.</p><span class="fact">target &lt; 60 s per admission</span></div>
+        <div class="feature"><h3>Vitals at key moments</h3><p>Admission, deterioration, review. Age-specific flags, S/F ratio, shock index and the worst first-24 h values, derived.</p><span class="fact">HR · RR · SpO₂ · FiO₂ · BP · GCS · glucose</span></div>
+        <div class="feature"><h3>Severity &amp; outcomes</h3><p>PIM3 from the first hour, pre-filled from the record. A rolling 12-month standardised mortality ratio on the dashboard.</p><span class="fact">SMR 1.76 (95% CI 1.36–2.24) in the demo</span></div>
+        <div class="feature"><h3>Stewardship &amp; microbiology</h3><p>Days of therapy, AWaRe mix, MDR isolates and a first-isolate antibiogram that flags groups under 30.</p><span class="fact">DOT / 1,000 patient-days</span></div>
+        <div class="feature"><h3>Research Explorer</h3><p>Build a cohort from any recorded field, compare groups, adjust with logistic regression. Optional AI turns a typed question into a query you confirm.</p><span class="fact">association, never causation</span></div>
+        <div class="feature"><h3>Protocols &amp; QI</h3><p>Write local protocols as measurable rules — time windows, if/then, conditions — and see adherence against target with run charts.</p><span class="fact">sepsis first-hour bundle built in</span></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="split">
+        <div class="copy">
+          <span class="eyebrow">Phones on the ward Wi-Fi</span>
+          <h2>The PC stays the record. Phones bring it to the bed.</h2>
+          <p>Turn on phone access and pair a phone with a single-use QR code. Staff sign in with their own accounts; changes appear on every open screen.</p>
+          <ul class="ticks">
+            <li>Encrypted HTTPS to the unit PC; nothing about patients stored on the phone</li>
+            <li>Locks after 5 minutes; names hidden on phones unless the unit turns them on</li>
+            <li>Bedside work only — research, exports and settings stay on the PC</li>
+            <li>Every action names the phone it came from in the audit trail</li>
+          </ul>
+        </div>
+        <div class="phones">
+          <div class="phone"><img src="assets/phone-census.png" alt="Phone census with one-tap respiratory support" width="390" height="664" loading="lazy"></div>
+          <div class="phone"><img src="assets/phone-vitals.png" alt="Recording vital signs on a phone with live age-specific flags" width="390" height="664" loading="lazy"></div>
+          <div class="phone"><img src="assets/phone-patient.png" alt="Patient page on a phone showing the latest vital signs" width="390" height="664" loading="lazy"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <span class="eyebrow">On the PC</span>
+        <h2>Built for the unit's own questions</h2>
+      </div>
+      <div class="gallery">
+        <figure><div class="shot"><img src="assets/patient-vitals.png" alt="Patient page with vital-sign trends, worst first-24 h values and the timeline" width="1440" height="893" loading="lazy"></div><figcaption>Patient: vitals, therapy and a day-by-day timeline</figcaption></figure>
+        <figure><div class="shot"><img src="assets/explorer.png" alt="Research Explorer comparing outcomes between two groups" width="1440" height="893" loading="lazy"></div><figcaption>Research Explorer with a plain-words summary</figcaption></figure>
+        <figure><div class="shot"><img src="assets/protocols.png" alt="Protocol adherence cards and a run chart" width="1440" height="893" loading="lazy"></div><figcaption>Protocol adherence and run charts</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <span class="eyebrow">Privacy by design</span>
+        <h2>Your data stays in the unit</h2>
+      </div>
+      <div class="privacy">
+        <div><b>Local database</b><span>One SQLite file on the PICU PC, with a daily snapshot. No cloud account.</span></div>
+        <div><b>Roles &amp; audit</b><span>Admin, clinician, viewer, researcher. Every view, change and export is logged, append-only.</span></div>
+        <div><b>Pseudonymous analytics</b><span>Names and MRNs live apart and never reach analytics, exports or the AI service.</span></div>
+        <div><b>De-identified export</b><span>Day offsets instead of dates, with a data dictionary, for ethics-approved research.</span></div>
+      </div>
+    </section>
+
+    <div class="closing">
+      <span class="script" aria-hidden="true">Ready when</span>
+      <h2>you are on shift</h2>
+      <p>Install on one Windows PC, create the unit, and admit the first patient. The setup guide walks through every step, including phones and IT.</p>
+      <button class="pill pill-white" data-go="docs">Open the setup guide</button>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════ DOCS ══════════════ -->
+<div id="docs" role="tabpanel" aria-labelledby="tab-docs" hidden>
+  <div class="wrap docs">
+    <div class="docs-grid">
+      <nav class="toc" aria-label="Setup guide">
+        <a href="#d-requirements">Requirements</a>
+        <a href="#d-install">Install on the PC</a>
+        <a href="#d-first-run">First run</a>
+        <a href="#d-people">People &amp; roles</a>
+        <a href="#d-daily">Daily use</a>
+        <a href="#d-phones">Phones on the Wi-Fi</a>
+        <a href="#d-ai">AI questions</a>
+        <a href="#d-backups">Backups &amp; data</a>
+        <a href="#d-research">Research export</a>
+        <a href="#d-trouble">Troubleshooting</a>
+      </nav>
+
+      <article class="doc">
+        <div class="doc-title">
+          <span class="eyebrow">Setup guide · version 0.1.0</span>
+          <h1>Setting up Antibiome PICU</h1>
+          <p>From an empty Windows PC to the first admission, then phones and optional AI. Allow about an hour, plus IT time for the network steps.</p>
+        </div>
+
+        <section id="d-requirements">
+          <h2>Requirements</h2>
+          <ul>
+            <li><strong>One Windows 10 or 11 PC</strong> in the unit, left on during shifts. It holds the database.</li>
+            <li><strong>BitLocker</strong> (or another disk encryption) on that PC — the database file is not encrypted by the app.</li>
+            <li>A Windows account per user, and screen lock.</li>
+            <li><strong>Optional:</strong> staff phones on the hospital Wi-Fi, and internet access for AI questions.</li>
+          </ul>
+        </section>
+
+        <section id="d-install">
+          <h2>Install on the PC</h2>
+          <p>There is no published download yet. Build the installer once on any Windows machine with Node.js 22, then copy it to the unit PC.</p>
+          <ol class="steps">
+            <li><div>Get the source and install dependencies.
+              <div class="code"><button type="button">Copy</button><pre>git clone https://github.com/itskaero/antibiome.git
+cd antibiome/desktop
+npm install</pre></div></div></li>
+            <li><div>Build the Windows installer and a portable version.
+              <div class="code"><button type="button">Copy</button><pre>npm run dist:win</pre></div>
+              <p>The files appear in <span class="mono">desktop\release\</span> as <span class="mono">Antibiome PICU Setup 0.1.0.exe</span> and a portable <span class="mono">.exe</span>.</p></div></li>
+            <li><div>Run the installer on the unit PC and open <strong>Antibiome PICU</strong> from the Start menu.</div></li>
+          </ol>
+          <div class="note"><b>Where the data lives:</b> <span class="mono">%APPDATA%\Antibiome PICU\data\antibiome.db</span>. To keep it elsewhere (for example an encrypted drive), set the <span class="mono">ANTIBIOME_DATA_DIR</span> environment variable before starting the app.</div>
+        </section>
+
+        <section id="d-first-run">
+          <h2>First run</h2>
+          <ol class="steps">
+            <li><div><strong>Create the unit:</strong> its name, the number of beds (used for occupancy), and your administrator account.</div></li>
+            <li><div><strong>Bring in history (optional).</strong> In Settings → Local database, <em>Import Antibiome cultures</em> reads the CSV export or JSON backup of the original Antibiome web app.</div></li>
+            <li><div><strong>Or explore first.</strong> <em>Load demo data</em> fills an empty database with clearly labelled synthetic admissions. Use a separate data folder for this, not the live one.</div></li>
+            <li><div><strong>Check the disease modules</strong> (Modules &amp; fields). Sepsis, pneumonia, GBS and DKA are built in; add fields later without breaking earlier records.</div></li>
+          </ol>
+        </section>
+
+        <section id="d-people">
+          <h2>People &amp; roles</h2>
+          <p>Add users in Settings → People &amp; roles. Give each person a temporary password and ask them to change it.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Role</th><th>Can</th></tr></thead>
+            <tbody>
+              <tr><td>Administrator</td><td>Everything, including users, settings, phones, backups, import and export</td></tr>
+              <tr><td>Clinician</td><td>Record and edit clinical data; sees names and MRNs on the PC</td></tr>
+              <tr><td>Viewer</td><td>Dashboards and census with pseudonymous IDs (e.g. <span class="mono">P-7F3A2</span>), read-only</td></tr>
+              <tr><td>Researcher</td><td>Aggregate analytics and the de-identified export only; PC only</td></tr>
+            </tbody>
+          </table></div>
+          <p style="margin-top:12px">The PC locks after 15 minutes without activity (<kbd>Ctrl</kbd> + <kbd>L</kbd> locks it at once).</p>
+        </section>
+
+        <section id="d-daily">
+          <h2>Daily use</h2>
+          <h3>Admit</h3>
+          <p>Press <kbd>A</kbd> anywhere. MRN, sex, age, bed, source and primary diagnosis are all that is required; <kbd>Ctrl</kbd> + <kbd>Enter</kbd> saves. Admission vital signs and PIM3 are optional panels in the same sheet.</p>
+          <h3>During the stay</h3>
+          <ul>
+            <li>Change respiratory support with one tap on the census board.</li>
+            <li>Start and stop vasoactives and antimicrobials on the patient page.</li>
+            <li>Record vital signs on admission, at a deterioration or at review — any subset is fine.</li>
+            <li><strong>Daily reconcile</strong> (<kbd>R</kbd>) checks every bed's support and drugs in one grid.</li>
+          </ul>
+          <h3>Discharge</h3>
+          <p>Choose the outcome and time; anything still running is closed at that time, and the sheet asks only for module fields still missing.</p>
+        </section>
+
+        <section id="d-phones">
+          <h2>Phones on the hospital Wi-Fi</h2>
+          <p>Off until an administrator turns it on. Phones open the app in their browser from the PC over HTTPS; the PC must be on with the app running.</p>
+          <h3>1 · Ask IT for three things</h3>
+          <ul>
+            <li>A <strong>fixed IP address</strong> (or DHCP reservation) for the PC.</li>
+            <li>An inbound <strong>firewall rule</strong> for the port (default 8443), domain and private networks only:</li>
+          </ul>
+          <div class="code"><button type="button">Copy</button><pre>netsh advfirewall firewall add rule name="Antibiome PICU phones" dir=in action=allow protocol=TCP localport=8443 profile=domain,private</pre></div>
+          <ul>
+            <li>A <strong>network path</strong> from the staff Wi-Fi to the PC (not from guest Wi-Fi).</li>
+          </ul>
+          <div class="note"><b>Recommended:</b> a certificate for the PC's address from the hospital's certificate authority, as a PFX file. Without it the app creates its own certificate and each phone shows a one-time warning.</div>
+          <h3>2 · Turn it on</h3>
+          <p>Settings → <strong>Phone access</strong> → On. The card shows the address (for example <span class="mono">https://10.20.0.15:8443</span>), the certificate's SHA-256 fingerprint, and <em>Load hospital certificate…</em></p>
+          <h3>3 · Pair each phone</h3>
+          <ol class="steps">
+            <li><div>On the PC, press <strong>Pair a phone</strong>. A QR code and an 8-character code appear; they work once, for 10 minutes.</div></li>
+            <li><div>On the phone, connected to the staff Wi-Fi, scan the QR code. If a certificate warning appears, check that the fingerprint starts with the characters shown on the PC, then continue.</div></li>
+            <li><div>Name the phone (for example “Dr Khan's phone”) and press <strong>Pair phone</strong>.</div></li>
+            <li><div>Sign in with your own username and password. Sign in again after 5 idle minutes or after closing the tab.</div></li>
+          </ol>
+          <h3>Managing phones</h3>
+          <ul>
+            <li><strong>Revoke</strong> a lost or replaced phone in the device list; it is signed out at once.</li>
+            <li><strong>Show patient names and MRNs on phones</strong> is off by default. Phones then show bed, pseudonymous ID, diagnosis and age.</li>
+          </ul>
+          <div class="note warn"><b>Agree locally before go-live:</b> personal phones on the clinical network need information-governance approval, and phones cannot block screenshots.</div>
+        </section>
+
+        <section id="d-ai">
+          <h2>AI questions (optional)</h2>
+          <p>Lets clinicians type a question such as “Pneumonia admissions this year: mortality by ventilation” and get a Research Explorer query to check and run. Only the question and the list of field names are sent; questions containing a recorded name or MRN are blocked; all numbers are calculated on the PC.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Provider</th><th>Models</th><th>Key</th><th>Note</th></tr></thead>
+            <tbody>
+              <tr><td>Claude (Anthropic)</td><td><span class="mono">claude-opus-5-5</span></td><td><span class="mono">sk-ant-…</span></td><td>Structured output enforced by the service</td></tr>
+              <tr><td>DeepSeek</td><td><span class="mono">deepseek-flash</span> (default), <span class="mono">deepseek-v4-pro</span></td><td><span class="mono">sk-…</span></td><td>Servers in China — check your policy on international data transfer</td></tr>
+            </tbody>
+          </table></div>
+          <ol class="steps" style="margin-top:16px">
+            <li><div>Settings → <strong>AI questions</strong>: choose the provider and, for DeepSeek, the model.</div></li>
+            <li><div>Paste the API key and press <strong>Save key</strong>. It is encrypted with Windows' own key protection; each provider keeps its own key.</div></li>
+            <li><div>Switch the card <strong>On</strong>. The question bar appears in Research.</div></li>
+          </ol>
+          <div class="note">The rest of the app works fully offline. If the PC has no internet, leave AI questions off.</div>
+        </section>
+
+        <section id="d-backups">
+          <h2>Backups &amp; data</h2>
+          <ul>
+            <li>A consistent snapshot is written to <span class="mono">data\backups\</span> once a day; the last 14 are kept.</li>
+            <li><strong>Settings → Back up now</strong> saves a copy anywhere you choose — keep one off the machine, for example on an encrypted USB drive in a locked cupboard.</li>
+            <li>To restore, close the app, replace <span class="mono">antibiome.db</span> with a backup copy, and delete <span class="mono">antibiome.db-wal</span> and <span class="mono">antibiome.db-shm</span> beside it if present.</li>
+          </ul>
+        </section>
+
+        <section id="d-research">
+          <h2>Research export</h2>
+          <p>Administrators and researchers can export one de-identified row per admission from <strong>Monthly report → Research export</strong>: day offsets instead of dates, no names, MRNs or free text, every module and vital-sign column, and a data dictionary saved alongside. Each export is logged.</p>
+          <div class="note warn"><b>Before any research use:</b> get approval from your ethics committee. Groups under 5 patients can still be identifiable — don't share rare-diagnosis subsets outside the approved team.</div>
+        </section>
+
+        <section id="d-trouble">
+          <h2>Troubleshooting</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>What you see</th><th>What to do</th></tr></thead>
+            <tbody>
+              <tr><td>“That port is already in use”</td><td>Choose another port in Phone access, press <em>Apply port</em>, and ask IT to update the firewall rule.</td></tr>
+              <tr><td>Phone: “Cannot reach the PICU PC”</td><td>Check the phone is on the staff Wi-Fi, the PC is awake with the app open, and the address matches the one in Settings.</td></tr>
+              <tr><td>Phone back on the pairing page</td><td>The phone was revoked or unpaired. Ask an administrator for a new pairing code.</td></tr>
+              <tr><td>“Session locked — sign in again”</td><td>The idle lock ran (15 min on the PC, 5 on phones). Sign in again; nothing is lost.</td></tr>
+              <tr><td>AI: “key was rejected”</td><td>Paste a new key for the selected provider in Settings → AI questions.</td></tr>
+              <tr><td>AI: “no credit left” (DeepSeek)</td><td>Top up the DeepSeek account, or switch the provider to Claude.</td></tr>
+              <tr><td>AI: “busy (rate limited)”</td><td>Wait a minute and ask again, or build the query in the Explorer by hand.</td></tr>
+            </tbody>
+          </table></div>
+        </section>
+      </article>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Antibiome PICU 0.1.0 · descriptive and associational analytics for quality improvement and research. It does not give treatment advice.</span>
+    <a href="https://github.com/itskaero/antibiome">github.com/itskaero/antibiome</a>
+  </div>
+</footer>
+
+<script>
+// ── Tabs (deep-linkable with #product / #docs / #d-section) ──
+(function () {
+  var product = document.getElementById('product'), docs = document.getElementById('docs');
+  var tabs = { product: document.getElementById('tab-product'), docs: document.getElementById('tab-docs') };
+  function show(which, anchor) {
+    var isDocs = which === 'docs';
+    product.hidden = isDocs; docs.hidden = !isDocs;
+    tabs.product.setAttribute('aria-selected', String(!isDocs));
+    tabs.docs.setAttribute('aria-selected', String(isDocs));
+    if (anchor) { var el = document.getElementById(anchor); if (el) { el.scrollIntoView(); return; } }
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('[data-go]').forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
+      var to = b.getAttribute('data-go');
+      show(to);
+      try { history.replaceState(null, '', '#' + to); } catch (_) {}
+    });
+  });
+  document.querySelectorAll('.toc a').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var id = a.getAttribute('href').slice(1);
+      document.getElementById(id).scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      try { history.replaceState(null, '', '#' + id); } catch (_) {}
+    });
+  });
+  var h = location.hash.slice(1);
+  if (h === 'docs' || h.indexOf('d-') === 0) show('docs', h.indexOf('d-') === 0 ? h : null);
+
+  // Highlight the current docs section.
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) links.forEach(function (l) { l.classList.toggle('on', l.getAttribute('href') === '#' + en.target.id); });
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    document.querySelectorAll('.doc section').forEach(function (s) { io.observe(s); });
+  }
+
+  // Copy buttons.
+  document.querySelectorAll('.code button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.parentNode.querySelector('pre');
+      var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1600); };
+      var select = function () { var r = document.createRange(); r.selectNodeContents(pre); var s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Selected'; };
+      try { navigator.clipboard.writeText(pre.textContent).then(done, select); } catch (_) { select(); }
+    });
+  });
+
+  // Example questions in the floating bar (illustration only).
+  var qs = ['Septic shock admissions this year: antibiotics within 60 minutes?', 'Pneumonia: mortality by highest respiratory support', 'Lowest first-24 h systolic BP in children who died vs survived', 'Meropenem days per 1,000 patient-days, last 6 months'];
+  var el = document.getElementById('askq'), qi = 0;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(function () { qi = (qi + 1) % qs.length; el.textContent = qs[qi]; }, 4200);
+})();
+
+// ── Hero fluid: domain-warped noise in deep blue and ice, with a fine dither ──
+(function () {
+  var c = document.getElementById('fluid');
+  var gl = c.getContext('webgl', { antialias: false, premultipliedAlpha: false });
+  if (!gl) return; // CSS gradient fallback stays
+  var vs = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
+  var fs = [
+    'precision highp float;uniform vec2 r;uniform float t;',
+    'float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
+    'float n(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y);}',
+    'float fbm(vec2 p){float v=0.,a=.5;for(int k=0;k<5;k++){v+=a*n(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}',
+    'void main(){vec2 uv=gl_FragCoord.xy/r.y;float s=t*.045;',
+    'vec2 q=vec2(fbm(uv*1.3+vec2(0.,s)),fbm(uv*1.3+vec2(5.2,1.3)-s));',
+    'vec2 w=vec2(fbm(uv*1.1+3.*q+vec2(1.7,9.2)+s*.7),fbm(uv*1.1+3.*q+vec2(8.3,2.8)-s*.6));',
+    'float f=fbm(uv*1.05+3.2*w);',
+    'vec3 col=mix(vec3(0.,0.,.012),vec3(.07,.14,1.),smoothstep(.46,.76,f));',
+    'col=mix(col,vec3(.86,.9,1.),smoothstep(.78,.97,f)*.9);',
+    'float vy=gl_FragCoord.y/r.y;col*=smoothstep(.0,.45,vy)*.55+.45;',
+    'col+= (h(gl_FragCoord.xy+t)-.5)*.045;',
+    'vec2 g=mod(gl_FragCoord.xy,3.);col*=.9+.1*step(1.,g.x)*step(1.,g.y);',
+    'gl_FragColor=vec4(col,1.);}'
+  ].join('');
+  function sh(type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null; }
+  var v = sh(gl.VERTEX_SHADER, vs), f = sh(gl.FRAGMENT_SHADER, fs);
+  if (!v || !f) return;
+  var pr = gl.createProgram(); gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return;
+  gl.useProgram(pr);
+  var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  var loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  var ur = gl.getUniformLocation(pr, 'r'), ut = gl.getUniformLocation(pr, 't');
+  var scale = Math.min(window.devicePixelRatio || 1, 1.5) * 0.6; // render small, let CSS upscale (softer, cheaper)
+  function size() { var w = Math.max(1, Math.round(c.clientWidth * scale)), hh = Math.max(1, Math.round(c.clientHeight * scale)); if (c.width !== w || c.height !== hh) { c.width = w; c.height = hh; gl.viewport(0, 0, w, hh); } }
+  var still = matchMedia('(prefers-reduced-motion: reduce)').matches, t0 = performance.now(), visible = true;
+  function frame(now) {
+    size(); gl.uniform2f(ur, c.width, c.height); gl.uniform1f(ut, 20 + (still ? 0 : (now - t0) / 1000));
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (!still && visible) requestAnimationFrame(frame);
+  }
+  if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { var was = visible; visible = e[0].isIntersecting; if (visible && !was && !still) requestAnimationFrame(frame); }).observe(c);
+  window.addEventListener('resize', function () { if (still) requestAnimationFrame(frame); });
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

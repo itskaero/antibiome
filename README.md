@@ -16,6 +16,14 @@ A real-time antibiogram and culture surveillance dashboard built with vanilla Ja
 
 ---
 
+> **New: Antibiome PICU (desktop).** A standalone PICU intelligence app with a local SQLite database lives in
+> [`desktop/`](desktop/README.md). It keeps this web app's antibiogram and MDR logic and adds admissions,
+> respiratory/vasoactive/antimicrobial tracking, outcomes, stewardship, data quality and an audit trail.
+> Design and roadmap: [`docs/PICU_INTELLIGENCE_PLAN.md`](docs/PICU_INTELLIGENCE_PLAN.md). Product page and setup guide:
+> [`site/index.html`](site/index.html) (static; open it in a browser or serve the `site/` folder). The web app below is unchanged.
+
+---
+
 ## Overview
 
 Antibiome is a clinical-grade NICU culture surveillance tool that lets microbiology and infectious disease teams log, visualise, and analyse antibiotic resistance patterns across patient populations. It generates an EUCAST-style antibiogram, tracks multi-drug-resistant (MDR) organisms, and visualises resistance trends over time — all without a backend server.

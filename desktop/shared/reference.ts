@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 //  Clinical reference data.
 //  Antibiotic classes, organisms and specimen types are ported verbatim
-//  from the original Antibiome web app (../app.js) so antibiograms and
+//  from the original Antibiome web app (legacy/app.js at the repository root) so antibiograms and
 //  MDR flags stay comparable across the NICU and PICU datasets.
 // ═══════════════════════════════════════════════════════════
 

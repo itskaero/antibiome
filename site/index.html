@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Antibiome PICU</title>
 <meta name="description" content="Antibiome PICU: a desktop intelligence layer for paediatric intensive care. Fast bedside entry from the PC or a phone, risk-adjusted outcomes, stewardship, research and QI — all on the unit's own computer.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23000104%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2710%27 fill=%27none%27 stroke=%27%238ea2ff%27 stroke-width=%273%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%274%27 fill=%27%23eef1f8%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Ms+Madi&display=swap">
@@ -380,7 +381,7 @@ npm install</pre></div></div></li>
           <h2>First run</h2>
           <ol class="steps">
             <li><div><strong>Create the unit:</strong> its name, the number of beds (used for occupancy), and your administrator account.</div></li>
-            <li><div><strong>Bring in history (optional).</strong> In Settings → Local database, <em>Import Antibiome cultures</em> reads the CSV export or JSON backup of the original Antibiome web app.</div></li>
+            <li><div><strong>Bring in history (optional).</strong> The original NICU web app is still available at <a href="legacy/">legacy/</a> while units move over. Export your cultures there (<em>Records → Export CSV</em>), then in Antibiome PICU use Settings → Local database → <em>Import Antibiome cultures</em>.</div></li>
             <li><div><strong>Or explore first.</strong> <em>Load demo data</em> fills an empty database with clearly labelled synthetic admissions. Use a separate data folder for this, not the live one.</div></li>
             <li><div><strong>Check the disease modules</strong> (Modules &amp; fields). Sepsis, pneumonia, GBS and DKA are built in; add fields later without breaking earlier records.</div></li>
           </ol>
@@ -535,8 +536,13 @@ npm install</pre></div></div></li>
       try { history.replaceState(null, '', '#' + id); } catch (_) {}
     });
   });
-  var h = location.hash.slice(1);
-  if (h === 'docs' || h.indexOf('d-') === 0) show('docs', h.indexOf('d-') === 0 ? h : null);
+  function fromHash() {
+    var h = location.hash.slice(1);
+    if (h === 'docs' || h.indexOf('d-') === 0) show('docs', h.indexOf('d-') === 0 ? h : null);
+    else if (h === 'product' || h === '') show('product');
+  }
+  fromHash();
+  window.addEventListener('hashchange', fromHash);
 
   // Highlight the current docs section.
   var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));

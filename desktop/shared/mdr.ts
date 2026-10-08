@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  MDR classification — v1, ported unchanged from ../app.js
+//  MDR classification — v1, ported unchanged from legacy/app.js (repository root)
 //  (WHO/ECDC 2012-inspired, organism-group aware).
 //  Known limitations are documented in docs/PICU_INTELLIGENCE_PLAN.md §5:
 //  intrinsic resistance is not excluded and cephalosporins are one category.

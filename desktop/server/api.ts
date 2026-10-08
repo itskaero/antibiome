@@ -17,6 +17,7 @@ import { buildAntibiogram } from '../shared/antibiogram';
 import { isMDR, relevantResistantClasses, MDR_DEFINITION_VERSION } from '../shared/mdr';
 import { DAY_MS, ms, nowLocal, shiftMonth, toLocal } from '../shared/time';
 import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/pim3';
+import { VITALS, VITAL_CONTEXTS, VITAL_FEATURES, vitalFeatures, admissionSet, flags24, sfRatio, shockIndex, validateVitals, vitalFlags, worst24, type VitalCode, type VitalContext, type VitalSet, type VitalValues } from '../shared/vitals';
 import { buildExplorer } from './explorer';
 import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
@@ -84,6 +85,30 @@ function loadCultures(db: DB, where = '1=1', args: any[] = []): (Culture & { leg
   }));
 }
 
+/** Vital-sign sets, oldest first (optionally for one admission). */
+export function loadVitals(db: DB, admissionId?: string): VitalSet[] {
+  const sets = (admissionId
+    ? db.prepare('SELECT * FROM vital_sets WHERE admission_id = ? AND deleted_at IS NULL ORDER BY at').all(admissionId)
+    : db.prepare('SELECT * FROM vital_sets WHERE deleted_at IS NULL ORDER BY at').all()) as any[];
+  if (!sets.length) return [];
+  const vals = db.prepare(`SELECT v.* FROM vital_values v JOIN vital_sets s ON s.id = v.set_id WHERE s.deleted_at IS NULL${admissionId ? ' AND s.admission_id = ?' : ''}`)
+    .all(...(admissionId ? [admissionId] : [])) as any[];
+  const by: Record<string, VitalValues> = {};
+  vals.forEach(v => { (by[v.set_id] ??= {})[v.code as VitalCode] = v.value; });
+  return sets.map(s => ({ id: s.id, admissionId: s.admission_id, at: s.at, context: s.context, values: by[s.id] ?? {} }));
+}
+
+function saveVitalSet(db: DB, s: Session, admissionId: string, at: string, context: string, raw: unknown, now: number) {
+  if (!VITAL_CONTEXTS.includes(context as VitalContext)) fail('Unknown vitals context');
+  if (ms(at) > now + 10 * 60_000) fail('Vitals time is in the future');
+  const values = (() => { try { return validateVitals(raw as Record<string, unknown>); } catch (e: any) { return fail(e.message); } })();
+  const id = randomUUID();
+  db.prepare('INSERT INTO vital_sets(id, admission_id, at, context, created_by, created_at) VALUES (?,?,?,?,?,?)').run(id, admissionId, at, context, s.user?.id ?? null, nowLocal());
+  Object.entries(values).forEach(([code, v]) => db.prepare('INSERT INTO vital_values(set_id, code, value) VALUES (?,?,?)').run(id, code, v));
+  audit(db, s, 'add', 'vitals', admissionId, `${admissionLabel(db, admissionId)}: vitals (${Object.entries(values).map(([c, v]) => `${VITALS[c as VitalCode].short} ${v}`).join(', ')})`);
+  return { id, values };
+}
+
 /** The de-identified dataset every analytic is computed from. */
 export function loadDataset(db: DB): Dataset {
   const dxRows = db.prepare('SELECT admission_id, code, role FROM diagnoses').all() as any[];
@@ -94,7 +119,7 @@ export function loadDataset(db: DB): Dataset {
     .map(r => ({ ...rowToAdmission(r, dxBy[r.id] ?? []), pim3Risk: r.pim3_risk ?? null }));
   const episodes = (db.prepare('SELECT * FROM episodes WHERE deleted_at IS NULL').all() as any[]).map(rowToEpisode);
   const events = (db.prepare('SELECT * FROM clinical_events WHERE deleted_at IS NULL').all() as any[]).map(rowToEvent);
-  return { admissions, episodes, events, cultures: loadCultures(db), beds: Number(getSetting(db, 'beds', '12')) };
+  return { admissions, episodes, events, cultures: loadCultures(db), vitals: loadVitals(db), beds: Number(getSetting(db, 'beds', '12')) };
 }
 
 function getAdmissionRow(db: DB, id: string) {
@@ -265,7 +290,7 @@ export const routes: Record<string, Route> = {
     const open = db.prepare('SELECT id FROM admissions WHERE patient_id = ? AND discharge_at IS NULL AND deleted_at IS NULL').get(r.patient_id) as any;
     return { patientId: r.patient_id, name: r.name, dob: r.dob, sex: r.sex, lastAdmission: last ?? null, openAdmissionId: open?.id ?? null };
   } },
-  'admission.create': { roles: CLINICAL, fn: (p, { db, session }) => {
+  'admission.create': { roles: CLINICAL, fn: (p, { db, session, now }) => {
     validateAdmissionInput(p);
     return tx(db, () => {
       const mrn = String(p.mrn).trim();
@@ -298,6 +323,7 @@ export const routes: Record<string, Route> = {
         .forEach((v: string) => insertEpisode(db, session, { admissionId: id, kind: 'vaso', detail: v, intent: null, startAt: p.admitAt }));
       (p.antimicrobials ?? []).forEach((d: string) => insertEpisode(db, session, { admissionId: id, kind: 'abx', detail: d, intent: 'empiric', startAt: p.admitAt }));
       const nModule = applyModuleValues(db, session, id, p.moduleValues, p.admitAt);
+      if (p.vitals && Object.values(p.vitals).some(v => v !== '' && v != null)) saveVitalSet(db, session, id, p.admitAt, 'admission', p.vitals, now());
       if (p.pim3) savePim3(db, session, id, p.pim3);
       audit(db, session, 'admit', 'admission', id, `Admitted ${admissionLabel(db, id)} from ${p.source}${nModule ? ` (+${nModule} module fields)` : ''}`);
       return { id };
@@ -312,13 +338,16 @@ export const routes: Record<string, Route> = {
     const episodes = (db.prepare('SELECT * FROM episodes WHERE admission_id = ? AND deleted_at IS NULL ORDER BY start_at').all(p.id) as any[]).map(rowToEpisode);
     const events = (db.prepare('SELECT * FROM clinical_events WHERE admission_id = ? AND deleted_at IS NULL ORDER BY at').all(p.id) as any[]).map(rowToEvent);
     const cultures = loadCultures(db, 'admission_id = ?', [p.id]).map(c => ({ ...c, mdr: isMDR(c) }));
+    const vitals = loadVitals(db, p.id);
+    const admVitals = admissionSet(vitals, admission.admitAt)?.values ?? {};
     const ds = loadDataset(db);
     const previous = (db.prepare('SELECT admit_at, discharge_at FROM admissions WHERE patient_id = ? AND id != ? AND deleted_at IS NULL ORDER BY admit_at DESC').all(r.patient_id, p.id) as any[]);
     return {
       admission, label: pseudo(r.patient_id), identifiers: ident ?? null, episodes, events, cultures,
       losDays: losDays(admission, now()), peakSupport: peakSupport(admission, episodes),
       pim3: (() => { const s = db.prepare('SELECT * FROM pim3_assessments WHERE admission_id = ?').get(p.id) as any; return s ? { inputs: JSON.parse(s.inputs), risk: s.risk, version: s.version, updatedAt: s.updated_at } : null; })(),
-      pim3Suggestion: { riskDx: suggestRiskDx(admission.primaryDx), elective: admission.admissionType === 'elective',
+      vitals,
+      pim3Suggestion: { sbp: admVitals.sbp, fio2: admVitals.fio2 != null ? admVitals.fio2 / 100 : undefined, riskDx: suggestRiskDx(admission.primaryDx), elective: admission.admissionType === 'elective',
         mvFirstHour: episodes.some(e => e.kind === 'resp' && e.detail === 'MV' && ms(e.startAt) <= ms(admission.admitAt) + 3_600_000) },
       issues: [...runQualityChecks(ds, now()), ...moduleIssues(loadModules(db), ds, loadValues(db, p.id))].filter(i => i.admissionId === p.id),
       previousAdmissions: previous,
@@ -380,6 +409,28 @@ export const routes: Record<string, Route> = {
 
   // Episodes & events
   'pim3.save': { roles: CLINICAL, fn: (p, { db, session }) => { getAdmissionRow(db, p.admissionId); return tx(db, () => savePim3(db, session, p.admissionId, p.inputs)); } },
+  'vitals.add': { roles: CLINICAL, fn: (p, { db, session, now }) => {
+    const a = getAdmissionRow(db, p.admissionId);
+    const at = reqDT(p.at ?? nowLocal(), 'Time');
+    if (ms(at) < ms(a.admit_at) - 2 * 3_600_000) fail('Vitals are more than 2 h before admission');
+    if (a.discharge_at && ms(at) > ms(a.discharge_at) + 3_600_000) fail('Vitals are after discharge');
+    return tx(db, () => saveVitalSet(db, session, p.admissionId, at, p.context ?? 'routine', p.values, now()));
+  } },
+  'vitals.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
+    const v = db.prepare('SELECT * FROM vital_sets WHERE id = ?').get(p.id) as any ?? fail('Vitals not found');
+    db.prepare('UPDATE vital_sets SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
+    audit(db, session, 'delete', 'vitals', v.admission_id, `${admissionLabel(db, v.admission_id)}: removed vitals from ${v.at}`);
+    return true;
+  } },
+  'vitals.forAdmission': { roles: NON_RESEARCH, fn: (p, { db }) => {
+    const a = getAdmissionRow(db, p.admissionId);
+    const sets = loadVitals(db, p.admissionId);
+    const adm = admissionSet(sets, a.admit_at);
+    return {
+      sets: [...sets].reverse().map(s => ({ ...s, flags: vitalFlags(s.values, a.age_months), sf: sfRatio(s.values), shockIndex: shockIndex(s.values) })),
+      admissionSetId: adm?.id ?? null, worst24: worst24(sets, a.admit_at), flags24: flags24(sets, a.admit_at, a.age_months), ageMonths: a.age_months,
+    };
+  } },
   'resp.set': { roles: CLINICAL, fn: (p, { db, session }) => tx(db, () => setResp(db, session, p.admissionId, p.level, reqDT(p.at ?? nowLocal(), 'Time'))) },
   'drug.toggle': { roles: CLINICAL, fn: (p, { db, session }) => {
     if (!['vaso', 'abx'].includes(p.kind)) fail('Unknown therapy type');
@@ -571,6 +622,14 @@ export const routes: Record<string, Route> = {
     const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const moduleCols = p?.includeModules === false ? [] : moduleExportColumns(db, loadModules(db, { includeInactive: true }), ds, loadValues(db), t);
     header.push(...moduleCols.map(c => c.name));
+    const vitalsBy = new Map<string, VitalSet[]>();
+    (ds.vitals ?? []).forEach(v => { (vitalsBy.get(v.admissionId) ?? vitalsBy.set(v.admissionId, []).get(v.admissionId)!).push(v); });
+    const vitalCols = p?.includeVitals === false ? [] : VITAL_FEATURES;
+    header.push(...vitalCols.map(f => f.id));
+    const vitalCells = (a: Admission) => {
+      const f = vitalFeatures(vitalsBy.get(a.id) ?? [], a.admitAt, a.ageMonths);
+      return vitalCols.map(c => { const v = f[c.id]; return v === undefined ? '' : Array.isArray(v) ? v.join(';') : typeof v === 'boolean' ? +v : v; });
+    };
     const seq: Record<string, number> = {};
     const lines = rows.sort((a, b) => a.admitAt.localeCompare(b.admitAt)).map(a => {
       const eps = ds.episodes.filter(e => e.admissionId === a.id);
@@ -583,11 +642,15 @@ export const routes: Record<string, Route> = {
         +a.shockOnArrival, +a.comaOnArrival, peakSupport(a, eps), days('resp', 'MV').toFixed(1), days('vaso').toFixed(1),
         [...new Set(eps.filter(e => e.kind === 'abx').map(e => e.detail))].join(';'),
         eps.filter(e => e.kind === 'abx').reduce((s, e) => s + Math.max(1, Math.ceil((end(e) - ms(e.startAt)) / DAY_MS)), 0),
-        cult.length, cult.filter(isMDR).length, losDays(a, t).toFixed(1), a.disposition ?? 'In PICU', a.pim3Risk != null ? a.pim3Risk.toFixed(4) : '', ...moduleCols.map(c => c.cell(a))].map(esc).join(',');
+        cult.length, cult.filter(isMDR).length, losDays(a, t).toFixed(1), a.disposition ?? 'In PICU', a.pim3Risk != null ? a.pim3Risk.toFixed(4) : '', ...moduleCols.map(c => c.cell(a)), ...vitalCells(a)].map(esc).join(',');
     });
     audit(db, session, 'export', 'research', null, `De-identified export: ${rows.length} admissions, ${header.length} columns`);
     const dictHeader = ['column', 'module', 'label', 'type', 'unit', 'codes', 'capture', 'introduced', 'versions'];
-    const dictionary = [dictHeader.join(','), ...moduleCols.map(c => dictHeader.map(k => esc((c.dict as any)[k])).join(','))].join('\n');
+    const vitalDict = vitalCols.map(f => ({
+      column: f.id, module: f.group, label: `${f.label}. ${f.description}`, type: f.kind, unit: f.unit ?? '',
+      codes: f.kind === 'boolean' ? '1 = yes, 0 = no' : f.kind === 'set' ? `; separated: ${f.options!.join(' | ')}` : '', capture: 'derived from vital-sign sets', introduced: '', versions: '',
+    }));
+    const dictionary = [dictHeader.join(','), ...[...moduleCols.map(c => c.dict), ...vitalDict].map(d => dictHeader.map(k => esc((d as any)[k])).join(','))].join('\n');
     return { csv: [header.join(','), ...lines].join('\n'), dictionary, rows: rows.length, columns: header.length };
   } },
 

@@ -8,7 +8,8 @@ export interface Pim3Draft { pupilsFixed: boolean; elective: boolean; mvFirstHou
 
 export const pim3Draft = (x?: Partial<Pim3Input> | null, suggestion?: Partial<Pim3Input>): Pim3Draft => ({
   pupilsFixed: x?.pupilsFixed ?? false, elective: x?.elective ?? suggestion?.elective ?? false, mvFirstHour: x?.mvFirstHour ?? suggestion?.mvFirstHour ?? false,
-  baseExcess: x?.baseExcess?.toString() ?? '', sbp: x?.sbp?.toString() ?? '', fio2: x?.fio2 != null ? String(Math.round(x.fio2 * 100)) : '', pao2: x?.pao2?.toString() ?? '',
+  baseExcess: x?.baseExcess?.toString() ?? '', sbp: (x ? x.sbp : suggestion?.sbp)?.toString() ?? '',
+  fio2: (x ? x.fio2 : suggestion?.fio2) != null ? String(Math.round((x ? x.fio2! : suggestion!.fio2!) * 100)) : '', pao2: x?.pao2?.toString() ?? '',
   recovery: x?.recovery ?? 'none', riskDx: x?.riskDx ?? suggestion?.riskDx ?? 'none',
 });
 
@@ -23,7 +24,7 @@ export function Pim3Fields({ d, onChange }: { d: Pim3Draft; onChange: (d: Pim3Dr
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Field label="Systolic BP" hint="mmHg · 0 if arrest, 30 if unrecordable"><input className="field tnum" type="number" value={d.sbp} placeholder="120" onChange={e => set('sbp', e.target.value)} /></Field>
+        <Field label="Systolic BP" hint="mmHg · from admission vitals if recorded · 0 if arrest, 30 if unrecordable"><input className="field tnum" type="number" value={d.sbp} placeholder="120" onChange={e => set('sbp', e.target.value)} /></Field>
         <Field label="Base excess" hint="mmol/L (art. or cap.)"><input className="field tnum" type="number" value={d.baseExcess} placeholder="0" onChange={e => set('baseExcess', e.target.value)} /></Field>
         <Field label="FiO₂ %" hint="at time of PaO₂"><input className="field tnum" type="number" value={d.fio2} placeholder="—" onChange={e => set('fio2', e.target.value)} /></Field>
         <Field label="PaO₂" hint="mmHg, arterial"><input className="field tnum" type="number" value={d.pao2} placeholder="—" onChange={e => set('pao2', e.target.value)} /></Field>

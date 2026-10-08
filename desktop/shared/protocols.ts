@@ -14,6 +14,7 @@ export const TIME_POINTS: Record<string, string> = {
   first_vaso: 'First vasoactive',
   first_mv: 'Start of mechanical ventilation',
   first_culture_sent: 'First culture sent',
+  first_vitals: 'First vital signs recorded',
 };
 
 export type Rule =
@@ -170,5 +171,15 @@ export const BUILT_IN_PROTOCOLS: Omit<Protocol, 'active' | 'builtIn'>[] = [
     description: 'PIM3 recorded — required for risk-adjusted mortality.',
     eligibility: [],
     rules: [{ id: 'pim3', label: 'PIM3 recorded', kind: 'condition', condition: { field: 'pim3_risk', op: 'exists' }, target: 95, missing: 'fail' }],
+  },
+  {
+    id: 'admission_vitals', name: 'Admission vital signs',
+    description: 'A full set of vital signs on arrival. Admissions from before vitals recording began count as not met — choose a period from go-live.',
+    eligibility: [],
+    rules: [
+      { id: 'vitals_60', label: 'Vital signs within 1 h of admission', kind: 'time_to', anchor: 'admission', event: 'first_vitals', withinMinutes: 60, target: 95, missing: 'fail' },
+      { id: 'bp_adm', label: 'Blood pressure recorded at admission', kind: 'condition', condition: { field: 'vit_adm_sbp', op: 'exists' }, target: 90, missing: 'fail' },
+      { id: 'spo2_adm', label: 'SpO₂ recorded at admission', kind: 'condition', condition: { field: 'vit_adm_spo2', op: 'exists' }, target: 95, missing: 'fail' },
+    ],
   },
 ];

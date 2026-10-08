@@ -9,6 +9,7 @@ import { DxPicker, rememberDx } from '@/components/DxPicker';
 import { ModuleFormSection, useApplicableModules } from '@/components/ModuleFields';
 import type { ParamValue } from '@shared/modules';
 import { Pim3Fields, draftRisk, pim3Draft, type Pim3Draft } from '@/components/Pim3Form';
+import { VitalsGrid, parseDraft, type VitalsDraft } from '@/components/VitalsEntry';
 import { suggestRiskDx } from '@shared/pim3';
 import { ADMISSION_SOURCES, DX_BY_CODE, PRESCRIBABLE_ANTIMICROBIALS, RESP_LABEL, RESP_LEVELS, VASOACTIVES, type RespLevel } from '@shared/reference';
 import { nowLocal } from '@shared/time';
@@ -38,11 +39,15 @@ export function AdmitModal({ open, onClose }: { open: boolean; onClose: () => vo
   const modules = useApplicableModules(f.primaryDx, f.secondaryDx);
   const [pimOpen, setPimOpen] = useState(false);
   const [pim, setPim] = useState<Pim3Draft>(() => pim3Draft());
-  // Keep PIM3 suggestions in step with the sheet until the user opens the panel.
-  useEffect(() => { if (!pimOpen) setPim(pim3Draft(null, { riskDx: f.primaryDx ? suggestRiskDx(f.primaryDx) : 'none', elective: f.elective, mvFirstHour: f.arrivalSupport === 'MV' })); },
-    [pimOpen, f.primaryDx, f.elective, f.arrivalSupport]);
+  const [vitOpen, setVitOpen] = useState(false);
+  const [vit, setVit] = useState<VitalsDraft>({});
+  const vitParsed = parseDraft(vit);
+  const vitSbp = vitOpen && vitParsed && 'values' in vitParsed ? vitParsed.values.sbp : undefined;
+  // Keep PIM3 suggestions in step with the sheet (and admission SBP) until the user opens the panel.
+  useEffect(() => { if (!pimOpen) setPim(pim3Draft(null, { riskDx: f.primaryDx ? suggestRiskDx(f.primaryDx) : 'none', elective: f.elective, mvFirstHour: f.arrivalSupport === 'MV', sbp: vitSbp ?? null })); },
+    [pimOpen, f.primaryDx, f.elective, f.arrivalSupport, vitSbp]);
 
-  useEffect(() => { if (open) { setF(blank()); setErr(null); setReturning(null); setModuleValues({}); setPimOpen(false); setStartedAt(Date.now()); } }, [open]);
+  useEffect(() => { if (open) { setF(blank()); setErr(null); setReturning(null); setModuleValues({}); setPimOpen(false); setVitOpen(false); setVit({}); setStartedAt(Date.now()); } }, [open]);
   useEffect(() => { if (!open) return; const t = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000); return () => clearInterval(t); }, [open, startedAt]);
 
   const freeBeds = useMemo(() => {
@@ -72,8 +77,10 @@ export function AdmitModal({ open, onClose }: { open: boolean; onClose: () => vo
       // Only values for modules that still apply to the chosen diagnoses.
       const applicable = new Set(modules.flatMap(m => m.params.map(p => p.id)));
       const mv = Object.fromEntries(Object.entries(moduleValues).filter(([k, v]) => v !== undefined && applicable.has(k)));
+      if (vitOpen && vitParsed && 'error' in vitParsed) { setSaving(false); return setErr(`Vitals: ${vitParsed.error}`); }
       if (pimOpen && 'error' in draftRisk(pim)) { setSaving(false); return setErr(`PIM3: ${(draftRisk(pim) as { error: string }).error}`); }
-      const res = await call<{ id: string }>('admission.create', { ...f, ageMonths, weightKg: f.weightKg || null, moduleValues: mv, pim3: pimOpen ? pim : undefined });
+      const res = await call<{ id: string }>('admission.create', { ...f, ageMonths, weightKg: f.weightKg || null, moduleValues: mv, pim3: pimOpen ? pim : undefined,
+        vitals: vitOpen && vitParsed && 'values' in vitParsed ? vitParsed.values : undefined });
       if (f.primaryDx) rememberDx(f.primaryDx);
       toast(`Admitted to bed ${f.bed || '—'} in ${elapsed}s`);
       onClose();
@@ -163,6 +170,14 @@ export function AdmitModal({ open, onClose }: { open: boolean; onClose: () => vo
             <Field label="Vasoactives started"><ChoiceChips multi size="sm" options={VASOACTIVES} value={f.vasoactives} onChange={v => set('vasoactives', v)} /></Field>
           )}
         </section>
+
+        <div className="inset p-4">
+          <button type="button" onClick={() => setVitOpen(!vitOpen)} className="flex w-full items-center justify-between text-left text-[13px]">
+            <span><b className="font-medium">Admission vital signs</b> <span className="text-ink-3">· any subset; systolic BP feeds PIM3</span></span>
+            <span className="text-[12px] text-accent-ink">{vitOpen ? 'Remove' : 'Add'}</span>
+          </button>
+          {vitOpen && <div className="mt-4"><VitalsGrid d={vit} onChange={setVit} ageMonths={f.years === '' && f.months === '' ? null : ageMonths} /></div>}
+        </div>
 
         <div className="inset p-4">
           <button type="button" onClick={() => setPimOpen(!pimOpen)} className="flex w-full items-center justify-between text-left text-[13px]">

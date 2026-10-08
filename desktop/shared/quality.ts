@@ -27,6 +27,7 @@ export const QUALITY_RULES: Record<string, string> = {
   cultureOutside: 'Culture date outside the admission',
   overlapAdmission: 'Overlapping admissions for one patient',
   moduleIncomplete: 'Disease module incomplete at discharge',
+  vitalsOutside: 'Vital signs timed outside the admission',
 };
 
 /** Very wide plausibility band: ~3rd centile of a premature neonate up to adult-sized adolescents. */
@@ -84,6 +85,14 @@ export function runQualityChecks(ds: Dataset, now: number): QualityIssue[] {
     if (!a) return;
     const t = ms(c.collectedAt.slice(0, 10)), start = ms(a.admitAt.slice(0, 10)), end = a.dischargeAt ? ms(a.dischargeAt.slice(0, 10)) : now;
     if (t < start - 2 * DAY_MS || t > end + DAY_MS) push('cultureOutside', 'warn', a.id, `Culture ${c.collectedAt.slice(0, 10)} outside stay ${a.admitAt.slice(0, 10)}–${a.dischargeAt?.slice(0, 10) ?? 'now'}`, c.id);
+  });
+
+  (ds.vitals ?? []).forEach(v => {
+    const a = admById[v.admissionId];
+    if (!a) return;
+    const t = ms(v.at);
+    if (t < ms(a.admitAt) - 2 * 3_600_000 || (a.dischargeAt && t > ms(a.dischargeAt) + 3_600_000))
+      push('vitalsOutside', 'warn', a.id, `Vital signs at ${v.at.replace('T', ' ')} — stay ${a.admitAt.replace('T', ' ')} to ${a.dischargeAt?.replace('T', ' ') ?? 'now'}`);
   });
 
   return issues.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'error' ? -1 : 1));

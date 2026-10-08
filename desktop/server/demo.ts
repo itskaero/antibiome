@@ -34,6 +34,15 @@ const PROFILES: Profile[] = [
   { dx: 'HIE', w: 1, ageM: [6, 120], mv: 0.8, niv: 0, hfnc: 0.05, vaso: 0.5, los: [3, 12], die: 0.35, abx: [['Ceftriaxone']], cultureP: 0.4 },
 ];
 
+/** Age-typical resting values (rough medians) used to centre synthetic vitals. */
+function normals(ageM: number) {
+  return ageM < 1 ? { hr: 140, rr: 38, sbp: 76 } : ageM < 12 ? { hr: 130, rr: 28, sbp: 106 } : ageM < 60 ? { hr: 110, rr: 18, sbp: 104 }
+    : ageM < 144 ? { hr: 92, rr: 15, sbp: 114 } : { hr: 80, rr: 12, sbp: 124 };
+}
+const FEBRILE = new Set(['PNEUMONIA', 'SEVERE_PNEUMONIA', 'SEPSIS', 'SEPTIC_SHOCK', 'MENINGITIS', 'ENCEPHALITIS', 'DENGUE', 'BRONCHIOLITIS']);
+const RESPIRATORY = new Set(['PNEUMONIA', 'SEVERE_PNEUMONIA', 'BRONCHIOLITIS', 'ASTHMA']);
+const NEURO = new Set(['STATUS_EPILEPTICUS', 'ENCEPHALITIS', 'TBI', 'HIE', 'MENINGITIS']);
+
 const ORG_MIX: [string, number][] = [
   ['Klebsiella pneumoniae', 18], ['Escherichia coli', 12], ['Acinetobacter baumannii', 10], ['Pseudomonas aeruginosa', 8],
   ['Staphylococcus aureus', 10], ['Coagulase-negative Staphylococci (CoNS)', 9], ['Enterobacter cloacae', 5],
@@ -80,6 +89,44 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
   const insRes = db.prepare('INSERT INTO susceptibility_results(culture_id, drug, result) VALUES (?,?,?)');
   const insPim = db.prepare('INSERT INTO pim3_assessments(admission_id, inputs, logit, risk, version, created_at, updated_at) VALUES (?,?,?,?,?,?,?)');
   const insVal = db.prepare('INSERT INTO parameter_values(id, admission_id, param_id, param_version, value, recorded_at, created_at) VALUES (?,?,?,1,?,?,?)');
+  const insVs = db.prepare("INSERT INTO vital_sets(id, admission_id, at, context, created_at) VALUES (?,?,?,?,?)");
+  const insVv = db.prepare('INSERT INTO vital_values(set_id, code, value) VALUES (?,?,?)');
+  // Separate stream so adding vitals did not reshuffle the rest of the demo.
+  const rv = rng(4242);
+  const vb = (a: number, b: number) => a + rv() * (b - a);
+  /** Admission set + 1–4 later sets; physiology follows the same severity as PIM3 and the outcome, improving over time. */
+  const seedVitals = (aid: string, dx: string, c: { admitT: number; endT: number | null; ageM: number; arrival: RespLevel; sick: number; shock: boolean; died: boolean; pimSbp: number | null }) => {
+    const n = normals(c.ageM);
+    const sets: [number, string, number][] = [];
+    if (rv() < 0.9) sets.push([c.admitT + vb(-0.1, rv() < 0.88 ? 0.9 : 3) * 3_600_000, 'admission', 1]);
+    const later = 1 + Math.floor(rv() * 4);
+    for (let i = 0; i < later; i++) sets.push([c.admitT + vb(2, 30) * 3_600_000 * (i + 1) / later, rv() < 0.25 + 0.1 * c.sick ? 'event' : 'routine', Math.max(0, 1 - (i + 1) / (later + 1))]);
+    sets.forEach(([t, context, k], idx) => {
+      if (t >= now || (c.endT && t > c.endT)) return;
+      const sev = c.sick * k + (context === 'event' ? 1 : 0);
+      const shock = c.shock && k > 0.5;
+      const sbp = idx === 0 && context === 'admission' && c.pimSbp != null ? c.pimSbp : Math.round(n.sbp * (shock ? vb(0.5, 0.8) : vb(0.88, 1.12) - 0.04 * sev));
+      const v: Record<string, number> = {
+        hr: Math.round(n.hr * (1 + 0.1 * sev + (shock ? 0.25 : 0) + vb(-0.08, 0.1))),
+        rr: Math.round(n.rr * (1 + 0.12 * sev + (RESPIRATORY.has(dx) ? 0.35 * k : 0) + vb(-0.1, 0.12))),
+        spo2: Math.round(Math.max(72, Math.min(100, 98 - 2 * sev - (RESPIRATORY.has(dx) ? 4 * k : 0) + vb(-2, 2)))),
+        sbp: Math.max(25, sbp), dbp: Math.max(15, Math.round(Math.max(25, sbp) * vb(0.55, 0.65))),
+        temp: Math.round((FEBRILE.has(dx) && rv() < 0.4 + 0.5 * k ? vb(38, 40) : vb(36.4, 37.8)) * 10) / 10,
+        crt: shock ? Math.round(vb(3, 6)) : Math.round(vb(1, 2.4)),
+      };
+      v.map = Math.round((v.sbp + 2 * v.dbp) / 3);
+      const level = idx === 0 ? c.arrival : k > 0.4 ? c.arrival : 'O2';
+      if (level !== 'RA') v.fio2 = Math.round(level === 'MV' || level === 'NIV' ? vb(35, 80 + 20 * (c.died ? 1 : 0)) : level === 'HFNC' ? vb(30, 60) : vb(24, 40));
+      if (NEURO.has(dx) || rv() < 0.4) v.gcs = Math.round(NEURO.has(dx) ? vb(5, 14) * (0.6 + 0.4 * (1 - k)) + 3 * (1 - k) : vb(13, 15.4));
+      v.gcs = v.gcs != null ? Math.max(3, Math.min(15, v.gcs)) : v.gcs;
+      if (dx === 'DKA' || rv() < 0.35) v.glucose = Math.round((dx === 'DKA' ? vb(14, 32) * (0.4 + 0.6 * k) : vb(3.4, 9)) * 10) / 10;
+      if (idx > 0 && rv() < 0.5) v.urine = Math.round((shock || dx === 'AKI' ? vb(0.1, 1) : vb(0.6, 3)) * 10) / 10;
+      if (context !== 'admission' && rv() < 0.3) delete v.crt;
+      const id = randomUUID();
+      insVs.run(id, aid, L(t), context, L(t));
+      Object.entries(v).forEach(([code, val]) => { if (val != null) insVv.run(id, code, val); });
+    });
+  };
   /** Synthetic module values (≈10% left blank, as in real data entry). */
   const moduleValues = (aid: string, dx: string, c: { admitT: number; endT: number | null; isMV: boolean; isVaso: boolean; died: boolean }) => {
     const put = (param: string, v: unknown, at: number | null = null) => { if (r() > 0.1) insVal.run(randomUUID(), aid, param, JSON.stringify(v), at && at < now ? L(at) : null, L(c.admitT)); };
@@ -244,14 +291,15 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
             pupilsFixed: died && r() < (p.dx === 'HIE' || p.dx === 'TBI' || p.dx === 'CARDIAC_ARREST' ? 0.7 : 0.3), elective: p.dx === 'POSTOP' && r() < 0.7,
             mvFirstHour: arrival === 'MV' || (isMV && r() < (died ? 0.85 : 0.5)),
             baseExcess: r() < 0.8 ? Math.round(between(shock ? -22 : -8 - 3 * sick, shock ? -6 : 1) - (died ? 6 : 0)) : null,
-            sbp: Math.round(shock ? between(died ? 25 : 45, died ? 60 : 80) : between(died ? 60 : 78, 118)),
+            sbp: Math.round(shock ? between(died ? 25 : 45, died ? 60 : 80) : normals(ageM).sbp * between(died ? 0.68 : 0.85, 1.15)),
             fio2: isMV ? Math.round(between(0.4, 1) * 100) / 100 : null,
             pao2: isMV ? Math.round(between(died ? 40 : 55, 120)) : null,
             recovery: p.dx === 'POSTOP' ? 'noncardiac' : 'none', riskDx: suggestRiskDx(p.dx),
           };
           const lg = pim3Logit(pim);
           insPim.run(aid, JSON.stringify(pim), lg, 1 / (1 + Math.exp(-lg)), PIM3_VERSION, L(admitT), L(admitT));
-        }
+          seedVitals(aid, p.dx, { admitT, endT, ageM, arrival, sick, shock, died, pimSbp: pim.sbp });
+        } else seedVitals(aid, p.dx, { admitT, endT, ageM, arrival, sick: (isMV ? 1 : 0) + (isVaso ? 1 : 0), shock: isVaso, died, pimSbp: null });
         count++;
       }
     }

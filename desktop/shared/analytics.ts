@@ -110,7 +110,15 @@ export function monthSummary(ds: Dataset, month: string, now: number): MonthSumm
     { field: 'Bed', n: admitted.filter(a => !a.bed).length },
     { field: 'Outcome (open > 30 days)', n: present.filter(a => !a.dischargeAt && (now - ms(a.admitAt)) / DAY_MS > 30).length },
   ];
-  const checks = admitted.length * 2 + present.length;
+  // Admission vitals: counted only from the first recorded set onwards (go-live), so months
+  // before vitals were introduced are not penalised.
+  const vitalsSince = ds.vitals?.length ? Math.min(...ds.vitals.map(v => ms(v.at))) - 3_600_000 : null;
+  if (vitalsSince != null) {
+    const due = admitted.filter(a => ms(a.admitAt) >= vitalsSince && now - ms(a.admitAt) > 3_600_000);
+    const withAdm = new Set(ds.vitals!.filter(v => { const a = due.find(x => x.id === v.admissionId); return a && Math.abs(ms(v.at) - ms(a.admitAt)) <= 3_600_000; }).map(v => v.admissionId));
+    missing.push({ field: 'Admission vitals', n: due.filter(a => !withAdm.has(a.id)).length });
+  }
+  const checks = admitted.length * (vitalsSince != null ? 3 : 2) + present.length;
   const missingTotal = missing.reduce((s, m) => s + m.n, 0);
 
   return {

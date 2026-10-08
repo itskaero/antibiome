@@ -234,6 +234,25 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  // v4 — vital signs (key moments; any subset per set)
+  `
+  CREATE TABLE vital_sets (
+    id TEXT PRIMARY KEY,
+    admission_id TEXT NOT NULL REFERENCES admissions(id) ON DELETE CASCADE,
+    at TEXT NOT NULL,
+    context TEXT NOT NULL CHECK (context IN ('admission','routine','event')),
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX idx_vs_adm ON vital_sets(admission_id, at);
+  CREATE TABLE vital_values (
+    set_id TEXT NOT NULL REFERENCES vital_sets(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    value REAL NOT NULL,
+    PRIMARY KEY (set_id, code)
+  );
+  `,
 ];
 
 export function openDatabase(file: string): DB {

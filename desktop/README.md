@@ -23,7 +23,7 @@ See [`../docs/PICU_INTELLIGENCE_PLAN.md`](../docs/PICU_INTELLIGENCE_PLAN.md) for
 
 | ![GBS module on a patient](docs/screenshots/patient-gbs-module.png) | ![GBS outcomes by immunotherapy](docs/screenshots/research-gbs.png) |
 | ![Modules & fields](docs/screenshots/modules-admin.png) | ![Research Explorer](docs/screenshots/explorer.png) |
-| ![Protocols & QI](docs/screenshots/protocols.png) | |
+| ![Protocols & QI](docs/screenshots/protocols.png) | ![Vital signs on a patient](docs/screenshots/patient-vitals.png) |
 
 *Screenshots use the built-in synthetic demo data.*
 
@@ -116,11 +116,23 @@ date, versions) is saved alongside the dataset.
 **PIM3** (Paediatric Index of Mortality 3, 2013 equation) is recorded per admission from the first hour of care.
 
 - **Where to enter it:** an optional panel in the admission sheet, or the severity card on the patient page.
-- **What the app pre-suggests:** the PIM3 diagnosis group (from the recorded diagnosis) and ventilation in the first hour (from the support record). The clinician confirms both.
+- **What the app pre-suggests:** the PIM3 diagnosis group (from the recorded diagnosis), ventilation in the first hour (from the support record), and systolic BP and FiO₂ (from the admission vital signs). The clinician confirms them.
 - **What the dashboard shows:** a **rolling 12-month standardised mortality ratio (SMR)** with a 95% CI (Byar's approximation). A single month rarely has enough expected deaths for a stable SMR.
 - **What the monthly report shows:** the month's SMR, flagged when it is imprecise.
 
 PIM3 often under-predicts mortality in low- and middle-income settings, so an SMR above 1 needs local interpretation (or recalibration) before it is used for benchmarking. The coefficients are transcribed from the published equation; verify them against the paper before formal benchmarking.
+
+## Vital signs
+
+Vitals are recorded **at key moments** — on admission, at a deterioration or review, or routinely — not as a continuous chart. Any subset is fine.
+
+- **Where:** an optional "Admission vital signs" panel in the admission sheet, and the vitals card on the patient page ("Record"). Inputs open a numeric keypad on touch screens.
+- **Recorded:** HR, RR, SpO₂, FiO₂, systolic/diastolic BP, MAP (calculated from SBP/DBP when not entered), temperature, capillary refill, GCS, glucose and urine output. Values outside plausible ranges are rejected; abnormal values are accepted and flagged.
+- **Flags:** age-specific tachycardia, bradycardia, tachypnoea and hypotension use the IPSCC 2005 age bands (Goldstein et al., *Pediatr Crit Care Med* 2005;6:2-8, Table 3); fixed thresholds otherwise (SpO₂ < 92%, temperature ≥ 38.5 or < 36 °C, CRT > 3 s, GCS ≤ 8, glucose < 3 mmol/L, urine < 0.5 mL/kg/h). Flags describe; they never recommend treatment.
+- **Derived:** S/F ratio (only when SpO₂ ≤ 97%), shock index (HR/SBP), the **admission set** (first set from 30 min before to 1 h after admission) and the **worst value in the first 24 h**, direction-aware.
+- **PIM3:** systolic BP (and FiO₂) from the admission set pre-fill the PIM3 form.
+- **Research:** two Explorer groups — "Vitals · admission" and "Vitals · first 24 h" — with values, flags, S/F, shock index, hours to first vitals and recording intensity. The same definitions feed the AI catalogue, protocols, and the export (`vit_adm_*`, `w24_*` columns with dictionary rows). A first-24 h flag is *missing*, not "no", when the vital it depends on was never measured.
+- **QI:** time point "First vital signs recorded" for protocol rules, and a built-in "Admission vital signs" protocol (vitals within 1 h, BP and SpO₂ at admission). Admission-vitals completeness counts only from the first recorded set (go-live), and vitals timed outside the stay appear on the data-quality page.
 
 ## Research Explorer
 
@@ -167,6 +179,7 @@ These are editable:
 - Ventilation safety
 - Antimicrobial stewardship
 - PIM3 documented
+- Admission vital signs
 
 ### What the page shows
 
@@ -229,7 +242,7 @@ written to the audit log.
 cd desktop
 npm install
 npm run dev          # Vite + Electron with hot reload
-npm test             # 75 unit + integration tests (analytics, statistics, MDR parity, PIM3, SQLite API, roles, import, modules, explorer, protocols, AI gate)
+npm test             # 85 unit + integration tests (analytics, statistics, MDR parity, PIM3, vitals, SQLite API, roles, import, modules, explorer, protocols, AI gate)
 npm run build && npm start
 ```
 

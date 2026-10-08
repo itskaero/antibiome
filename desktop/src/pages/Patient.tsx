@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  AlertTriangle, ArrowLeft, BedDouble, Clock, DoorOpen, FlaskConical, HeartPulse, LogIn, Pencil, Pill, Plus, Stethoscope, Trash2, TriangleAlert, Wind,
+  Activity, AlertTriangle, ArrowLeft, BedDouble, Clock, DoorOpen, FlaskConical, HeartPulse, LogIn, Pencil, Pill, Plus, Stethoscope, Trash2, TriangleAlert, Wind,
 } from 'lucide-react';
 import { call } from '@/lib/api';
 import { go, useApi } from '@/lib/hooks';
@@ -10,6 +10,8 @@ import { DxPicker } from '@/components/DxPicker';
 import { CultureForm } from '@/components/CultureForm';
 import { ModuleFormSection, ModulesPanel } from '@/components/ModuleFields';
 import { Pim3Card } from '@/components/Pim3Form';
+import { VitalsCard } from '@/components/VitalsEntry';
+import { VITALS, type VitalCode, type VitalSet } from '@shared/vitals';
 import type { Pim3Input } from '@shared/pim3';
 import type { ModuleDef, ParamValue, StoredValue } from '@shared/modules';
 import {
@@ -22,6 +24,7 @@ interface Detail {
   admission: Admission; label: string; identifiers: { mrn: string; name: string | null; dob: string | null } | null;
   episodes: Episode[]; events: ClinicalEvent[]; cultures: any[]; losDays: number; peakSupport: RespLevel;
   pim3: { inputs: Pim3Input; risk: number; updatedAt: string } | null; pim3Suggestion: Partial<Pim3Input>;
+  vitals: VitalSet[];
   issues: { id: string; message: string; severity: string }[]; previousAdmissions: { admit_at: string; discharge_at: string | null }[];
 }
 
@@ -107,6 +110,7 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
             </div>
           </div>
 
+          <VitalsCard admissionId={id} canEdit={canEdit} editable={editable} />
           <Pim3Card admissionId={id} saved={d.pim3} suggestion={d.pim3Suggestion} canEdit={canEdit} />
           <ModulesPanel admissionId={id} canEdit={canEdit} />
 
@@ -205,6 +209,8 @@ function Timeline({ d, canEdit, onDelete }: { d: Detail; canEdit: boolean; onDel
       tone: e.type === 'complication' || e.type === 'deterioration' ? 'text-warn-ink' : 'text-ink-2', text: <><b>{e.label}</b>{e.note && <span className="text-ink-3"> · {e.note}</span>}</> }));
     d.cultures.forEach(c => out.push({ at: c.collectedAt.length === 10 ? `${c.collectedAt}T00:00` : c.collectedAt, icon: <FlaskConical size={13} />, tone: c.mdr ? 'text-crit-ink' : 'text-ink-2',
       text: <><b>{c.specimen} culture</b>: <i>{c.organism ?? 'no growth'}</i>{c.mdr && <span className="text-crit-ink"> · MDR</span>}</> }));
+    d.vitals.forEach(v => out.push({ at: v.at, icon: <Activity size={13} />, tone: 'text-info-ink',
+      text: <><b>Vital signs</b><span className="tnum text-ink-3"> · {(['hr', 'rr', 'spo2', 'sbp', 'temp'] as VitalCode[]).filter(c => v.values[c] != null).map(c => `${VITALS[c].short} ${v.values[c]}`).join(' · ')}</span></> }));
     if (a.dischargeAt) out.push({ at: a.dischargeAt, icon: <DoorOpen size={13} />, tone: a.disposition === 'Died' ? 'text-crit-ink' : 'text-good-ink', text: <><b>{a.disposition === 'Died' ? 'Died' : `Discharged to ${a.disposition}`}</b></> });
     return out.sort((x, y) => y.at.localeCompare(x.at));
   }, [d]);
@@ -217,7 +223,7 @@ function Timeline({ d, canEdit, onDelete }: { d: Detail; canEdit: boolean; onDel
 
   return (
     <div className="card p-5">
-      <CardHeader title="Timeline" info="Admission, support, therapy, events and cultures — newest first." right={<span className="text-[12px] text-ink-3">{items.length} entries</span>} />
+      <CardHeader title="Timeline" info="Admission, support, therapy, vitals, events and cultures — newest first." right={<span className="text-[12px] text-ink-3">{items.length} entries</span>} />
       {!items.length && <Empty title="Nothing recorded" />}
       <div className="flex flex-col gap-3">
         {groups.map(g => {

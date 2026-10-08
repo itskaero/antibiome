@@ -7,6 +7,7 @@ import { DERIVED, computeDerived, moduleApplies } from '../shared/modules';
 import { ADMISSION_SOURCES, DISPOSITIONS, DX_CATALOGUE, DX_BY_CODE, RESP_LABEL, RESP_LEVELS, awareGroup, COMPLICATIONS, PROCEDURES } from '../shared/reference';
 import { isMDR } from '../shared/mdr';
 import { peakSupport } from '../shared/analytics';
+import { VITAL_FEATURES, vitalFeatures, type VitalSet } from '../shared/vitals';
 
 const AGE_BANDS = ['Neonate (< 1 month)', 'Infant (1–11 months)', 'Toddler (1–4 years)', 'Child (5–11 years)', 'Adolescent (12–18 years)'];
 const ageBand = (m: number) => (m < 1 ? AGE_BANDS[0] : m < 12 ? AGE_BANDS[1] : m < 60 ? AGE_BANDS[2] : m < 144 ? AGE_BANDS[3] : AGE_BANDS[4]);
@@ -46,6 +47,7 @@ export function buildExplorer(db: DB, now: number): { fields: ExplorerField[]; r
     { id: 'complications', label: 'Complications', group: 'Outcome', kind: 'set', options: COMPLICATIONS },
     { id: 'disposition', label: 'Discharge outcome', group: 'Outcome', kind: 'category', options: [...DISPOSITIONS] },
     ...GENERIC_DERIVED.map(d => ({ id: d.id, label: d.label, group: d.id === 'died' || d.id === 'los_days' ? 'Outcome' : d.id.startsWith('culture') ? 'Microbiology' : 'Course', kind: d.kind, unit: d.unit, description: 'Derived from the core record' } as ExplorerField)),
+    ...VITAL_FEATURES.map(({ id, label, group, kind, unit, description, options, optionLabels }) => ({ id, label, group, kind, unit, description, options, optionLabels })),
   ];
   modules.forEach(m => {
     m.params.filter(p => p.type !== 'text' && p.type !== 'date' && p.type !== 'datetime').forEach(p => {
@@ -56,6 +58,9 @@ export function buildExplorer(db: DB, now: number): { fields: ExplorerField[]; r
     });
     m.derived.filter(id => DERIVED[id]?.needs).forEach(id => fields.push({ id: `${m.id}.${id}`, label: DERIVED[id].label, group: `Module · ${m.label}`, kind: DERIVED[id].kind, unit: DERIVED[id].unit, description: 'Derived' }));
   });
+
+  const vitalsBy = new Map<string, VitalSet[]>();
+  (ds.vitals ?? []).forEach(v => { (vitalsBy.get(v.admissionId) ?? vitalsBy.set(v.admissionId, []).get(v.admissionId)!).push(v); });
 
   const rows: Row[] = ds.admissions.map(a => {
     const eps = ds.episodes.filter(e => e.admissionId === a.id);
@@ -77,6 +82,7 @@ export function buildExplorer(db: DB, now: number): { fields: ExplorerField[]; r
       complications: [...new Set(evs.filter(e => e.type === 'complication').map(e => e.label))],
       disposition: a.disposition ?? undefined,
     };
+    Object.entries(vitalFeatures(vitalsBy.get(a.id) ?? [], a.admitAt, a.ageMonths)).forEach(([k, v]) => { if (v !== undefined) row[k] = v; });
     const ctxBase = { admission: a, episodes: eps, cultures: cults, now };
     GENERIC_DERIVED.forEach(d => { try { const v = d.fn({ ...ctxBase, values: {} }); if (v !== null) row[d.id] = v; } catch { /* leave missing */ } });
     modules.forEach(m => {

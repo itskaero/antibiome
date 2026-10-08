@@ -46,6 +46,7 @@ export function buildProtocolCases(db: DB, now: number): { cases: ProtocolCase[]
       first_vaso: first(eps.filter(e => e.kind === 'vaso')),
       first_mv: first(eps.filter(e => e.kind === 'resp' && e.detail === 'MV')),
       first_culture_sent: first(ds.events.filter(e => e.admissionId === a.id && e.type === 'culture_sent')),
+      first_vitals: first((ds.vitals ?? []).filter(v => v.admissionId === a.id)),
     };
     (values[a.id] ?? []).forEach(v => { if (typeof v.value === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(v.value)) times[v.paramId] = ms(v.value); });
     return { id: a.id, label: `${a.bed ? `Bed ${a.bed} · ` : ''}${pseudo(a.patientId)} · ${dxLabel(a.primaryDx)}`, admitAt: a.admitAt, row, times };

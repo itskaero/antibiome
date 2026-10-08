@@ -77,5 +77,7 @@ export interface Dataset {
   episodes: Episode[];
   events: ClinicalEvent[];
   cultures: Culture[];
+  /** Vital-sign sets (key moments). Optional so older callers/tests can omit it. */
+  vitals?: import('./vitals').VitalSet[];
   beds: number;
 }

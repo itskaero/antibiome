@@ -21,7 +21,8 @@ const resolvePage = p => { const [page, scroll] = p.split('@'); const r = page.s
 const pages = (process.env.PAGES ?? `home,census,patient/${sick?.id},reconcile,micro,stewardship,report,quality,activity`).split(",").map(resolvePage);
 sdb.close();
 // "page@600" scrolls the main panel 600px before capturing.
-const shots = pages.flatMap(p => { const [page, scroll] = p.split('@'); return [{ hash: `#/${page}`, file: join(out, `${page.replace('/', '-')}${scroll ? `-${scroll}` : ''}-dark.png`), theme: 'dark', scroll: Number(scroll) || 0 }]; })
+const safeName = page => page.replace(/[^a-z0-9]+/gi, '-').slice(0, 60);
+const shots = pages.flatMap((p, i) => { const [page, scroll] = p.split('@'); return [{ hash: `#/${page}`, file: join(out, `${String(i + 1).padStart(2, '0')}-${safeName(page)}${scroll ? `-${scroll}` : ''}-dark.png`), theme: 'dark', scroll: Number(scroll) || 0 }]; })
   .concat((process.env.LIGHT ?? 'home,census').split(',').filter(Boolean).map(p => ({ hash: `#/${p}`, file: join(out, `${p}-light.png`), theme: 'light' })));
 const electron = (await import('electron')).default;
 const r = spawnSync(electron, ['.', '--no-sandbox', '--force-device-scale-factor=1'], {

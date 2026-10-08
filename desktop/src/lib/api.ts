@@ -10,7 +10,7 @@ export const notifyDataChanged = () => listeners.forEach(fn => fn());
 
 const READ_PREFIXES = ['auth.status', 'census.list', 'patient.lookup', 'admission.get', 'culture.list', 'micro.summary', 'dashboard.get',
   'stewardship.get', 'quality.list', 'activity.list', 'recent.list', 'users.list', 'settings.get', 'desktop.info', 'export.deidentified',
-  'modules.list', 'values.forAdmission', 'research.module'];
+  'modules.list', 'values.forAdmission', 'research.module', 'explorer.fields', 'explorer.run', 'cohorts.list'];
 
 export async function call<T = any>(method: string, params?: unknown): Promise<T> {
   if (!window.antibiome) throw new Error('Antibiome must be run as the desktop app.');

@@ -17,6 +17,8 @@ import { buildAntibiogram } from '../shared/antibiogram';
 import { isMDR, relevantResistantClasses, MDR_DEFINITION_VERSION } from '../shared/mdr';
 import { DAY_MS, ms, nowLocal, shiftMonth, toLocal } from '../shared/time';
 import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/pim3';
+import { buildExplorer } from './explorer';
+import { describeSpec, runCohort, validateSpec } from '../shared/explorer';
 import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
 import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
 
@@ -647,6 +649,39 @@ export const routes: Record<string, Route> = {
       variables: summarizeModule(m, cases), comparison,
       filters: { from: p.from ?? null, to: p.to ?? null, diagnoses: m.triggerDx, groupBy: p.groupBy ?? null, outcomes },
     };
+  } },
+
+  // Research Explorer (aggregates only; rows never leave the main process)
+  'explorer.fields': { roles: ALL, fn: (_p, { db, now }) => buildExplorer(db, now()).fields },
+  'explorer.run': { roles: ALL, fn: (p, { db, session, now }) => {
+    const { fields, rows } = buildExplorer(db, now());
+    const spec = (() => { try { return validateSpec(p.spec, fields); } catch (e: any) { return fail(e.message); } })();
+    const result = runCohort(spec, fields, rows);
+    audit(db, session, 'query', 'explorer', null, `${p.source === 'ai' ? 'AI-assisted query' : 'Cohort query'}: ${describeSpec(spec, fields).join('; ').slice(0, 400)} → n = ${result.n}`);
+    return { ...result, dataAsOf: nowLocal() };
+  } },
+  'cohorts.list': { roles: ALL, fn: (_p, { db }) => (db.prepare('SELECT c.*, u.display_name AS author FROM saved_cohorts c LEFT JOIN users u ON u.id = c.created_by ORDER BY c.updated_at DESC').all() as any[])
+    .map(r => ({ id: r.id, name: r.name, spec: JSON.parse(r.spec), author: r.author, createdBy: r.created_by, updatedAt: r.updated_at })) },
+  'cohorts.save': { roles: ALL, fn: (p, { db, session, now }) => {
+    const name = String(p.name ?? '').trim();
+    if (name.length < 2) fail('Give the cohort a name');
+    const { fields } = buildExplorer(db, now());
+    const spec = (() => { try { return validateSpec(p.spec, fields); } catch (e: any) { return fail(e.message); } })();
+    const t = nowLocal();
+    if (p.id) {
+      const r = db.prepare('SELECT created_by FROM saved_cohorts WHERE id = ?').get(p.id) as any ?? fail('Cohort not found');
+      if (r.created_by !== session.user!.id && session.user!.role !== 'admin') fail('Only the author or an admin can change this cohort');
+      db.prepare('UPDATE saved_cohorts SET name = ?, spec = ?, updated_at = ? WHERE id = ?').run(name, JSON.stringify(spec), t, p.id);
+    } else db.prepare('INSERT INTO saved_cohorts(id, name, spec, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?)').run(p.id = randomUUID(), name, JSON.stringify(spec), session.user!.id, t, t);
+    audit(db, session, 'update', 'cohort', p.id, `Saved cohort "${name}"`);
+    return { id: p.id };
+  } },
+  'cohorts.delete': { roles: ALL, fn: (p, { db, session }) => {
+    const r = db.prepare('SELECT * FROM saved_cohorts WHERE id = ?').get(p.id) as any ?? fail('Cohort not found');
+    if (r.created_by !== session.user!.id && session.user!.role !== 'admin') fail('Only the author or an admin can delete this cohort');
+    db.prepare('DELETE FROM saved_cohorts WHERE id = ?').run(p.id);
+    audit(db, session, 'delete', 'cohort', p.id, `Deleted cohort "${r.name}"`);
+    return true;
   } },
 
   // Administration

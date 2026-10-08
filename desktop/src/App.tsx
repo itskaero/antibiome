@@ -176,7 +176,7 @@ function Shell({ user, onSignOut }: { user: User; onSignOut: () => void }) {
       case 'quality': return <Quality />;
       case 'activity': return <ActivityPage />;
       case 'settings': return <SettingsPage user={user} />;
-      case 'research': return <Research key={args[0] ?? ''} canExport={user.role === 'admin' || user.role === 'researcher'} initialModule={args[0]} />;
+      case 'research': return <Research key={args.join('/')} canExport={user.role === 'admin' || user.role === 'researcher'} args={args} />;
       case 'modules': return <ModulesAdmin isAdmin={user.role === 'admin'} />;
       default: return <Dashboard user={user} onAdmit={() => setAdmitOpen(true)} />;
     }

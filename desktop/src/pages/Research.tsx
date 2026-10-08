@@ -1,5 +1,5 @@
-// Module research view: cohort definition shown up front, per-variable description, and an optional
-// group comparison that is explicitly labelled DESCRIPTIVE or ASSOCIATION — never causal.
+// Research: the cross-module Explorer, plus a per-module overview. Every result is labelled
+// DESCRIPTIVE or ASSOCIATION and states its limits — never causal.
 import { useEffect, useState } from 'react';
 import { Download, FlaskRound, Info, ShieldAlert } from 'lucide-react';
 import { call } from '@/lib/api';
@@ -7,6 +7,8 @@ import { useApi } from '@/lib/hooks';
 import { cx, fmt1 } from '@/lib/format';
 import { Button, CardHeader, Chip, Empty, Field, PageHeader, useToast } from '@/components/ui';
 import { ContinuousTabs } from '@/vendor/watermelon/continuous-tabs';
+import { Explorer, emptySpec } from './Explorer';
+import type { CohortSpec } from '@shared/explorer';
 import type { GroupComparison, ModuleDef, VariableSummary } from '@shared/modules';
 import { DERIVED } from '@shared/modules';
 import { dxLabel } from '@shared/reference';
@@ -16,7 +18,42 @@ interface Result {
   filters: { from: string | null; to: string | null; diagnoses: string[]; groupBy: string | null; outcomes: string[] };
 }
 
-export function Research({ canExport, initialModule }: { canExport: boolean; initialModule?: string }) {
+/** Routes: #/research · #/research/<moduleId> (module overview) · #/research/q/<url-encoded CohortSpec> (run a query). */
+export function Research({ canExport, args }: { canExport: boolean; args: string[] }) {
+  const linked = args[0] === 'q' ? (() => { try { return JSON.parse(decodeURIComponent(args.slice(1).join('/'))) as CohortSpec; } catch { return null; } })() : null;
+  const initialModule = args[0] && args[0] !== 'q' ? args[0] : undefined;
+  const [tab, setTab] = useState(initialModule ? 'modules' : 'explorer');
+  const [spec, setSpec] = useState<CohortSpec>(() => (linked ? { ...emptySpec(), ...linked } : emptySpec()));
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader icon={<FlaskRound className="text-accent-ink" size={22} />} title="Research"
+        subtitle="Ask questions of everything the unit records. Results are counts and statistics only — never identifiers — and always state their limits."
+        actions={<>
+          <ContinuousTabs size="md" tabs={[{ id: 'explorer', label: 'Explorer' }, { id: 'modules', label: 'Module overview' }]} value={tab} onChange={setTab} />
+          {canExport && <ExportButton />}
+        </>} />
+      {tab === 'explorer' ? <Explorer spec={spec} setSpec={setSpec} autoRun={linked ? 1 : 0} /> : <ModuleOverview initialModule={initialModule} />}
+    </div>
+  );
+}
+
+function ExportButton() {
+  const toast = useToast();
+  const exportAll = async () => {
+    try {
+      const res = await call<{ csv: string; dictionary: string; rows: number; columns: number }>('export.deidentified', {});
+      const stamp = new Date().toISOString().slice(0, 10);
+      const p = await call('desktop.saveCsv', { csv: res.csv, name: `antibiome-dataset-${stamp}.csv` });
+      if (!p) return;
+      await call('desktop.saveCsv', { csv: res.dictionary, name: `antibiome-data-dictionary-${stamp}.csv` });
+      toast(`Exported ${res.rows} admissions × ${res.columns} columns, with data dictionary`);
+    } catch (e: any) { toast(e.message, 'crit'); }
+  };
+  return <Button onClick={exportAll}><Download size={15} />Export dataset</Button>;
+}
+
+/** Per-module overview: completeness, distributions and outcomes by one exposure. */
+function ModuleOverview({ initialModule }: { initialModule?: string }) {
   const mods = useApi<{ modules: ModuleDef[] }>('modules.list');
   const modules = (mods.data?.modules ?? []).filter(m => m.active);
   const [moduleId, setModuleId] = useState<string>(initialModule ?? '');
@@ -26,26 +63,10 @@ export function Research({ canExport, initialModule }: { canExport: boolean; ini
   const m = modules.find(x => x.id === moduleId);
   useEffect(() => { setGroupBy(m?.exposures[0] ?? ''); }, [m?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { data: r } = useApi<Result>(moduleId ? 'research.module' : null, { moduleId, from: from || undefined, to: to || undefined, groupBy: groupBy || undefined });
-  const toast = useToast();
   const groupables = m?.params.filter(p => ['choice', 'multi', 'boolean'].includes(p.type)) ?? [];
-
-  const exportAll = async () => {
-    try {
-      const res = await call<{ csv: string; dictionary: string; rows: number; columns: number }>('export.deidentified', { from: from || undefined, to: to || undefined });
-      const stamp = new Date().toISOString().slice(0, 10);
-      const p = await call('desktop.saveCsv', { csv: res.csv, name: `antibiome-dataset-${stamp}.csv` });
-      if (!p) return;
-      await call('desktop.saveCsv', { csv: res.dictionary, name: `antibiome-data-dictionary-${stamp}.csv` });
-      toast(`Exported ${res.rows} admissions × ${res.columns} columns, with data dictionary`);
-    } catch (e: any) { toast(e.message, 'crit'); }
-  };
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon={<FlaskRound className="text-accent-ink" size={22} />} title="Research"
-        subtitle="Disease-module cohorts: what was recorded, how complete it is, and how outcomes differ across groups."
-        actions={canExport && <Button onClick={exportAll}><Download size={15} />Export dataset + dictionary</Button>} />
-
       {!modules.length ? <div className="card"><Empty title="No active modules" /></div> : <>
         <div className="flex flex-wrap items-end gap-3">
           <ContinuousTabs size="md" tabs={modules.map(x => ({ id: x.id, label: x.label }))} value={moduleId} onChange={setModuleId} />

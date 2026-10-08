@@ -595,6 +595,8 @@ in §6. The rest of the plan stands.
 | Analytics (§11) | One `monthSummary()` metric source and change detection with size and exact-test gates. Monthly report. DOT per 1,000 patient-days and AWaRe. |
 | Microbiology (§3, §4) | MDR v1 ported verbatim, with tests pinning parity. Antibiogram adds first-isolate de-duplication and n < 30 flags. Legacy CSV/JSON import keeps NICU history. |
 | Data quality (§14 of the brief) | Rule engine with warnings that are never auto-corrected. |
+| Disease modules (§10) | Built: modules and fields are database records edited in-app. Each has diagnosis triggers, typed fields with ranges and options, conditional display, required flags and capture stage (including repeated measurements). Derived values come from a safe registry. Each field has an introduction date (`NC` for earlier admissions) and a version history. Four built-ins: sepsis, pneumonia, GBS, DKA. |
+| Research (§12, first slice) | Per-module cohort view: completeness, distributions, and outcomes compared by an exposure. Exact or rank tests run only for two groups, and every result carries a DESCRIPTIVE or ASSOCIATION label with caveats. The export has module columns and a data dictionary. |
 
 **Trade-offs of local storage**
 - **Single machine.** There is no simultaneous multi-PC entry.

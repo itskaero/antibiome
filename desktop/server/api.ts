@@ -16,6 +16,8 @@ import { runQualityChecks, QUALITY_RULES } from '../shared/quality';
 import { buildAntibiogram } from '../shared/antibiogram';
 import { isMDR, relevantResistantClasses, MDR_DEFINITION_VERSION } from '../shared/mdr';
 import { DAY_MS, ms, nowLocal, shiftMonth, toLocal } from '../shared/time';
+import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
+import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
 
 export class ApiError extends Error {}
 const fail = (msg: string): never => { throw new ApiError(msg); };
@@ -134,6 +136,15 @@ function toggleDrug(db: DB, s: Session, admissionId: string, kind: 'vaso' | 'abx
     return true;
   }
   return false;
+}
+
+/** Apply { paramId: value } for one admission (used by admit, discharge and the module card). */
+function applyModuleValues(db: DB, s: Session, admissionId: string, values: Record<string, unknown> | undefined, recordedAt?: string) {
+  const entries = Object.entries(values ?? {}).filter(([, v]) => v !== undefined && v !== '' && !(Array.isArray(v) && !v.length));
+  entries.forEach(([paramId, v]) => {
+    try { setValue(db, admissionId, paramId, v, s.user?.id ?? null, recordedAt); } catch (e: any) { fail(e.message); }
+  });
+  return entries.length;
 }
 
 function censusRows(db: DB, s: Session, now: number) {
@@ -264,7 +275,8 @@ export const routes: Record<string, Route> = {
       (p.vasoactives ?? []).filter((v: string) => VASOACTIVES.includes(v))
         .forEach((v: string) => insertEpisode(db, session, { admissionId: id, kind: 'vaso', detail: v, intent: null, startAt: p.admitAt }));
       (p.antimicrobials ?? []).forEach((d: string) => insertEpisode(db, session, { admissionId: id, kind: 'abx', detail: d, intent: 'empiric', startAt: p.admitAt }));
-      audit(db, session, 'admit', 'admission', id, `Admitted ${admissionLabel(db, id)} from ${p.source}`);
+      const nModule = applyModuleValues(db, session, id, p.moduleValues, p.admitAt);
+      audit(db, session, 'admit', 'admission', id, `Admitted ${admissionLabel(db, id)} from ${p.source}${nModule ? ` (+${nModule} module fields)` : ''}`);
       return { id };
     });
   } },
@@ -282,7 +294,7 @@ export const routes: Record<string, Route> = {
     return {
       admission, label: pseudo(r.patient_id), identifiers: ident ?? null, episodes, events, cultures,
       losDays: losDays(admission, now()), peakSupport: peakSupport(admission, episodes),
-      issues: runQualityChecks(ds, now()).filter(i => i.admissionId === p.id),
+      issues: [...runQualityChecks(ds, now()), ...moduleIssues(loadModules(db), ds, loadValues(db, p.id))].filter(i => i.admissionId === p.id),
       previousAdmissions: previous,
     };
   } },
@@ -321,6 +333,7 @@ export const routes: Record<string, Route> = {
       // Close every open episode at the discharge time (death closes with reason 'death').
       openEpisodes(db, p.id).forEach(e => closeEpisode(db, e.id, ms(at) < ms(e.startAt) ? e.startAt : at, p.disposition === 'Died' ? 'death' : 'discharge'));
       db.prepare('UPDATE admissions SET discharge_at = ?, disposition = ?, updated_at = ? WHERE id = ?').run(at, p.disposition, nowLocal(), p.id);
+      applyModuleValues(db, session, p.id, p.moduleValues, at);
       audit(db, session, 'discharge', 'admission', p.id, `${admissionLabel(db, p.id)} → ${p.disposition}`);
       return true;
     });
@@ -495,7 +508,7 @@ export const routes: Record<string, Route> = {
   } },
   'quality.list': { roles: NON_RESEARCH, fn: (_p, { db, now }) => {
     const ds = loadDataset(db);
-    const issues = runQualityChecks(ds, now());
+    const issues = [...runQualityChecks(ds, now()), ...moduleIssues(loadModules(db), ds, loadValues(db))];
     const labels = Object.fromEntries(ds.admissions.map(a => [a.id, `${a.bed ? `Bed ${a.bed} · ` : ''}${pseudo(a.patientId)} · ${dxLabel(a.primaryDx)}`]));
     return { issues: issues.map(i => ({ ...i, label: i.admissionId ? labels[i.admissionId] : 'Unlinked culture' })), rules: QUALITY_RULES };
   } },
@@ -526,6 +539,8 @@ export const routes: Record<string, Route> = {
       'secondary_dx', 'chronic_condition', 'malnutrition', 'arrival_support', 'shock_on_arrival', 'coma_on_arrival', 'peak_support',
       'mv_days', 'vaso_days', 'antimicrobials', 'dot_total', 'positive_cultures', 'mdr_isolates', 'los_days', 'disposition'];
     const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const moduleCols = p?.includeModules === false ? [] : moduleExportColumns(db, loadModules(db, { includeInactive: true }), ds, loadValues(db), t);
+    header.push(...moduleCols.map(c => c.name));
     const seq: Record<string, number> = {};
     const lines = rows.sort((a, b) => a.admitAt.localeCompare(b.admitAt)).map(a => {
       const eps = ds.episodes.filter(e => e.admissionId === a.id);
@@ -538,10 +553,83 @@ export const routes: Record<string, Route> = {
         +a.shockOnArrival, +a.comaOnArrival, peakSupport(a, eps), days('resp', 'MV').toFixed(1), days('vaso').toFixed(1),
         [...new Set(eps.filter(e => e.kind === 'abx').map(e => e.detail))].join(';'),
         eps.filter(e => e.kind === 'abx').reduce((s, e) => s + Math.max(1, Math.ceil((end(e) - ms(e.startAt)) / DAY_MS)), 0),
-        cult.length, cult.filter(isMDR).length, losDays(a, t).toFixed(1), a.disposition ?? 'In PICU'].map(esc).join(',');
+        cult.length, cult.filter(isMDR).length, losDays(a, t).toFixed(1), a.disposition ?? 'In PICU', ...moduleCols.map(c => c.cell(a))].map(esc).join(',');
     });
-    audit(db, session, 'export', 'research', null, `De-identified export: ${rows.length} admissions`);
-    return { csv: [header.join(','), ...lines].join('\n'), rows: rows.length };
+    audit(db, session, 'export', 'research', null, `De-identified export: ${rows.length} admissions, ${header.length} columns`);
+    const dictHeader = ['column', 'module', 'label', 'type', 'unit', 'codes', 'capture', 'introduced', 'versions'];
+    const dictionary = [dictHeader.join(','), ...moduleCols.map(c => dictHeader.map(k => esc((c.dict as any)[k])).join(','))].join('\n');
+    return { csv: [header.join(','), ...lines].join('\n'), dictionary, rows: rows.length, columns: header.length };
+  } },
+
+  // Parameters & disease modules
+  'modules.list': { roles: ALL, fn: (_p, { db, session }) => ({
+    modules: loadModules(db, { includeInactive: session.user!.role === 'admin' }).map(m => ({
+      ...m, valueCounts: Object.fromEntries((db.prepare(`SELECT param_id, COUNT(DISTINCT admission_id) n FROM parameter_values WHERE deleted_at IS NULL AND param_id LIKE ? GROUP BY param_id`).all(`${m.id}.%`) as any[]).map(r => [r.param_id, r.n])),
+    })),
+    derived: Object.values(DERIVED).map(({ fn: _fn, ...d }) => d),
+  }) },
+  'modules.save': { roles: ['admin'], fn: (p, { db, session }) => {
+    const r = (() => { try { return saveModule(db, p); } catch (e: any) { return fail(e.message); } })();
+    audit(db, session, r.created ? 'add' : 'update', 'module', r.id, `${r.created ? 'Created' : 'Updated'} module "${p.label}"${p.active === false ? ' (deactivated)' : ''}`);
+    return r;
+  } },
+  'params.save': { roles: ['admin'], fn: (p, { db, session }) => tx(db, () => {
+    const r = (() => { try { return saveParam(db, p, session.user!.id); } catch (e: any) { return fail(e.message); } })();
+    audit(db, session, p.id ? 'update' : 'add', 'parameter', r.id, `${p.id ? 'Edited' : 'Added'} field "${p.label}" in ${p.moduleId}${r.bumped ? ` → version ${r.version}` : ''}`);
+    return r;
+  }) },
+  'params.retire': { roles: ['admin'], fn: (p, { db, session }) => {
+    const def = (() => { try { return setParamRetired(db, p.id, !!p.retired); } catch (e: any) { return fail(e.message); } })();
+    audit(db, session, 'update', 'parameter', p.id, `${p.retired ? 'Retired' : 'Restored'} field "${def.label}"`);
+    return true;
+  } },
+  'values.forAdmission': { roles: NON_RESEARCH, fn: (p, { db, now }) => {
+    const r = getAdmissionRow(db, p.admissionId);
+    const dx = db.prepare('SELECT code, role FROM diagnoses WHERE admission_id = ?').all(p.admissionId) as any[];
+    const admission = rowToAdmission(r, dx);
+    const stored = loadValues(db, p.admissionId)[p.admissionId] ?? [];
+    const ds = loadDataset(db);
+    return loadModules(db).filter(m => moduleApplies(m, admission)).map(m => {
+      const values = valuesByKey(m, stored);
+      const ctx = { admission, episodes: ds.episodes.filter(e => e.admissionId === admission.id), cultures: ds.cultures.filter(c => c.admissionId === admission.id), values, now: now() };
+      return {
+        module: { ...m, params: m.params.filter(x => !x.retiredAt || stored.some(v => v.paramId === x.id)) },
+        /** Fields added after this admission: hidden by default, available to back-fill. */
+        notCollected: m.params.filter(x => !x.retiredAt && !wasCollected(x, admission.admitAt) && !stored.some(v => v.paramId === x.id)).map(x => x.key),
+        stored: stored.filter(v => v.paramId.startsWith(`${m.id}.`)),
+        derived: computeDerived(m, ctx),
+        completion: moduleCompletion(m, admission.admitAt, values),
+        introducedAfterAdmission: m.params.some(x => !wasCollected(x, admission.admitAt) && !x.retiredAt),
+      };
+    });
+  } },
+  'values.set': { roles: CLINICAL, fn: (p, { db, session }) => tx(db, () => {
+    getAdmissionRow(db, p.admissionId);
+    const r = (() => { try { return setValue(db, p.admissionId, p.paramId, p.value, session.user!.id, p.recordedAt ?? null); } catch (e: any) { return fail(e.message); } })();
+    const shown = r.value === null ? 'cleared' : Array.isArray(r.value) ? r.value.join(', ') : typeof r.value === 'boolean' ? (r.value ? 'yes' : 'no') : String(r.value);
+    audit(db, session, 'update', 'module value', p.admissionId, `${admissionLabel(db, p.admissionId)}: ${r.def.label} = ${r.def.type === 'text' ? '(text)' : shown}`);
+    return true;
+  }) },
+  'values.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
+    const v = db.prepare('SELECT v.*, d.label FROM parameter_values v JOIN parameter_definitions d ON d.id = v.param_id WHERE v.id = ?').get(p.id) as any ?? fail('Value not found');
+    db.prepare('UPDATE parameter_values SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
+    audit(db, session, 'delete', 'module value', v.admission_id, `${admissionLabel(db, v.admission_id)}: removed ${v.label} entry`);
+    return true;
+  } },
+  /** Module research view: per-variable description and optional group comparison. Aggregates only. */
+  'research.module': { roles: ALL, fn: (p, { db, session, now }) => {
+    const m = loadModules(db, { includeInactive: true }).find(x => x.id === p.moduleId) ?? fail('Module not found');
+    const inRange = (admitAt: string) => (!p.from || admitAt.slice(0, 10) >= p.from) && (!p.to || admitAt.slice(0, 10) <= p.to);
+    const cases = buildCases(m, loadDataset(db), loadValues(db), now(), inRange);
+    const outcomes: string[] = Array.isArray(p.outcomes) && p.outcomes.length ? p.outcomes : m.outcomes;
+    const comparison = p.groupBy ? compareGroups(m, cases, p.groupBy, outcomes) : null;
+    if (comparison) audit(db, session, 'query', 'research', m.id, `Compared ${m.label} outcomes by "${comparison.groupLabel}" (${cases.length} admissions)`);
+    return {
+      module: m, n: cases.length, discharged: cases.filter(c => c.admission.dischargeAt).length,
+      completion: cases.length ? cases.filter(c => moduleCompletion(m, c.admission.admitAt, c.values).missingRequired.length === 0).length / cases.length * 100 : null,
+      variables: summarizeModule(m, cases), comparison,
+      filters: { from: p.from ?? null, to: p.to ?? null, diagnoses: m.triggerDx, groupBy: p.groupBy ?? null, outcomes },
+    };
   } },
 
   // Administration
@@ -596,7 +684,7 @@ export function createApi(db: DB, nowFn: () => number = Date.now) {
   return {
     session,
     authorize,
-    async call(method: string, params: unknown) {
+    async call(method: string, params?: unknown) {
       const route = routes[method];
       if (!route) throw new ApiError(`Unknown method ${method}`);
       if (route.roles !== 'public') authorize(route.roles);

@@ -75,7 +75,8 @@ describe('admission lifecycle', () => {
     expect(ds.episodes.every(e => e.endAt)).toBe(true);
     const detail = await ctx.api.call('admission.get', { id }) as any;
     expect(detail.peakSupport).toBe('MV');
-    expect(detail.issues).toHaveLength(0);
+    // The only warning is the pneumonia module's required fields, which this test never fills in.
+    expect(detail.issues.map((i: any) => i.rule)).toEqual(['moduleIncomplete']);
 
     // Readmission of the same MRN re-uses the pseudonymous patient.
     const second = await admit({ admitAt: nowLocal() });

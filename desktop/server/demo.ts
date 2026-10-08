@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { type DB, setSetting, tx } from './db';
 import { DAY_MS, toLocal } from '../shared/time';
 import type { RespLevel } from '../shared/reference';
+import { ensureBuiltInModules } from './modules';
 
 function rng(seed: number) {
   return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -76,6 +77,54 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
   const insEv = db.prepare('INSERT INTO clinical_events(id, admission_id, type, label, at, note, created_at) VALUES (?,?,?,?,?,?,?)');
   const insCult = db.prepare('INSERT INTO cultures(id, admission_id, patient_id, unit, collected_at, specimen, organism, source, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
   const insRes = db.prepare('INSERT INTO susceptibility_results(culture_id, drug, result) VALUES (?,?,?)');
+  const insVal = db.prepare('INSERT INTO parameter_values(id, admission_id, param_id, param_version, value, recorded_at, created_at) VALUES (?,?,?,1,?,?,?)');
+  /** Synthetic module values (≈10% left blank, as in real data entry). */
+  const moduleValues = (aid: string, dx: string, c: { admitT: number; endT: number | null; isMV: boolean; isVaso: boolean; died: boolean }) => {
+    const put = (param: string, v: unknown, at: number | null = null) => { if (r() > 0.1) insVal.run(randomUUID(), aid, param, JSON.stringify(v), at && at < now ? L(at) : null, L(c.admitT)); };
+    const series = (param: string, n: number, gen: (i: number) => number) => {
+      for (let i = 0; i < n; i++) { const at = c.admitT + (i + 0.3) * DAY_MS; if (at < (c.endT ?? now)) insVal.run(randomUUID(), aid, param, JSON.stringify(gen(i)), L(at), L(at)); }
+    };
+    const done = c.endT !== null;
+    if (dx === 'SEPSIS' || dx === 'SEPTIC_SHOCK') {
+      const shock = dx === 'SEPTIC_SHOCK' || c.isVaso;
+      const fluid = Math.round(between(10, 60));
+      put('sepsis.recognised_at', L(c.admitT - between(0, 3) * 3_600_000));
+      put('sepsis.source', pick(['Lung', 'Lung', 'Bloodstream / unknown', 'Bloodstream / unknown', 'CNS', 'Urinary', 'Abdominal', 'Skin / soft tissue', 'Device / line']));
+      put('sepsis.lactate_initial', Math.round(between(shock ? 2.5 : 1, shock ? 9 : 4) * 10) / 10);
+      put('sepsis.fluid_first_hour', fluid);
+      put('sepsis.early_fluids', fluid >= 20);
+      put('sepsis.psofa_admission', Math.round(between(shock ? 6 : 2, shock ? 15 : 8)));
+      series('sepsis.lactate_series', Math.floor(between(0, 3)), i => Math.round(between(0.8, shock ? 5 : 2.5) / (i + 1) * 10) / 10);
+      if (done) put('sepsis.source_control', r() < 0.12);
+    } else if (dx === 'PNEUMONIA' || dx === 'SEVERE_PNEUMONIA' || dx === 'EMPYEMA') {
+      put('pneumonia.spo2_arrival', Math.round(between(c.isMV ? 68 : 78, 96)));
+      put('pneumonia.cxr', pick(['Lobar consolidation', 'Patchy / bronchopneumonia', 'Patchy / bronchopneumonia', 'Effusion / empyema', 'Interstitial', 'Not done']));
+      put('pneumonia.viral_tests', [pick(['RSV', 'Influenza', 'SARS-CoV-2', 'hMPV', 'None positive', 'Not tested', 'Not tested'])]);
+      if (done) put('pneumonia.aetiology', pick(['Bacterial — presumed', 'Bacterial — presumed', 'Bacterial — confirmed', 'Viral — confirmed', 'Mixed', 'Unknown']));
+    } else if (dx === 'GBS') {
+      const hughesIn = c.isMV ? 5 : Math.round(between(3, 4.4));
+      const x = r();
+      const therapy = x < 0.55 ? ['IVIG'] : x < 0.75 ? ['Methylprednisolone'] : x < 0.83 ? ['IVIG', 'Methylprednisolone'] : ['None (supportive)'];
+      put('gbs.onset_days', Math.round(between(2, 14)));
+      put('gbs.hughes_admission', hughesIn);
+      put('gbs.bulbar', r() < 0.3);
+      put('gbs.autonomic', r() < 0.25);
+      series('gbs.mrc_sum', Math.floor(between(2, 5)), i => Math.min(60, Math.round(between(15, 35) + i * between(1, 5))));
+      if (done) {
+        put('gbs.variant', pick(['AIDP', 'AIDP', 'AMAN', 'AMSAN', 'Miller Fisher', 'Not done / unknown']));
+        insVal.run(randomUUID(), aid, 'gbs.immunotherapy', JSON.stringify(therapy), null, L(c.admitT));
+        if (therapy.includes('IVIG')) put('gbs.ivig_start', L(c.admitT + between(0, 2) * DAY_MS).slice(0, 10));
+        insVal.run(randomUUID(), aid, 'gbs.hughes_discharge', JSON.stringify(c.died ? 6 : Math.max(1, hughesIn - Math.round(between(0, 2.4)))), null, L(c.admitT));
+      }
+    } else if (dx === 'DKA') {
+      const ph = Math.round(between(6.85, 7.28) * 100) / 100;
+      put('dka.new_onset', r() < 0.4);
+      put('dka.ph_admission', ph);
+      put('dka.bicarbonate', Math.round(between(3, 14) * 10) / 10);
+      put('dka.severity', ph < 7.1 ? 'Severe (pH < 7.1)' : ph < 7.2 ? 'Moderate (pH 7.1–7.2)' : 'Mild (pH 7.2–7.3)');
+      if (done) { put('dka.resolution_h', Math.round(between(8, 36))); put('dka.cerebral_oedema', r() < 0.03); }
+    }
+  };
 
   const FIRST = ['Ayaan', 'Fatima', 'Zara', 'Hamza', 'Aisha', 'Omar', 'Hira', 'Bilal', 'Inaya', 'Musa', 'Eman', 'Rayyan', 'Sana', 'Ali', 'Maryam', 'Ibrahim'];
   const bedFree: number[] = Array(beds).fill(0);
@@ -85,6 +134,10 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
   tx(db, () => {
     setSetting(db, 'beds', String(beds));
     setSetting(db, 'demoData', '1');
+    // Demo history predates the modules, so treat every field as introduced at the start of the demo.
+    ensureBuiltInModules(db);
+    db.prepare('UPDATE modules SET introduced_at = ? WHERE built_in = 1').run(toLocal(start).slice(0, 10));
+    db.prepare('UPDATE parameter_definitions SET introduced_at = ? WHERE module_id IN (SELECT id FROM modules WHERE built_in = 1)').run(toLocal(start).slice(0, 10));
     for (let t = start.getTime(); t < now; t += DAY_MS) {
       const d = new Date(t);
       const winter = [11, 0, 1].includes(d.getMonth()) ? 1.35 : [6, 7, 8].includes(d.getMonth()) ? 1.1 : 1;
@@ -179,6 +232,7 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
         if (isMV && r() < 0.06 && endT) insEv.run(randomUUID(), aid, 'complication', 'VAP', L(admitT + 0.5 * los * DAY_MS), null, L(admitT));
         if (isMV && r() < 0.04 && endT) insEv.run(randomUUID(), aid, 'complication', 'Unplanned extubation', L(admitT + 0.4 * los * DAY_MS), null, L(admitT));
         if (r() < 0.2) insEv.run(randomUUID(), aid, 'procedure', 'Central line', L(admitT + 0.1 * DAY_MS), null, L(admitT));
+        moduleValues(aid, p.dx, { admitT, endT, isMV, isVaso, died });
         count++;
       }
     }

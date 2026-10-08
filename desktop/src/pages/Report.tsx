@@ -124,14 +124,17 @@ function ExportModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   const toast = useToast();
   const run = async () => {
     try {
-      const { csv, rows } = await call<{ csv: string; rows: number }>('export.deidentified', { from: from || undefined, to: to || undefined });
-      const path = await call('desktop.saveCsv', { csv, name: `antibiome-deidentified-${new Date().toISOString().slice(0, 10)}.csv` });
-      if (path) { toast(`Exported ${rows} admissions`); onClose(); }
+      const { csv, dictionary, rows, columns } = await call<{ csv: string; dictionary: string; rows: number; columns: number }>('export.deidentified', { from: from || undefined, to: to || undefined });
+      const stamp = new Date().toISOString().slice(0, 10);
+      const path = await call('desktop.saveCsv', { csv, name: `antibiome-deidentified-${stamp}.csv` });
+      if (!path) return;
+      await call('desktop.saveCsv', { csv: dictionary, name: `antibiome-data-dictionary-${stamp}.csv` });
+      toast(`Exported ${rows} admissions × ${columns} columns, with data dictionary`); onClose();
     } catch (e: any) { toast(e.message, 'crit'); }
   };
   return (
     <Modal open={open} onClose={onClose} title="De-identified research export" width={520}
-      subtitle="One row per admission. No names, MRNs, dates of birth, exact dates or free text; patients get per-export study IDs. Logged in the audit trail."
+      subtitle="One row per admission, core fields plus every module field (NA = not applicable, NC = not collected yet, blank = not recorded). No names, MRNs, dates of birth, exact dates or free text. A data dictionary is saved alongside. Logged in the audit trail."
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" onClick={run}>Export CSV…</Button></>}>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Admitted from"><input type="date" className="field" value={from} onChange={e => setFrom(e.target.value)} /></Field>

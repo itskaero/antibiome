@@ -26,6 +26,7 @@ export const QUALITY_RULES: Record<string, string> = {
   dupCulture: 'Possible duplicate culture',
   cultureOutside: 'Culture date outside the admission',
   overlapAdmission: 'Overlapping admissions for one patient',
+  moduleIncomplete: 'Disease module incomplete at discharge',
 };
 
 /** Very wide plausibility band: ~3rd centile of a premature neonate up to adult-sized adolescents. */

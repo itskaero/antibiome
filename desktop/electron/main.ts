@@ -100,7 +100,7 @@ function createWindow() {
 
   // Headless screenshot hook used by scripts/screenshot.mjs (never set in normal use).
   if (process.env.ANTIBIOME_SCREENSHOT) {
-    const shots = JSON.parse(process.env.ANTIBIOME_SCREENSHOT) as { hash: string; file: string; theme?: string }[];
+    const shots = JSON.parse(process.env.ANTIBIOME_SCREENSHOT) as { hash: string; file: string; theme?: string; scroll?: number }[];
     win.webContents.once('did-finish-load', async () => {
       // Signs in with real credentials supplied by the script — there is no auth bypass.
       const [username, password] = (process.env.ANTIBIOME_SCREENSHOT_LOGIN ?? ':').split(':');
@@ -111,6 +111,10 @@ function createWindow() {
       for (const s of shots) {
         await win!.webContents.executeJavaScript(`document.documentElement.dataset.theme=${JSON.stringify(s.theme ?? 'dark')}; location.hash=${JSON.stringify(s.hash)};`);
         await new Promise(r => setTimeout(r, 2600));
+        if (s.scroll) {
+          await win!.webContents.executeJavaScript(`document.querySelector('main .overflow-y-auto').scrollTop = ${Number(s.scroll)};`);
+          await new Promise(r => setTimeout(r, 400));
+        }
         writeFileSync(s.file, (await win!.webContents.capturePage()).toPNG());
       }
       app.quit();

@@ -3,6 +3,7 @@
 //  One file on the PICU PC; WAL mode; foreign keys on; versioned migrations.
 // ═══════════════════════════════════════════════════════════
 import { DatabaseSync } from 'node:sqlite';
+import { ensureBuiltInModules } from './modules';
 
 export type DB = DatabaseSync;
 
@@ -136,12 +137,75 @@ const MIGRATIONS: string[] = [
   CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
   CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
   `,
+  // v2 — parameter system & disease modules
+  `
+  CREATE TABLE modules (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    description TEXT,
+    trigger_dx TEXT NOT NULL DEFAULT '[]',   -- JSON array of diagnosis codes; empty = every admission
+    derived TEXT NOT NULL DEFAULT '[]',      -- JSON array of derived-value ids
+    outcomes TEXT NOT NULL DEFAULT '[]',
+    exposures TEXT NOT NULL DEFAULT '[]',
+    active INTEGER NOT NULL DEFAULT 1,
+    built_in INTEGER NOT NULL DEFAULT 0,
+    introduced_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE parameter_definitions (
+    id TEXT PRIMARY KEY,                     -- module_id.key
+    module_id TEXT NOT NULL REFERENCES modules(id),
+    key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('number','boolean','choice','multi','date','datetime','text')),
+    unit TEXT,
+    options TEXT NOT NULL DEFAULT '[]',
+    min REAL,
+    max REAL,
+    decimals INTEGER NOT NULL DEFAULT 1,
+    capture TEXT NOT NULL CHECK (capture IN ('admission','discharge','daily','any')),
+    required INTEGER NOT NULL DEFAULT 0,
+    help TEXT,
+    show_if TEXT,
+    sort INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 1,
+    introduced_at TEXT NOT NULL,
+    retired_at TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE (module_id, key)
+  );
+
+  -- Every version of every definition, so old values can always be interpreted.
+  CREATE TABLE parameter_versions (
+    param_id TEXT NOT NULL REFERENCES parameter_definitions(id),
+    version INTEGER NOT NULL,
+    definition TEXT NOT NULL,
+    created_by INTEGER,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (param_id, version)
+  );
+
+  CREATE TABLE parameter_values (
+    id TEXT PRIMARY KEY,
+    admission_id TEXT NOT NULL REFERENCES admissions(id) ON DELETE CASCADE,
+    param_id TEXT NOT NULL REFERENCES parameter_definitions(id),
+    param_version INTEGER NOT NULL,
+    value TEXT NOT NULL,                     -- JSON-encoded
+    recorded_at TEXT,                        -- for repeated (daily) parameters
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX idx_pv_adm ON parameter_values(admission_id, param_id);
+  `,
 ];
 
 export function openDatabase(file: string): DB {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
   migrate(db);
+  ensureBuiltInModules(db);
   return db;
 }
 

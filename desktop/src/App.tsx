@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  Activity, BedDouble, Biohazard, ClipboardCheck, FileBarChart2, FlaskConical, Gauge, LayoutDashboard,
+  Activity, BedDouble, Biohazard, ClipboardCheck, FlaskRound, Layers, FileBarChart2, FlaskConical, Gauge, LayoutDashboard,
   ListChecks, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Wind,
 } from 'lucide-react';
 import { call } from '@/lib/api';
@@ -22,6 +22,8 @@ import { Report } from '@/pages/Report';
 import { Quality } from '@/pages/Quality';
 import { ActivityPage } from '@/pages/ActivityPage';
 import { SettingsPage } from '@/pages/Settings';
+import { Research } from '@/pages/Research';
+import { ModulesAdmin } from '@/pages/ModulesAdmin';
 import type { CensusRow } from '@/pages/types';
 
 export const Logo = ({ size = 22 }: { size?: number }) => (
@@ -118,6 +120,8 @@ const NAV = [
   { id: 'micro', label: 'Microbiology', icon: FlaskConical, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'stewardship', label: 'Stewardship', icon: Pill, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'report', label: 'Monthly report', icon: FileBarChart2, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
+  { id: 'research', label: 'Research', icon: FlaskRound, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
+  { id: 'modules', label: 'Modules & fields', icon: Layers, roles: ['admin', 'clinician', 'viewer'] },
   { id: 'quality', label: 'Data quality', icon: ClipboardCheck, roles: ['admin', 'clinician', 'viewer'] },
   { id: 'activity', label: 'Activity', icon: Activity, roles: ['admin', 'clinician', 'viewer'] },
 ] as const;
@@ -172,6 +176,8 @@ function Shell({ user, onSignOut }: { user: User; onSignOut: () => void }) {
       case 'quality': return <Quality />;
       case 'activity': return <ActivityPage />;
       case 'settings': return <SettingsPage user={user} />;
+      case 'research': return <Research key={args[0] ?? ''} canExport={user.role === 'admin' || user.role === 'researcher'} initialModule={args[0]} />;
+      case 'modules': return <ModulesAdmin isAdmin={user.role === 'admin'} />;
       default: return <Dashboard user={user} onAdmit={() => setAdmitOpen(true)} />;
     }
   })();

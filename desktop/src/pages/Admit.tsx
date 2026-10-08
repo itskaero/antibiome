@@ -6,6 +6,8 @@ import { call } from '@/lib/api';
 import { go, useApi } from '@/lib/hooks';
 import { Button, ChoiceChips, ErrorNote, Field, Modal, Toggle, useToast } from '@/components/ui';
 import { DxPicker, rememberDx } from '@/components/DxPicker';
+import { ModuleFormSection, useApplicableModules } from '@/components/ModuleFields';
+import type { ParamValue } from '@shared/modules';
 import { ADMISSION_SOURCES, DX_BY_CODE, PRESCRIBABLE_ANTIMICROBIALS, RESP_LABEL, RESP_LEVELS, VASOACTIVES, type RespLevel } from '@shared/reference';
 import { nowLocal } from '@shared/time';
 import type { CensusRow } from './types';
@@ -30,8 +32,10 @@ export function AdmitModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [secondary, setSecondary] = useState<string | null>(null);
   const toast = useToast();
   const census = useApi<{ rows: CensusRow[]; beds: number }>(open ? 'census.list' : null);
+  const [moduleValues, setModuleValues] = useState<Record<string, ParamValue | undefined>>({});
+  const modules = useApplicableModules(f.primaryDx, f.secondaryDx);
 
-  useEffect(() => { if (open) { setF(blank()); setErr(null); setReturning(null); setStartedAt(Date.now()); } }, [open]);
+  useEffect(() => { if (open) { setF(blank()); setErr(null); setReturning(null); setModuleValues({}); setStartedAt(Date.now()); } }, [open]);
   useEffect(() => { if (!open) return; const t = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000); return () => clearInterval(t); }, [open, startedAt]);
 
   const freeBeds = useMemo(() => {
@@ -58,7 +62,10 @@ export function AdmitModal({ open, onClose }: { open: boolean; onClose: () => vo
     if (f.years === '' && f.months === '') return setErr('Enter age (years and/or months)');
     setSaving(true);
     try {
-      const res = await call<{ id: string }>('admission.create', { ...f, ageMonths, weightKg: f.weightKg || null });
+      // Only values for modules that still apply to the chosen diagnoses.
+      const applicable = new Set(modules.flatMap(m => m.params.map(p => p.id)));
+      const mv = Object.fromEntries(Object.entries(moduleValues).filter(([k, v]) => v !== undefined && applicable.has(k)));
+      const res = await call<{ id: string }>('admission.create', { ...f, ageMonths, weightKg: f.weightKg || null, moduleValues: mv });
       if (f.primaryDx) rememberDx(f.primaryDx);
       toast(`Admitted to bed ${f.bed || '—'} in ${elapsed}s`);
       onClose();
@@ -130,6 +137,9 @@ export function AdmitModal({ open, onClose }: { open: boolean; onClose: () => vo
             )}
           </Field>
         </section>
+
+        <ModuleFormSection modules={modules} stages={['admission']} values={moduleValues}
+          onChange={(pid, v) => setModuleValues(s => ({ ...s, [pid]: v ?? undefined }))} />
 
         <section className="inset grid grid-cols-1 gap-4 p-4">
           <Field label="Respiratory support on arrival">

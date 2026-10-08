@@ -8,6 +8,8 @@ import { cx, losLabel } from '@/lib/format';
 import { Button, CardHeader, ChoiceChips, Chip, Empty, ErrorNote, Field, Modal, RespChip, RespSegment, useToast } from '@/components/ui';
 import { DxPicker } from '@/components/DxPicker';
 import { CultureForm } from '@/components/CultureForm';
+import { ModuleFormSection, ModulesPanel } from '@/components/ModuleFields';
+import type { ModuleDef, ParamValue, StoredValue } from '@shared/modules';
 import {
   ABX_INTENTS, COMPLICATIONS, DISPOSITIONS, PRESCRIBABLE_ANTIMICROBIALS, PROCEDURES, RESP_LABEL, VASOACTIVES, awareGroup, dxLabel, type RespLevel,
 } from '@shared/reference';
@@ -101,6 +103,8 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
                 onStop={drug => act('drug.toggle', { admissionId: id, kind: 'abx', drug, on: false }, `Stopped ${drug}`)} />
             </div>
           </div>
+
+          <ModulesPanel admissionId={id} canEdit={canEdit} />
 
           {editable && (
             <div className="card p-5">
@@ -243,6 +247,13 @@ function Timeline({ d, canEdit, onDelete }: { d: Detail; canEdit: boolean; onDel
 const fmtDur = (msv: number) => { const h = msv / 3_600_000; return h < 48 ? `${Math.round(h)} h` : `${(h / 24).toFixed(1)} d`; };
 
 function DischargeModal({ open, onClose, d }: { open: boolean; onClose: () => void; d: Detail }) {
+  const mods = useApi<{ module: ModuleDef; stored: StoredValue[] }[]>(open ? 'values.forAdmission' : null, { admissionId: d.admission.id });
+  const [moduleValues, setModuleValues] = useState<Record<string, ParamValue | undefined>>({});
+  const existing = useMemo(() => {
+    const out: Record<string, ParamValue | undefined> = {};
+    (mods.data ?? []).forEach(x => x.stored.forEach(v => { out[v.paramId] = v.value; }));
+    return out;
+  }, [mods.data]);
   const [disposition, setDisposition] = useState<string | null>(null);
   const [at, setAt] = useState(nowLocal());
   const [dx, setDx] = useState<string | null>(d.admission.primaryDx);
@@ -251,11 +262,13 @@ function DischargeModal({ open, onClose, d }: { open: boolean; onClose: () => vo
   const openEps = d.episodes.filter(e => !e.endAt);
   const save = async () => {
     setErr(null);
-    try { await call('admission.discharge', { id: d.admission.id, at, disposition, finalPrimaryDx: dx }); toast('Discharge recorded'); onClose(); }
+    // Only send fields that changed in this dialog.
+    const changed = Object.fromEntries(Object.entries(moduleValues).filter(([k, v]) => v !== undefined && JSON.stringify(v) !== JSON.stringify(existing[k])));
+    try { await call('admission.discharge', { id: d.admission.id, at, disposition, finalPrimaryDx: dx, moduleValues: changed }); toast('Discharge recorded'); onClose(); }
     catch (e: any) { setErr(e.message); }
   };
   return (
-    <Modal open={open} onClose={onClose} title="Discharge" subtitle="About 20 seconds: outcome, time, and confirm the final diagnosis."
+    <Modal open={open} onClose={onClose} width={720} title="Discharge" subtitle="Outcome, time, final diagnosis — plus any disease-module fields still needed."
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!disposition} onClick={save}>Record discharge</Button></>}>
       <div className="flex flex-col gap-5">
         <Field label="Outcome" required><ChoiceChips options={DISPOSITIONS} value={disposition} onChange={setDisposition} labels={{ Ward: 'To ward', Home: 'Home', Transfer: 'Transferred', LAMA: 'LAMA', Died: 'Died' }} /></Field>
@@ -263,6 +276,8 @@ function DischargeModal({ open, onClose, d }: { open: boolean; onClose: () => vo
           <Field label={disposition === 'Died' ? 'Time of death' : 'Discharge time'}><input type="datetime-local" className="field" value={at} onChange={e => setAt(e.target.value)} /></Field>
           <Field label="Final primary diagnosis"><DxPicker value={dx} onChange={setDx} /></Field>
         </div>
+        <ModuleFormSection modules={(mods.data ?? []).map(x => x.module)} stages={['discharge', 'any']} onlyMissingRequired
+          values={{ ...existing, ...moduleValues }} onChange={(pid, v) => setModuleValues(s => ({ ...s, [pid]: v ?? undefined }))} />
         {!!openEps.length && (
           <div className="inset p-3 text-[12.5px] text-ink-2">
             These will be closed at {fmtDateTime(at)}: {openEps.map(e => (e.kind === 'resp' ? RESP_LABEL[e.detail as RespLevel] : e.detail)).join(', ')}.

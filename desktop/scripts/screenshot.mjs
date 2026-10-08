@@ -15,9 +15,13 @@ execFileSync(process.execPath, [join(dataDir, 'seed.mjs'), join(dataDir, 'antibi
 const { DatabaseSync } = await import('node:sqlite');
 const sdb = new DatabaseSync(join(dataDir, 'antibiome.db'));
 const sick = sdb.prepare("SELECT a.id FROM admissions a JOIN episodes e ON e.admission_id = a.id WHERE a.discharge_at IS NULL AND e.kind = 'abx' ORDER BY a.admit_at LIMIT 1").get();
+// "dx:CODE" in PAGES opens the most recent admission with that primary diagnosis (e.g. dx:GBS).
+const byDx = code => sdb.prepare("SELECT a.id FROM admissions a JOIN diagnoses d ON d.admission_id = a.id AND d.role = 'primary' WHERE d.code = ? ORDER BY a.discharge_at IS NULL DESC, a.admit_at DESC LIMIT 1").get(code)?.id;
+const resolvePage = p => { const [page, scroll] = p.split('@'); const r = page.startsWith('dx:') ? `patient/${byDx(page.slice(3))}` : page; return scroll ? `${r}@${scroll}` : r; };
+const pages = (process.env.PAGES ?? `home,census,patient/${sick?.id},reconcile,micro,stewardship,report,quality,activity`).split(",").map(resolvePage);
 sdb.close();
-const pages = (process.env.PAGES ?? `home,census,patient/${sick?.id},reconcile,micro,stewardship,report,quality,activity`).split(',');
-const shots = pages.flatMap(p => [{ hash: `#/${p}`, file: join(out, `${p.replace('/', '-')}-dark.png`), theme: 'dark' }])
+// "page@600" scrolls the main panel 600px before capturing.
+const shots = pages.flatMap(p => { const [page, scroll] = p.split('@'); return [{ hash: `#/${page}`, file: join(out, `${page.replace('/', '-')}${scroll ? `-${scroll}` : ''}-dark.png`), theme: 'dark', scroll: Number(scroll) || 0 }]; })
   .concat((process.env.LIGHT ?? 'home,census').split(',').filter(Boolean).map(p => ({ hash: `#/${p}`, file: join(out, `${p}-light.png`), theme: 'light' })));
 const electron = (await import('electron')).default;
 const r = spawnSync(electron, ['.', '--no-sandbox', '--force-device-scale-factor=1'], {

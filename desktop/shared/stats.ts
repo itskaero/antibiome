@@ -57,3 +57,37 @@ export function wilson(k: number, n: number): [number, number] {
   const half = (z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / den;
   return [Math.max(0, centre - half), Math.min(1, centre + half)];
 }
+
+/** Standard normal CDF (Abramowitz–Stegun 26.2.17, |error| < 7.5e-8). */
+export function normalCdf(z: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989422804014327 * Math.exp(-z * z / 2);
+  const p = d * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return z > 0 ? 1 - p : p;
+}
+
+/**
+ * Two-sided Mann–Whitney U test, normal approximation with tie and continuity correction.
+ * Approximate for small samples; callers label it as such.
+ */
+export function mannWhitney(a: number[], b: number[]): { U: number; p: number } {
+  const n1 = a.length, n2 = b.length;
+  if (!n1 || !n2) return { U: NaN, p: 1 };
+  const all = [...a.map(v => ({ v, g: 0 })), ...b.map(v => ({ v, g: 1 }))].sort((x, y) => x.v - y.v);
+  const ranks = new Array(all.length);
+  let tieTerm = 0;
+  for (let i = 0; i < all.length;) {
+    let j = i; while (j + 1 < all.length && all[j + 1].v === all[i].v) j++;
+    const r = (i + j) / 2 + 1, t = j - i + 1;
+    for (let k = i; k <= j; k++) ranks[k] = r;
+    tieTerm += t ** 3 - t;
+    i = j + 1;
+  }
+  const r1 = all.reduce((s, x, i) => s + (x.g === 0 ? ranks[i] : 0), 0);
+  const U1 = r1 - n1 * (n1 + 1) / 2, U = Math.min(U1, n1 * n2 - U1);
+  const n = n1 + n2;
+  const sigma = Math.sqrt((n1 * n2 / 12) * ((n + 1) - tieTerm / (n * (n - 1))));
+  if (!sigma) return { U, p: 1 };
+  const z = (Math.abs(U1 - n1 * n2 / 2) - 0.5) / sigma;
+  return { U, p: Math.min(1, 2 * (1 - normalCdf(Math.max(0, z)))) };
+}

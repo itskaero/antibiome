@@ -22,7 +22,8 @@ See [`../docs/PICU_INTELLIGENCE_PLAN.md`](../docs/PICU_INTELLIGENCE_PLAN.md) for
 | ![Antibiogram](docs/screenshots/micro-dark.png) | ![Stewardship](docs/screenshots/stewardship-dark.png) |
 
 | ![GBS module on a patient](docs/screenshots/patient-gbs-module.png) | ![GBS outcomes by immunotherapy](docs/screenshots/research-gbs.png) |
-| ![Modules & fields](docs/screenshots/modules-admin.png) | |
+| ![Modules & fields](docs/screenshots/modules-admin.png) | ![Research Explorer](docs/screenshots/explorer.png) |
+| ![Protocols & QI](docs/screenshots/protocols.png) | |
 
 *Screenshots use the built-in synthetic demo data.*
 
@@ -36,7 +37,9 @@ See [`../docs/PICU_INTELLIGENCE_PLAN.md`](../docs/PICU_INTELLIGENCE_PLAN.md) for
 | **Microbiology** | Antibiogram (first-isolate de-duplication, n < 30 flagged), culture records, MDR isolates; PICU/NICU unit filter |
 | **Stewardship** | DOT per 1,000 patient-days (12 months), AWaRe mix, empiric vs targeted, per-agent heat table |
 | **Monthly report** | Printable one-page summary for leadership; de-identified research export (admin/researcher) |
-| **Research** | Per-module cohort: what was recorded and how completely, and outcomes compared by an exposure (e.g. GBS immunotherapy). Labelled *descriptive* or *association*, never causal. Exports the dataset and a data dictionary. |
+| **Research — Explorer** | Build a cohort from any recorded field (patient, admission, PIM3, support, treatment, microbiology, outcomes, every module field), see it in plain words, compare groups, run an adjusted logistic regression, save and share cohorts. Optional AI turns a typed question into a query you confirm. |
+| **Research — Module overview** | Per-module completeness and distributions, and outcomes compared by an exposure (e.g. GBS immunotherapy). |
+| **Protocols & QI** | Local protocols as measurable elements; adherence against targets, a 12-month run chart, and a case list for review |
 | **Modules & fields** | Build disease modules and fields without code: triggers, types, ranges, options, conditional fields, required flags, versions |
 | **Data quality** | Impossible / implausible / incomplete records, grouped by rule; nothing auto-corrected |
 | **Activity** | The audit trail (who did what, when), grouped by day |
@@ -108,6 +111,93 @@ Cell codes:
 Dates become days from admission. A **data dictionary** CSV (labels, types, units, codes, introduction
 date, versions) is saved alongside the dataset.
 
+## Severity: PIM3 and SMR
+
+**PIM3** (Paediatric Index of Mortality 3, 2013 equation) is recorded per admission from the first hour of care.
+
+- **Where to enter it:** an optional panel in the admission sheet, or the severity card on the patient page.
+- **What the app pre-suggests:** the PIM3 diagnosis group (from the recorded diagnosis) and ventilation in the first hour (from the support record). The clinician confirms both.
+- **What the dashboard shows:** a **rolling 12-month standardised mortality ratio (SMR)** with a 95% CI (Byar's approximation). A single month rarely has enough expected deaths for a stable SMR.
+- **What the monthly report shows:** the month's SMR, flagged when it is imprecise.
+
+PIM3 often under-predicts mortality in low- and middle-income settings, so an SMR above 1 needs local interpretation (or recalibration) before it is used for benchmarking. The coefficients are transcribed from the published equation; verify them against the paper before formal benchmarking.
+
+## Research Explorer
+
+A cohort is a JSON query spec. The builder produces it, saved cohorts store it, deep links carry it
+(`#/research/q/<spec>`), and the AI may only propose one. Every spec passes a strict validator before
+it runs: unknown fields, impossible operators and invented option values are all rejected. It is
+also shown back in plain words.
+
+### Result contents
+
+- **Cohort flow:** counts after each criterion.
+- **Outcomes by group:**
+  - n/N (%) or median (IQR)
+  - Fisher's exact test with a risk ratio (95% CI) for two groups; χ² for more than two (with a small-expected-count warning)
+  - Mann–Whitney U for two groups; Kruskal–Wallis for more than two
+- **Small groups:** groups with fewer than 3 patients are named and left untested.
+- **Descriptions:** mean ± SD, median (IQR), range; yes/no fields with Wilson 95% CIs; category counts.
+- **Adjusted analysis:** logistic regression (IRLS, Wald CIs). It is refused below 10 events per
+  variable and flagged on separation.
+- **Claim label:** every result is labelled **Descriptive** or **Association — not causation**, with
+  caveats (confounding by indication, multiple comparisons, small samples).
+- **Summary in words:** written by the app from the calculated numbers, not by an AI.
+
+Every query is recorded in the audit log, and results are aggregates only.
+
+## Protocols & quality improvement
+
+Protocols are data. Who they apply to, and each element, use the same validated conditions as the
+Explorer, so anything recorded can be measured. Element types:
+
+- **Condition:** e.g. "lactate measured".
+- **Time window:** between two time points, e.g. "first antimicrobial within 60 min of sepsis time
+  zero". Time points can be core events or any module date/time field.
+- **If/then:** e.g. "Reserve agent → positive culture".
+
+For each element, the protocol chooses whether "not recorded" counts as not met, or is excluded and
+shown separately.
+
+### Built-in protocols
+
+These are editable:
+
+- Sepsis first-hour bundle
+- Ventilation safety
+- Antimicrobial stewardship
+- PIM3 documented
+
+### What the page shows
+
+- Adherence for each element against its target.
+- "All elements met" for the bundle. A case with an unrecorded element can't be evaluated for the bundle.
+- A 12-month run chart.
+- A case list for clinical review, which researchers don't see.
+
+This monitors local practice; it is not advice for an individual patient.
+
+## AI questions (optional, off by default)
+
+An administrator enables AI questions and stores an Anthropic API key. The key is encrypted with the
+operating system's keychain (Windows DPAPI via Electron `safeStorage`) and is refused if no secure
+storage exists.
+
+How a question is handled:
+
+1. A clinician types a question.
+2. The app sends **only the question and the field catalogue** (field names, diagnosis codes, drug
+   and organism names) to `claude-opus-5-5`. It uses structured JSON output, with refusal fallbacks
+   switched on.
+3. **Questions containing a recorded patient name or MRN are blocked before anything is sent.**
+4. The model returns a proposed query and the assumptions it made.
+5. The app validates the query. If it is invalid, the model gets the validator's message and one
+   chance to fix it.
+6. The app shows the query in plain words. Nothing runs until the user confirms or edits it.
+7. Results and their summary are computed locally, so the model never sees data or produces numbers.
+
+The rest of the app works fully offline.
+
 ## Change detection (“Antibiome noticed”)
 
 A change versus last month is headlined only if it is large (≥ 20% relative) **and** passes an exact
@@ -139,7 +229,7 @@ written to the audit log.
 cd desktop
 npm install
 npm run dev          # Vite + Electron with hot reload
-npm test             # 41 unit + integration tests (analytics, MDR parity, SQLite API, roles, import, modules)
+npm test             # 75 unit + integration tests (analytics, statistics, MDR parity, PIM3, SQLite API, roles, import, modules, explorer, protocols, AI gate)
 npm run build && npm start
 ```
 
@@ -184,14 +274,12 @@ desktop/
 The renderer is sandboxed: context isolation is on, Node is off, a strict CSP applies, and navigation
 and new windows are blocked. Its only access to data is one whitelisted IPC call.
 
-## Not built yet (by design — see the plan)
+## Known limits
 
-Not built:
-
-- Multi-variable cohort building across modules (the full Research Explorer)
-- Regression
-- The protocol/QI engine
-- PIM3/SMR
-- AI natural-language queries
-
-The module system, versioned values and time-stamped episodes are the foundation those features need.
+- **Single computer.** One SQLite file, with no simultaneous entry from several PCs. The repository
+  layer keeps a path to a network database open.
+- **No encryption by the app.** The database file is not encrypted by the app, so use BitLocker.
+- **Statistics are for screening, not publication.** They are exact or standard methods, but a
+  publication-grade analysis should be repeated in a statistics package from the de-identified export.
+- **AI translation needs internet and an API key.** It has been tested against a simulated
+  translator; try it with your key before relying on it.

@@ -70,7 +70,7 @@ export function Report() {
         <Section title="Outcomes">
           <Big label="Crude mortality" value={fmtPct(c.mortalityPct, 1)} note={`${c.deaths} of ${c.discharges} discharges`} />
           <Big label="Risk-adjusted (PIM3 SMR)" value={c.smr ? c.smr.smr.toFixed(2) : '—'}
-            note={c.smr ? `95% CI ${c.smr.lo.toFixed(2)}–${c.smr.hi.toFixed(2)} · ${c.smr.observed} observed vs ${c.smr.expected.toFixed(1)} expected · PIM3 in ${Math.round(c.smr.coverage)}% of discharges` : 'No PIM3 assessments this month'} />
+            note={c.smr ? `95% CI ${c.smr.lo.toFixed(2)}–${c.smr.hi.toFixed(2)} · ${c.smr.observed} observed vs ${c.smr.expected.toFixed(1)} expected · PIM3 in ${Math.round(c.smr.coverage)}% of discharges${c.smr.expected < 5 ? ' · too few expected deaths for a stable monthly SMR — see the 12-month figure on the dashboard' : ''}` : 'No PIM3 assessments this month'} />
           <Big label="Median PICU stay" value={c.los ? `${fmt1(c.los.median)} d` : '—'} note={c.los ? `IQR ${fmt1(c.los.q1)}–${fmt1(c.los.q3)} d` : ''} />
           <Big label="Discharges" value={fmtInt(c.discharges)} note={pctLine(c.discharges, p.discharges)} />
         </Section>

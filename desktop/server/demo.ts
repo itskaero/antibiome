@@ -237,12 +237,17 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
         if (r() < 0.2) insEv.run(randomUUID(), aid, 'procedure', 'Central line', L(admitT + 0.1 * DAY_MS), null, L(admitT));
         moduleValues(aid, p.dx, { admitT, endT, isMV, isVaso, died });
         if (r() < 0.85) { // PIM3 recorded for most admissions, as in a real pilot
-          const shock = isVaso && r() < 0.7;
+          // First-hour physiology tracks the same severity that drives the synthetic outcome, so PIM3 is roughly calibrated.
+          const shock = isVaso && r() < 0.8;
+          const sick = (isMV ? 1 : 0) + (isVaso ? 1 : 0) + (died ? 1 : 0);
           const pim: Pim3Input = {
-            pupilsFixed: (p.dx === 'HIE' || p.dx === 'TBI') && died && r() < 0.5, elective: p.dx === 'POSTOP' && r() < 0.7,
-            mvFirstHour: arrival === 'MV', baseExcess: r() < 0.7 ? Math.round(between(shock ? -16 : -6, shock ? -4 : 2)) : null,
-            sbp: Math.round(between(shock ? 45 : 80, shock ? 85 : 120)), fio2: arrival === 'MV' || isMV ? Math.round(between(0.3, 0.9) * 100) / 100 : null,
-            pao2: arrival === 'MV' || isMV ? Math.round(between(55, 140)) : null, recovery: p.dx === 'POSTOP' ? 'noncardiac' : 'none', riskDx: suggestRiskDx(p.dx),
+            pupilsFixed: died && r() < (p.dx === 'HIE' || p.dx === 'TBI' || p.dx === 'CARDIAC_ARREST' ? 0.7 : 0.3), elective: p.dx === 'POSTOP' && r() < 0.7,
+            mvFirstHour: arrival === 'MV' || (isMV && r() < (died ? 0.85 : 0.5)),
+            baseExcess: r() < 0.8 ? Math.round(between(shock ? -22 : -8 - 3 * sick, shock ? -6 : 1) - (died ? 6 : 0)) : null,
+            sbp: Math.round(shock ? between(died ? 25 : 45, died ? 60 : 80) : between(died ? 60 : 78, 118)),
+            fio2: isMV ? Math.round(between(0.4, 1) * 100) / 100 : null,
+            pao2: isMV ? Math.round(between(died ? 40 : 55, 120)) : null,
+            recovery: p.dx === 'POSTOP' ? 'noncardiac' : 'none', riskDx: suggestRiskDx(p.dx),
           };
           const lg = pim3Logit(pim);
           insPim.run(aid, JSON.stringify(pim), lg, 1 / (1 + Math.exp(-lg)), PIM3_VERSION, L(admitT), L(admitT));

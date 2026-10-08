@@ -11,7 +11,7 @@ import {
   ABX_INTENTS, ADMISSION_SOURCES, DISPOSITIONS, DX_BY_CODE, RESP_LEVELS, SPECIMEN_TYPES, VASOACTIVES, dxLabel,
   type RespLevel,
 } from '../shared/reference';
-import { detectChanges, losDays, monthSummary, monthlySeries, dailyCensus, presentAt, projectMonth, peakSupport } from '../shared/analytics';
+import { detectChanges, losDays, monthSummary, monthlySeries, dailyCensus, presentAt, projectMonth, peakSupport, smrFor } from '../shared/analytics';
 import { runQualityChecks, QUALITY_RULES } from '../shared/quality';
 import { buildAntibiogram } from '../shared/antibiogram';
 import { isMDR, relevantResistantClasses, MDR_DEFINITION_VERSION } from '../shared/mdr';
@@ -20,7 +20,8 @@ import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/
 import { buildExplorer } from './explorer';
 import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
-import { describeCondition, describeSpec, runCohort, validateSpec } from '../shared/explorer';
+import { describeCondition, describeSpec, narrate, runCohort, validateSpec } from '../shared/explorer';
+import { AI_MODEL, AiError, claudeTranslator, containsIdentifier, translateQuestion, type Translator } from './ai';
 import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
 import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
 
@@ -30,7 +31,12 @@ const fail = (msg: string): never => { throw new ApiError(msg); };
 export interface Session { user: User | null; lastActivity: number }
 export const IDLE_LOCK_MS = 15 * 60_000;
 
-type Handler = (p: any, ctx: { db: DB; session: Session; now: () => number }) => unknown;
+/** Secrets live outside the database in clear text: the desktop app encrypts them with the OS keychain (safeStorage). */
+export interface SecretStore { available(): boolean; load(key: string): string | null; save(key: string, value: string | null): void }
+export interface ApiEnv { secrets: SecretStore; translator: Translator }
+const memorySecrets = (): SecretStore => { const m = new Map<string, string>(); return { available: () => true, load: k => m.get(k) ?? null, save: (k, v) => { if (v == null) m.delete(k); else m.set(k, v); } }; };
+
+type Handler = (p: any, ctx: { db: DB; session: Session; now: () => number; env: ApiEnv }) => unknown;
 interface Route { roles: Role[] | 'public'; fn: Handler }
 
 const ALL: Role[] = ['admin', 'clinician', 'viewer', 'researcher'];
@@ -496,8 +502,11 @@ export const routes: Record<string, Route> = {
     const ventilatedNow = census.filter(a => ds.episodes.some(e => e.admissionId === a.id && e.kind === 'resp' && e.detail === 'MV' && !e.endAt)).length;
     const vasoNow = census.filter(a => ds.episodes.some(e => e.admissionId === a.id && e.kind === 'vaso' && !e.endAt)).length;
     const abxNow = census.filter(a => ds.episodes.some(e => e.admissionId === a.id && e.kind === 'abx' && !e.endAt)).length;
+    // A single month rarely has enough expected deaths for a stable SMR, so the dashboard uses a rolling 12 months.
+    const smrFrom = ms(`${shiftMonth(month, -11)}-01`), smrTo = ms(`${shiftMonth(month, 1)}-01`);
+    const smr12 = smrFor(ds.admissions.filter(a => a.dischargeAt && ms(a.dischargeAt) >= smrFrom && ms(a.dischargeAt) < smrTo));
     return {
-      month, current: cur, previous: prev, projection: projectMonth(cur),
+      month, current: cur, previous: prev, projection: projectMonth(cur), smr12,
       census: { now: census.length, beds: ds.beds, ventilatedNow, vasoNow, abxNow },
       censusSeries: { current: dailyCensus(ds, month, t), previous: dailyCensus(ds, shiftMonth(month, -1), t) },
       series: monthlySeries(ds, month, 12, t),
@@ -660,7 +669,7 @@ export const routes: Record<string, Route> = {
     const spec = (() => { try { return validateSpec(p.spec, fields); } catch (e: any) { return fail(e.message); } })();
     const result = runCohort(spec, fields, rows);
     audit(db, session, 'query', 'explorer', null, `${p.source === 'ai' ? 'AI-assisted query' : 'Cohort query'}: ${describeSpec(spec, fields).join('; ').slice(0, 400)} → n = ${result.n}`);
-    return { ...result, dataAsOf: nowLocal() };
+    return { ...result, narrative: narrate(result), dataAsOf: nowLocal() };
   } },
   'cohorts.list': { roles: ALL, fn: (_p, { db }) => (db.prepare('SELECT c.*, u.display_name AS author FROM saved_cohorts c LEFT JOIN users u ON u.id = c.created_by ORDER BY c.updated_at DESC').all() as any[])
     .map(r => ({ id: r.id, name: r.name, spec: JSON.parse(r.spec), author: r.author, createdBy: r.created_by, updatedAt: r.updated_at })) },
@@ -735,6 +744,42 @@ export const routes: Record<string, Route> = {
     return true;
   } },
 
+  // AI natural-language queries (optional; translation only — see server/ai.ts)
+  'ai.status': { roles: ALL, fn: (_p, { db, env }) => ({
+    enabled: getSetting(db, 'aiEnabled') === '1', configured: !!env.secrets.load('anthropicApiKey'), secureStorage: env.secrets.available(), model: AI_MODEL,
+  }) },
+  'ai.configure': { roles: ['admin'], fn: (p, { db, session, env }) => {
+    if (typeof p.apiKey === 'string' && p.apiKey.trim()) {
+      if (!env.secrets.available()) fail('This computer has no secure key storage, so an API key cannot be saved.');
+      if (!/^sk-ant-[\w-]{20,}$/.test(p.apiKey.trim())) fail('That does not look like an Anthropic API key (sk-ant-…)');
+      env.secrets.save('anthropicApiKey', p.apiKey.trim());
+    }
+    if (p.removeKey) env.secrets.save('anthropicApiKey', null);
+    if (typeof p.enabled === 'boolean') setSetting(db, 'aiEnabled', p.enabled ? '1' : '0');
+    audit(db, session, 'update', 'settings', null, `AI questions ${p.enabled === false ? 'disabled' : p.enabled ? 'enabled' : 'updated'}${p.apiKey ? ' (API key replaced)' : ''}${p.removeKey ? ' (API key removed)' : ''}`);
+    return true;
+  } },
+  'ai.ask': { roles: ALL, fn: async (p, { db, session, now, env }) => {
+    if (getSetting(db, 'aiEnabled') !== '1') fail('AI questions are switched off. An administrator can enable them in Settings.');
+    const apiKey = env.secrets.load('anthropicApiKey') ?? fail('No AI API key is configured.');
+    const question = String(p.question ?? '').trim();
+    if (question.length < 5) fail('Type a question');
+    if (question.length > 600) fail('Keep the question under 600 characters');
+    if (containsIdentifier(db, question)) {
+      audit(db, session, 'blocked', 'ai', null, 'AI question blocked: it contained a patient identifier');
+      fail('Your question contains a patient name or MRN. Remove identifiers — questions are sent to an external AI service.');
+    }
+    const { fields } = buildExplorer(db, now());
+    try {
+      const t = await translateQuestion(question, fields, toLocal(new Date(now())).slice(0, 10), apiKey, env.translator);
+      audit(db, session, 'query', 'ai', null, `AI translated a question into: ${t.description.join('; ').slice(0, 400)}`);
+      return t;
+    } catch (e: any) {
+      if (e instanceof AiError) fail(e.message);
+      throw e;
+    }
+  } },
+
   // Administration
   'users.list': { roles: ['admin'], fn: (_p, { db }) =>
     (db.prepare('SELECT id, username, display_name, role, active, created_at FROM users ORDER BY active DESC, display_name').all() as any[])
@@ -772,7 +817,8 @@ export const routes: Record<string, Route> = {
   } },
 };
 
-export function createApi(db: DB, nowFn: () => number = Date.now) {
+export function createApi(db: DB, nowFn: () => number = Date.now, envIn: Partial<ApiEnv> = {}) {
+  const env: ApiEnv = { secrets: envIn.secrets ?? memorySecrets(), translator: envIn.translator ?? claudeTranslator };
   const session: Session = { user: null, lastActivity: Date.now() };
   /** Enforces the idle lock and role for any privileged call (API routes and desktop-only routes alike). */
   const authorize = (roles: Role[]) => {
@@ -791,7 +837,7 @@ export function createApi(db: DB, nowFn: () => number = Date.now) {
       const route = routes[method];
       if (!route) throw new ApiError(`Unknown method ${method}`);
       if (route.roles !== 'public') authorize(route.roles);
-      return route.fn(params ?? {}, { db, session, now: nowFn });
+      return route.fn(params ?? {}, { db, session, now: nowFn, env });
     },
   };
 }

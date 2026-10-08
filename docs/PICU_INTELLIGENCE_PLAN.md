@@ -596,7 +596,11 @@ in §6. The rest of the plan stands.
 | Microbiology (§3, §4) | MDR v1 ported verbatim, with tests pinning parity. Antibiogram adds first-isolate de-duplication and n < 30 flags. Legacy CSV/JSON import keeps NICU history. |
 | Data quality (§14 of the brief) | Rule engine with warnings that are never auto-corrected. |
 | Disease modules (§10) | Built: modules and fields are database records edited in-app. Each has diagnosis triggers, typed fields with ranges and options, conditional display, required flags and capture stage (including repeated measurements). Derived values come from a safe registry. Each field has an introduction date (`NC` for earlier admissions) and a version history. Four built-ins: sepsis, pneumonia, GBS, DKA. |
-| Research (§12, first slice) | Per-module cohort view: completeness, distributions, and outcomes compared by an exposure. Exact or rank tests run only for two groups, and every result carries a DESCRIPTIVE or ASSOCIATION label with caveats. The export has module columns and a data dictionary. |
+| Severity (§9) | PIM3 per admission, with a rolling 12-month SMR on the dashboard and SMR in the monthly report. |
+| Research Explorer (§12) | Validated JSON cohort DSL across all fields. Comparison tests, risk ratio, logistic regression with an events-per-variable guard. Claim labels, saved cohorts, a deterministic plain-language summary, audit of every query. |
+| Protocol / QI engine (§8 QI) | Condition, time-window and if/then elements over Explorer fields. Adherence vs target, bundle, run chart, case review. Four editable built-in protocols. |
+| AI layer (§13) | NL → validated DSL only. Catalogue and question sent, never data; identifiers blocked; user confirms; results and summary computed locally; key encrypted with the OS keychain. |
+| Research (§12, module view) | Per-module cohort view: completeness, distributions, and outcomes compared by an exposure. Exact or rank tests run only for two groups, and every result carries a DESCRIPTIVE or ASSOCIATION label with caveats. The export has module columns and a data dictionary. |
 
 **Trade-offs of local storage**
 - **Single machine.** There is no simultaneous multi-PC entry.

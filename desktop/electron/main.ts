@@ -2,11 +2,11 @@
 //  Electron main process — owns the database. The renderer is sandboxed
 //  (no Node, context isolation) and can only reach the whitelisted API.
 // ═══════════════════════════════════════════════════════════
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openDatabase, getSetting } from '../server/db';
-import { ApiError, createApi } from '../server/api';
+import { openDatabase, getSetting, setSetting } from '../server/db';
+import { ApiError, createApi, type SecretStore } from '../server/api';
 import type { Role } from '../shared/types';
 import { seedDemo } from '../server/demo';
 import { importLegacy, parseLegacy } from '../server/legacy';
@@ -21,7 +21,20 @@ const BACKUPS_KEPT = 14;
 if (!app.requestSingleInstanceLock()) app.quit();
 
 const db = openDatabase(dbFile);
-const api = createApi(db);
+/** API keys are encrypted with the OS keychain (DPAPI on Windows); never stored in clear text. */
+const secrets: SecretStore = {
+  available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
+  load: key => {
+    const v = getSetting(db, `secret:${key}`);
+    if (!v || !safeStorage.isEncryptionAvailable()) return null;
+    try { return safeStorage.decryptString(Buffer.from(v, 'base64')); } catch { return null; }
+  },
+  save: (key, value) => {
+    if (value == null) { db.prepare('DELETE FROM settings WHERE key = ?').run(`secret:${key}`); return; }
+    setSetting(db, `secret:${key}`, safeStorage.encryptString(value).toString('base64'));
+  },
+};
+const api = createApi(db, Date.now, { secrets });
 let win: BrowserWindow | null = null;
 
 /** One automatic snapshot per day (VACUUM INTO is a consistent online copy); keep the last 14. */

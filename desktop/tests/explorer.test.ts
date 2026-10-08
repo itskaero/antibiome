@@ -53,6 +53,11 @@ describe('cohort execution', () => {
     expect(r.groups.map(g => g.label)).toEqual(['Yes', 'No']);
     expect(r.outcomes[0].effect?.value).toBeCloseTo(0.5 / 0.1, 5);
   });
+  it('says which groups were tested when small groups are left out', () => {
+    const extra = [...rows, row({ dx: 'GBS', tx: ['IVIG', 'Steroid'], died: false })];
+    const r = runCohort(validateSpec({ include: [{ field: 'dx', op: 'in', value: ['GBS'] }], groupBy: 'tx', outcomes: ['died'] }, fields), fields, extra);
+    expect(r.outcomes[0].test?.note).toBe('Tested IVIG vs Steroid only; groups with < 3 patients (IVIG + Steroid) are not tested');
+  });
   it('refuses regression with too few events per variable', () => {
     const r = runCohort(validateSpec({ include: [{ field: 'dx', op: 'in', value: ['GBS'] }], groupBy: 'tx', outcomes: ['died'], regression: { outcome: 'died', covariates: ['age'] } }, fields), fields, rows);
     expect(r.regression?.refused).toMatch(/events per variable|per variable/);

@@ -2,7 +2,7 @@
   "name": "antibiome-picu",
   "productName": "Antibiome PICU",
   "version": "0.1.0",
-  "description": "PICU Intelligence \u2014 standalone desktop app with a local SQLite database",
+  "description": "PICU Intelligence — standalone desktop app with a local SQLite database",
   "main": "dist-electron/main.cjs",
   "private": true,
   "scripts": {
@@ -46,6 +46,7 @@
     "publish": null
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",

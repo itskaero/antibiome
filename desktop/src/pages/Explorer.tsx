@@ -10,17 +10,17 @@ import { describeSpec, OP_LABEL, OPS_BY_KIND, type CohortResult, type CohortSpec
 
 export const emptySpec = (): CohortSpec => ({ include: [], exclude: [], groupBy: null, outcomes: ['died', 'los_days'], describe: [], regression: null });
 
-export function Explorer({ spec, setSpec, autoRun }: { spec: CohortSpec; setSpec: (s: CohortSpec) => void; autoRun?: number }) {
+export function Explorer({ spec, setSpec, autoRun, runSource }: { spec: CohortSpec; setSpec: (s: CohortSpec) => void; autoRun?: number; runSource?: 'ai' | 'builder' }) {
   const { data: fields } = useApi<ExplorerField[]>('explorer.fields');
   const cohorts = useApi<{ id: string; name: string; spec: CohortSpec; author: string }[]>('cohorts.list');
-  const [result, setResult] = useState<(CohortResult & { dataAsOf: string }) | null>(null);
+  const [result, setResult] = useState<(CohortResult & { dataAsOf: string; narrative: string[] }) | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const toast = useToast();
 
   const run = async (s = spec) => {
     setErr(null); setRunning(true);
-    try { setResult(await call('explorer.run', { spec: s })); } catch (e: any) { setErr(e.message); setResult(null); } finally { setRunning(false); }
+    try { setResult(await call('explorer.run', { spec: s, source: runSource })); } catch (e: any) { setErr(e.message); setResult(null); } finally { setRunning(false); }
   };
   useEffect(() => { if (autoRun) run(); }, [autoRun]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -36,7 +36,7 @@ export function Explorer({ spec, setSpec, autoRun }: { spec: CohortSpec; setSpec
   return (
     <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[460px_1fr] xl:grid-cols-[420px_1fr]">
       {/* Builder */}
-      <div className="flex flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3">
         <div className="card flex items-center gap-2 p-3">
           <select className="field h-9 flex-1" value="" onChange={e => { const c = cohorts.data?.find(x => x.id === e.target.value); if (c) { setSpec(c.spec); run(c.spec); } }}>
             <option value="">{cohorts.data?.length ? `Open a saved cohort (${cohorts.data.length})…` : 'No saved cohorts yet'}</option>
@@ -81,7 +81,7 @@ export function Explorer({ spec, setSpec, autoRun }: { spec: CohortSpec; setSpec
       </div>
 
       {/* Results */}
-      <div className="flex flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3">
         {!result ? <div className="card"><Empty icon={<Filter size={18} />} title="Build a cohort and press Run">Every field recorded in the unit is available: patient, admission, severity, support, treatment, microbiology, outcomes and every module field.</Empty></div> : <Results r={result} />}
       </div>
     </div>
@@ -179,9 +179,14 @@ export function ConditionRow({ c, fields, onChange, onRemove }: { c: Condition; 
 
 const pfmt = (p: number) => (p < 0.001 ? 'p < 0.001' : `p = ${p.toFixed(3)}`);
 
-function Results({ r }: { r: CohortResult & { dataAsOf: string } }) {
+function Results({ r }: { r: CohortResult & { dataAsOf: string; narrative: string[] } }) {
   return (
     <>
+      <div className="card p-5">
+        <p className="mb-2 text-[11px] font-semibold tracking-wider text-ink-3 uppercase">In words</p>
+        <div className="flex flex-col gap-1 text-[13.5px] leading-relaxed">{r.narrative.map((l, i) => <p key={i}>{l}</p>)}</div>
+        <p className="mt-2 text-[11px] text-ink-3">Written by the app from the calculated numbers below — not by an AI.</p>
+      </div>
       <div className="card p-5">
         <CardHeader title={<span className="flex items-center gap-2"><Users size={15} className="text-accent-ink" />Cohort: {r.n} admissions</span>}
           right={<Chip tone={r.claim === 'ASSOCIATION' ? 'warn' : 'info'}><ShieldAlert size={12} />{r.claim === 'ASSOCIATION' ? 'Association — not causation' : 'Descriptive'}</Chip>} />
@@ -214,7 +219,7 @@ function Results({ r }: { r: CohortResult & { dataAsOf: string } }) {
                       </td>
                     ))}
                     <td className="py-2.5 text-[12px] text-ink-2">
-                      {o.test ? <div>{o.test.name}: {pfmt(o.test.p)}{o.test.note && <div className="text-warn-ink">{o.test.note}</div>}</div> : <span className="text-ink-3">—</span>}
+                      {o.test ? <div>{o.test.name}: {pfmt(o.test.p)}{o.test.note && <div className="text-[11.5px] text-warn-ink">{o.test.note}</div>}</div> : <span className="text-ink-3">—</span>}
                       {o.effect && <div className="text-ink-3">{o.effect.name}: {o.effect.value.toFixed(2)} (95% CI {o.effect.lo.toFixed(2)}–{o.effect.hi.toFixed(2)})</div>}
                     </td>
                   </tr>

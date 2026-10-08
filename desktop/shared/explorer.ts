@@ -209,6 +209,8 @@ export function runCohort(spec: CohortSpec, fields: ExplorerField[], allRows: Ro
   const groups = [...groupsMap.entries()].sort((a, b) => rank(a[0]) - rank(b[0]) || b[1].length - a[1].length)
     .map(([key, list]) => ({ key, label: gf ? groupLabel(gf, key) : 'Cohort', n: list.length }));
   const tested = groups.filter(g => g.key !== '∅' && g.n >= 3);
+  const untested = groups.filter(g => g.key !== '∅' && g.n < 3);
+  const scopeNote = untested.length ? `Tested ${tested.map(g => g.label).join(' vs ')} only; groups with < 3 patients (${untested.map(g => g.label).join(', ')}) are not tested` : undefined;
 
   const outcomes: OutcomeRow[] = spec.outcomes.map(id => {
     const f = byId.get(id)!;
@@ -225,18 +227,18 @@ export function runCohort(spec: CohortSpec, fields: ExplorerField[], allRows: Ro
         const tab = tested.map(g => { const v = valsOf(g.key); const y = v.filter(x => x === true).length; return [y, v.length - y] as [number, number]; });
         if (tested.length === 2) {
           const [[a, b], [c, d]] = tab;
-          test = { name: "Fisher's exact", p: fisherExact(a, b, c, d) };
+          test = { name: "Fisher's exact", p: fisherExact(a, b, c, d), note: scopeNote };
           // Risk ratio (group 1 vs group 2) with log-method 95% CI; 0.5 continuity correction on zero cells.
           const [aa, bb, cc, dd] = [a, b, c, d].map(x => (a * b * c * d === 0 ? x + 0.5 : x));
           const rr = (aa / (aa + bb)) / (cc / (cc + dd)), se = Math.sqrt(1 / aa - 1 / (aa + bb) + 1 / cc - 1 / (cc + dd));
           effect = { name: `Risk ratio (${groupLabel(gf, tested[0].key)} vs ${groupLabel(gf, tested[1].key)})`, value: rr, lo: rr * Math.exp(-1.96 * se), hi: rr * Math.exp(1.96 * se) };
         } else {
           const r = chiSquareKx2(tab);
-          test = { name: `χ² (${r.df} df)`, p: r.p, note: r.minExpected < 5 ? 'Some expected counts < 5 — interpret with caution' : undefined };
+          test = { name: `χ² (${r.df} df)`, p: r.p, note: [r.minExpected < 5 ? 'Some expected counts < 5 — interpret with caution' : '', scopeNote ?? ''].filter(Boolean).join('. ') || undefined };
         }
       } else {
         const samples = tested.map(g => valsOf(g.key) as number[]);
-        if (samples.every(x => x.length >= 3)) test = tested.length === 2 ? { name: 'Mann–Whitney U', p: mannWhitney(samples[0], samples[1]).p } : { name: `Kruskal–Wallis (${tested.length - 1} df)`, p: kruskalWallis(samples).p };
+        if (samples.every(x => x.length >= 3)) test = tested.length === 2 ? { name: 'Mann–Whitney U', p: mannWhitney(samples[0], samples[1]).p, note: scopeNote } : { name: `Kruskal–Wallis (${tested.length - 1} df)`, p: kruskalWallis(samples).p, note: scopeNote };
       }
     }
     return { field: id, label: `${f.label}${f.unit ? ` (${f.unit})` : ''}`, kind: f.kind as 'number' | 'boolean', cells, test, effect };
@@ -287,4 +289,31 @@ export function runCohort(spec: CohortSpec, fields: ExplorerField[], allRows: Ro
     spec, description: describeSpec(spec, fields), n: rows.length, inRange, steps, groups, outcomes, describe, regression,
     claim: anyTest ? 'ASSOCIATION' : 'DESCRIPTIVE', caveats,
   };
+}
+
+// ── Plain-language summary (deterministic; built only from computed numbers) ──
+
+const pctS = (k: number, n: number) => `${k}/${n} (${n ? Math.round((k / n) * 100) : 0}%)`;
+const pS = (p: number) => (p < 0.001 ? 'p < 0.001' : `p = ${p.toFixed(3)}`);
+
+export function narrate(r: CohortResult): string[] {
+  const out = [`${r.n} admission${r.n === 1 ? '' : 's'} matched (of ${r.inRange} in the date range).`];
+  if (!r.n) return out;
+  const single = r.groups.length === 1 && !r.spec.groupBy;
+  r.outcomes.forEach(o => {
+    if (single) {
+      const c = o.cells[0];
+      out.push(o.kind === 'boolean' ? `${o.label}: ${pctS(c.yes ?? 0, c.n)}.` : c.median !== undefined ? `${o.label}: median ${c.median.toFixed(1)} (IQR ${c.q1!.toFixed(1)}–${c.q3!.toFixed(1)}), n = ${c.n}.` : `${o.label}: not recorded.`);
+      return;
+    }
+    const parts = o.cells.filter(c => c.n).map(c => (o.kind === 'boolean' ? `${c.group} ${pctS(c.yes ?? 0, c.n)}` : c.median !== undefined ? `${c.group} median ${c.median.toFixed(1)}` : `${c.group} —`));
+    let line = `${o.label}: ${parts.join('; ')}.`;
+    if (o.test) line += ` ${o.test.name}, ${pS(o.test.p)}${o.test.p < 0.05 ? ' — a statistical association, not evidence of cause' : ' — no clear difference'}${o.test.note?.startsWith('Tested') || o.test.note?.includes('. Tested') ? ` (${o.test.note.slice(o.test.note.indexOf('Tested'))})` : ''}.`;
+    out.push(line);
+  });
+  if (r.regression && !r.regression.refused && r.regression.terms[0]) {
+    const t = r.regression.terms[0];
+    out.push(`Adjusted odds ratio for ${t.name}: ${t.or.toFixed(2)} (95% CI ${t.lo.toFixed(2)}–${t.hi.toFixed(2)}).`);
+  }
+  return out;
 }

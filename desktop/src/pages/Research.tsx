@@ -8,6 +8,7 @@ import { cx, fmt1 } from '@/lib/format';
 import { Button, CardHeader, Chip, Empty, Field, PageHeader, useToast } from '@/components/ui';
 import { ContinuousTabs } from '@/vendor/watermelon/continuous-tabs';
 import { Explorer, emptySpec } from './Explorer';
+import { AskBar } from '@/components/AskBar';
 import type { CohortSpec } from '@shared/explorer';
 import type { GroupComparison, ModuleDef, VariableSummary } from '@shared/modules';
 import { DERIVED } from '@shared/modules';
@@ -24,6 +25,8 @@ export function Research({ canExport, args }: { canExport: boolean; args: string
   const initialModule = args[0] && args[0] !== 'q' ? args[0] : undefined;
   const [tab, setTab] = useState(initialModule ? 'modules' : 'explorer');
   const [spec, setSpec] = useState<CohortSpec>(() => (linked ? { ...emptySpec(), ...linked } : emptySpec()));
+  const [runTick, setRunTick] = useState(linked ? 1 : 0);
+  const [source, setSource] = useState<'ai' | 'builder'>('builder');
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon={<FlaskRound className="text-accent-ink" size={22} />} title="Research"
@@ -32,7 +35,8 @@ export function Research({ canExport, args }: { canExport: boolean; args: string
           <ContinuousTabs size="md" tabs={[{ id: 'explorer', label: 'Explorer' }, { id: 'modules', label: 'Module overview' }]} value={tab} onChange={setTab} />
           {canExport && <ExportButton />}
         </>} />
-      {tab === 'explorer' ? <Explorer spec={spec} setSpec={setSpec} autoRun={linked ? 1 : 0} /> : <ModuleOverview initialModule={initialModule} />}
+      {tab === 'explorer' && <AskBar onRun={s => { setSpec(s); setSource('ai'); setRunTick(x => x + 1); }} onEdit={s => { setSpec(s); setSource('ai'); }} />}
+      {tab === 'explorer' ? <Explorer spec={spec} setSpec={s => { setSpec(s); setSource('builder'); }} autoRun={runTick} runSource={source} /> : <ModuleOverview initialModule={initialModule} />}
     </div>
   );
 }

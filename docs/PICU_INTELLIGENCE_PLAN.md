@@ -601,7 +601,7 @@ in §6. The rest of the plan stands.
 | Protocol / QI engine (§8 QI) | Condition, time-window and if/then elements over Explorer fields. Adherence vs target, bundle, run chart, case review. Five editable built-in protocols. |
 | Phone access (§7 entry speed) | Optional HTTPS server in the desktop app for staff phones on the hospital Wi-Fi: QR pairing (single use, 10 min), revocable devices, per-device sessions with a 5-minute lock, bedside-only allow-list, names hidden on phones by default, device named in the audit trail, live refresh across PC and phones. |
 | Vital signs (§9, §12) | Recorded at key moments (admission, event, routine); IPSCC age-specific flags; derived admission set, worst first-24 h values, S/F ratio and shock index. Feeds PIM3 pre-fill, Explorer, AI catalogue, protocols ("Admission vital signs"), export and data quality. |
-| AI layer (§13) | NL → validated DSL only. Catalogue and question sent, never data; identifiers blocked; user confirms; results and summary computed locally; key encrypted with the OS keychain. |
+| AI layer (§13) | NL → validated DSL only. Catalogue and question sent, never data; identifiers blocked; user confirms; results and summary computed locally; key encrypted with the OS keychain. Provider chosen by the admin: Claude (Anthropic) or DeepSeek. |
 | Research (§12, module view) | Per-module cohort view: completeness, distributions, and outcomes compared by an exposure. Exact or rank tests run only for two groups, and every result carries a DESCRIPTIVE or ASSOCIATION label with caveats. The export has module columns and a data dictionary. |
 
 **Trade-offs of local storage**

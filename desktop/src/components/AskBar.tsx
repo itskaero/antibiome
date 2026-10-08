@@ -16,7 +16,7 @@ const EXAMPLES = [
 ];
 
 export function AskBar({ onRun, onEdit }: { onRun: (spec: CohortSpec) => void; onEdit: (spec: CohortSpec) => void }) {
-  const status = useApi<{ enabled: boolean; configured: boolean; model: string }>('ai.status');
+  const status = useApi<{ enabled: boolean; configured: boolean; model: string; providerLabel: string }>('ai.status');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function AskBar({ onRun, onEdit }: { onRun: (spec: CohortSpec) => void; o
           {EXAMPLES.map(x => <button key={x} onClick={() => { setQ(x); ask(x); }} className="rounded-full border border-line px-3 py-1 text-[12px] text-ink-3 hover:border-line-2 hover:text-ink">{x}</button>)}
         </div>
       )}
-      <p className="mt-2 text-[11px] text-ink-3">Only your question and the list of field names are sent to the AI service ({status.data.model}) — no patient data. It proposes a query; you confirm it; numbers are calculated on this computer.</p>
+      <p className="mt-2 text-[11px] text-ink-3">Only your question and the list of field names are sent to the AI service ({status.data.providerLabel} · {status.data.model}) — no patient data. It proposes a query; you confirm it; numbers are calculated on this computer.</p>
       {err && <div className="mt-3"><ErrorNote text={err} /></div>}
       {t && (
         <div className="mt-4 rounded-2xl border border-accent/30 bg-accent-soft/30 p-4">

@@ -202,16 +202,22 @@ This monitors local practice; it is not advice for an individual patient.
 
 ## AI questions (optional, off by default)
 
-An administrator enables AI questions and stores an Anthropic API key. The key is encrypted with the
-operating system's keychain (Windows DPAPI via Electron `safeStorage`) and is refused if no secure
-storage exists.
+An administrator enables AI questions, chooses a provider and stores its API key:
+
+| Provider | Models | Key | Notes |
+|---|---|---|---|
+| **Claude (Anthropic)** | `claude-opus-5-5` | `sk-ant-…` | Structured JSON output enforced by the API, refusal fallbacks on |
+| **DeepSeek** | `deepseek-flash` (default), `deepseek-v4-pro` | `sk-…` | OpenAI-style JSON mode; the schema is sent in the prompt. DeepSeek processes requests on servers in China — check your hospital's policy on international data transfer (no patient data is sent) |
+
+Each provider's key is stored separately and encrypted with the operating system's keychain
+(Windows DPAPI via Electron `safeStorage`); saving is refused if no secure storage exists. Switching
+provider keeps both keys. The audit trail records which provider translated each question.
 
 How a question is handled:
 
 1. A clinician types a question.
 2. The app sends **only the question and the field catalogue** (field names, diagnosis codes, drug
-   and organism names) to `claude-opus-5-5`. It uses structured JSON output, with refusal fallbacks
-   switched on.
+   and organism names) to the chosen provider, asking for a JSON query.
 3. **Questions containing a recorded patient name or MRN are blocked before anything is sent.**
 4. The model returns a proposed query and the assumptions it made.
 5. The app validates the query. If it is invalid, the model gets the validator's message and one
@@ -291,7 +297,7 @@ written to the audit log.
 cd desktop
 npm install
 npm run dev          # Vite + Electron with hot reload
-npm test             # 90 unit + integration tests (analytics, statistics, MDR parity, PIM3, vitals, SQLite API, roles, import, modules, explorer, protocols, AI gate, phone pairing/sessions/HTTPS)
+npm test             # 93 unit + integration tests (analytics, statistics, MDR parity, PIM3, vitals, SQLite API, roles, import, modules, explorer, protocols, AI gate incl. DeepSeek, phone pairing/sessions/HTTPS)
 npm run build && npm start
 # End-to-end phone check (built app + phone-sized Chromium; needs Playwright and a display):
 npm run build && NODE_PATH=$(npm root -g) xvfb-run -a node scripts/mobile-e2e.mjs out/
@@ -347,5 +353,5 @@ phone, the same API over HTTPS with the phone allow-list applied by the server).
 - **No encryption by the app.** The database file is not encrypted by the app, so use BitLocker.
 - **Statistics are for screening, not publication.** They are exact or standard methods, but a
   publication-grade analysis should be repeated in a statistics package from the de-identified export.
-- **AI translation needs internet and an API key.** It has been tested against a simulated
-  translator; try it with your key before relying on it.
+- **AI translation needs internet and an API key.** Claude and DeepSeek have been tested against
+  simulated responses only; try a few questions with your key before relying on it.

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DatabaseBackup, FileUp, FolderOpen, KeyRound, LineChart, Settings, ShieldCheck, Sparkles, UserPlus } from 'lucide-react';
 import { call } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
-import { Button, CardHeader, Chip, ErrorNote, Field, Modal, PageHeader, Toggle, useToast } from '@/components/ui';
+import { Button, CardHeader, ChoiceChips, Chip, ErrorNote, Field, Modal, PageHeader, Toggle, useToast } from '@/components/ui';
 import { ROLE_LABEL, type Role, type User } from '@shared/types';
 import { MobileAccessCard } from './MobileAccess';
 
@@ -136,12 +136,18 @@ function PasswordModal({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+interface AiStatus {
+  enabled: boolean; configured: boolean; secureStorage: boolean; provider: 'anthropic' | 'deepseek'; model: string; providerLabel: string;
+  providers: { id: 'anthropic' | 'deepseek'; label: string; models: string[]; model: string; keyHint: string; notice: string; configured: boolean }[];
+}
+
 function AiCard() {
-  const { data: st } = useApi<{ enabled: boolean; configured: boolean; secureStorage: boolean; model: string }>('ai.status');
+  const { data: st } = useApi<AiStatus>('ai.status');
   const [key, setKey] = useState('');
   const toast = useToast();
   const save = async (p: Record<string, unknown>, msg: string) => { try { await call('ai.configure', p); setKey(''); toast(msg); } catch (e: any) { toast(e.message, 'crit'); } };
   if (!st) return null;
+  const cur = st.providers.find(p => p.id === st.provider)!;
   return (
     <div className="card p-5">
       <CardHeader title={<span className="flex items-center gap-2"><Sparkles size={15} className="text-accent-ink" />AI questions (optional)</span>}
@@ -149,16 +155,33 @@ function AiCard() {
       <ul className="mb-4 flex flex-col gap-1.5 text-[12.5px] text-ink-2">
         <li className="flex gap-2"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-good-ink" />Translates a typed question into a Research Explorer query. Users confirm the query before it runs.</li>
         <li className="flex gap-2"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-good-ink" />Sent to the AI service: the question and the list of field names. Never patient records, results or identifiers — questions containing a recorded name or MRN are blocked.</li>
-        <li className="flex gap-2"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-good-ink" />Needs internet and an Anthropic API key ({st.model}). Check your hospital's policy on external services before enabling.</li>
+        <li className="flex gap-2"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-good-ink" />Needs internet and an API key. Check your hospital's policy on external services before enabling.</li>
       </ul>
-      <div className="flex flex-wrap items-end gap-2">
-        <Field label="Anthropic API key" className="min-w-[260px] flex-1" hint={st.configured ? 'A key is stored, encrypted with this computer\'s keychain.' : st.secureStorage ? 'Stored encrypted with this computer\'s keychain.' : 'This computer has no secure key storage — keys cannot be saved.'}>
-          <input className="field" type="password" value={key} placeholder={st.configured ? '•••••••• (stored)' : 'sk-ant-…'} onChange={e => setKey(e.target.value)} disabled={!st.secureStorage} />
-        </Field>
-        <Button size="sm" variant="primary" disabled={!key} onClick={() => save({ apiKey: key }, 'API key saved')}>Save key</Button>
-        {st.configured && <Button size="sm" variant="ghost" onClick={() => save({ removeKey: true }, 'API key removed')}>Remove</Button>}
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Provider">
+            <ChoiceChips size="sm" options={st.providers.map(p => p.id)} value={st.provider} labels={Object.fromEntries(st.providers.map(p => [p.id, p.label]))}
+              onChange={v => save({ provider: v }, `AI provider: ${st.providers.find(p => p.id === v)?.label}`)} />
+          </Field>
+          <Field label="Model">
+            <select className="field" value={cur.model} disabled={cur.models.length < 2} onChange={e => save({ keyProvider: cur.id, model: e.target.value }, `Model: ${e.target.value}`)}>
+              {cur.models.map(m => <option key={m}>{m}</option>)}
+            </select>
+          </Field>
+        </div>
+        <p className="text-[12px] text-ink-3">{cur.notice}</p>
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label={`${cur.label} API key`} className="min-w-[260px] flex-1" hint={cur.configured ? 'A key is stored, encrypted with this computer\'s keychain.' : st.secureStorage ? 'Stored encrypted with this computer\'s keychain.' : 'This computer has no secure key storage — keys cannot be saved.'}>
+            <input className="field" type="password" value={key} placeholder={cur.configured ? '•••••••• (stored)' : cur.keyHint} onChange={e => setKey(e.target.value)} disabled={!st.secureStorage} />
+          </Field>
+          <Button size="sm" variant="primary" disabled={!key} onClick={() => save({ keyProvider: cur.id, apiKey: key }, 'API key saved')}>Save key</Button>
+          {cur.configured && <Button size="sm" variant="ghost" onClick={() => save({ keyProvider: cur.id, removeKey: true }, 'API key removed')}>Remove</Button>}
+        </div>
       </div>
-      <div className="mt-3 flex gap-2">{st.enabled && st.configured ? <Chip tone="good" dot>Ready</Chip> : <Chip>{st.configured ? 'Key stored · switched off' : 'Not configured'}</Chip>}</div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {st.enabled && st.configured ? <Chip tone="good" dot>Ready · {st.providerLabel} · {st.model}</Chip> : <Chip>{st.configured ? 'Key stored · switched off' : `No ${cur.label} key`}</Chip>}
+        {st.providers.filter(p => p.id !== st.provider && p.configured).map(p => <Chip key={p.id}>{p.label} key also stored</Chip>)}
+      </div>
     </div>
   );
 }

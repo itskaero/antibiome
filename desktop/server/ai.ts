@@ -1,6 +1,9 @@
 // ═══════════════════════════════════════════════════════════
 //  Natural-language → cohort query (optional, admin-enabled, needs internet).
 //
+//  Providers: Claude (Anthropic) or DeepSeek — chosen by an administrator; one key each,
+//  encrypted with the OS keychain. Both get exactly the same prompt and the same gate.
+//
 //  What leaves this PC: the typed question and the FIELD CATALOGUE (field names,
 //  diagnosis codes, drug/organism names, module options). Never patient rows, results,
 //  or identifiers — questions containing a recorded patient name or MRN are blocked.
@@ -14,6 +17,20 @@ import { describeSpec, OPS_BY_KIND, validateSpec, type CohortSpec, type Explorer
 
 export const AI_MODEL = 'claude-opus-5-5';
 
+export type AiProvider = 'anthropic' | 'deepseek';
+export interface ProviderInfo { id: AiProvider; label: string; vendor: string; models: string[]; keySetting: string; keyPattern: RegExp; keyHint: string; notice: string }
+export const AI_PROVIDERS: Record<AiProvider, ProviderInfo> = {
+  anthropic: {
+    id: 'anthropic', label: 'Claude (Anthropic)', vendor: 'Anthropic', models: [AI_MODEL], keySetting: 'anthropicApiKey', keyPattern: /^sk-ant-[\w-]{20,}$/, keyHint: 'sk-ant-…',
+    notice: 'Processed by Anthropic.',
+  },
+  deepseek: {
+    id: 'deepseek', label: 'DeepSeek', vendor: 'DeepSeek', models: ['deepseek-flash', 'deepseek-v4-pro'], keySetting: 'deepseekApiKey', keyPattern: /^sk-[A-Za-z0-9_-]{20,}$/, keyHint: 'sk-…',
+    notice: 'Processed by DeepSeek, whose servers are in China — check your hospital\'s policy on international data transfer (no patient data is sent).',
+  },
+};
+export const isProvider = (v: unknown): v is AiProvider => v === 'anthropic' || v === 'deepseek';
+
 export interface RawTranslation {
   answerable: boolean;
   reason: string;
@@ -26,7 +43,7 @@ export interface RawTranslation {
   };
 }
 /** Swappable so tests (and offline builds) never touch the network. */
-export type Translator = (args: { system: string; user: string; apiKey: string }) => Promise<RawTranslation>;
+export type Translator = (args: { system: string; user: string; apiKey: string; model: string }) => Promise<RawTranslation>;
 
 export class AiError extends Error {}
 
@@ -88,12 +105,12 @@ ${catalogueText(fields)}`;
 }
 
 /** Default translator: Claude via the Anthropic SDK, structured JSON output, refusal fallbacks on. */
-export const claudeTranslator: Translator = async ({ system, user, apiKey }) => {
+export const claudeTranslator: Translator = async ({ system, user, apiKey, model }) => {
   const client = new Anthropic({ apiKey, timeout: 90_000, maxRetries: 2 });
   let response;
   try {
     response = await client.beta.messages.create({
-      model: AI_MODEL,
+      model: model || AI_MODEL,
       max_tokens: 16000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
@@ -114,6 +131,50 @@ export const claudeTranslator: Translator = async ({ system, user, apiKey }) => 
   const text = response.content.flatMap(b => (b.type === 'text' ? [b.text] : [])).join('');
   try { return JSON.parse(text) as RawTranslation; } catch { throw new AiError('The AI response could not be read. Use the query builder instead.'); }
 };
+
+/**
+ * DeepSeek translator (OpenAI-compatible chat completions with JSON output). DeepSeek has no
+ * schema enforcement, so the schema goes in the prompt and the result goes through the same
+ * validator (with one repair round) as Claude's. Empty replies — a documented JSON-mode quirk —
+ * are retried once.
+ */
+export const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
+export const deepseekTranslator: Translator = async ({ system, user, apiKey, model }) => {
+  const sys = `${system}\n\n# Output\nReply with one json object only — no prose, no code fences — matching this JSON Schema exactly:\n${JSON.stringify(OUTPUT_SCHEMA)}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(DEEPSEEK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model, max_tokens: 8000, temperature: 0, stream: false,
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
+        }),
+        signal: AbortSignal.timeout(90_000),
+      });
+    } catch {
+      throw new AiError('Cannot reach the AI service. Check the internet connection — the rest of the app works offline.');
+    }
+    if (!res.ok) {
+      if (res.status === 401) throw new AiError('The AI API key was rejected. An administrator can update it in Settings.');
+      if (res.status === 402) throw new AiError('The DeepSeek account has no credit left. An administrator needs to top it up.');
+      if (res.status === 429) throw new AiError('The AI service is busy (rate limited). Try again in a minute.');
+      throw new AiError(`AI service error (${res.status}). Use the query builder instead.`);
+    }
+    const body = await res.json().catch(() => null) as any;
+    const choice = body?.choices?.[0];
+    if (choice?.finish_reason === 'length') throw new AiError('The AI response was cut off. Try a shorter question.');
+    if (choice?.finish_reason === 'content_filter') throw new AiError('The AI service declined this question. Rephrase it, or use the query builder.');
+    const text = String(choice?.message?.content ?? '').trim();
+    if (!text) continue; // occasional empty JSON-mode reply
+    try { return JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, '')) as RawTranslation; } catch { throw new AiError('The AI response could not be read. Use the query builder instead.'); }
+  }
+  throw new AiError('The AI service returned an empty answer. Try again, or use the query builder.');
+};
+
+export const TRANSLATORS: Record<AiProvider, Translator> = { anthropic: (a) => claudeTranslator(a), deepseek: (a) => deepseekTranslator(a) };
 
 /** Map the model's flat condition shape onto the Explorer's typed conditions (validation happens after). */
 export function toSpec(raw: RawTranslation['spec'], fields: ExplorerField[]): CohortSpec {
@@ -144,11 +205,11 @@ export function containsIdentifier(db: DB, question: string): boolean {
 export interface Translation { spec: CohortSpec; description: string[]; assumptions: string[] }
 
 /** Translate, validate, and (once) ask the model to repair a spec the validator rejected. */
-export async function translateQuestion(question: string, fields: ExplorerField[], today: string, apiKey: string, translator: Translator): Promise<Translation> {
+export async function translateQuestion(question: string, fields: ExplorerField[], today: string, apiKey: string, translator: Translator, model = AI_MODEL): Promise<Translation> {
   const system = systemPrompt(fields);
   let user = `Today is ${today}.\nQuestion: ${question}`;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const raw = await translator({ system, user, apiKey });
+    const raw = await translator({ system, user, apiKey, model });
     if (!raw?.answerable) throw new AiError(raw?.reason ? `Not answerable from the recorded data: ${raw.reason}` : 'The question could not be translated into a query.');
     try {
       const spec = validateSpec(toSpec(raw.spec, fields), fields);

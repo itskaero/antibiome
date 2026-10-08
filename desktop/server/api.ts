@@ -22,7 +22,7 @@ import { buildExplorer } from './explorer';
 import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
 import { describeCondition, describeSpec, narrate, runCohort, validateSpec } from '../shared/explorer';
-import { AI_MODEL, AiError, claudeTranslator, containsIdentifier, translateQuestion, type Translator } from './ai';
+import { AI_PROVIDERS, AiError, TRANSLATORS, containsIdentifier, isProvider, translateQuestion, type AiProvider, type Translator } from './ai';
 import { createPairingCode, listDevices, revokeDevice, touchDevice } from './mobile';
 import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
 import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
@@ -51,7 +51,8 @@ export const MOBILE_METHODS = new Set([
 
 /** Secrets live outside the database in clear text: the desktop app encrypts them with the OS keychain (safeStorage). */
 export interface SecretStore { available(): boolean; load(key: string): string | null; save(key: string, value: string | null): void }
-export interface ApiEnv { secrets: SecretStore; translator: Translator }
+/** `translator` overrides every provider (tests, offline builds); otherwise the chosen provider's own is used. */
+export interface ApiEnv { secrets: SecretStore; translator: Translator | null }
 const memorySecrets = (): SecretStore => { const m = new Map<string, string>(); return { available: () => true, load: k => m.get(k) ?? null, save: (k, v) => { if (v == null) m.delete(k); else m.set(k, v); } }; };
 
 type Handler = (p: any, ctx: { db: DB; session: Session; now: () => number; env: ApiEnv; endDeviceSessions: (deviceId: string) => void }) => unknown;
@@ -64,6 +65,9 @@ const NON_RESEARCH: Role[] = ['admin', 'clinician', 'viewer'];
 const canSeeIdentifiers = (s: Session, db: DB) => !!s.user && CLINICAL.includes(s.user.role) && (s.channel === 'desktop' || getSetting(db, 'mobileShowNames', '0') === '1');
 
 // ── Helpers ──────────────────────────────────────────────────
+
+const aiProvider = (db: DB): AiProvider => { const v = getSetting(db, 'aiProvider', 'anthropic'); return isProvider(v) ? v : 'anthropic'; };
+const aiModel = (db: DB, p: AiProvider) => { const v = getSetting(db, `aiModel:${p}`); return AI_PROVIDERS[p].models.includes(v) ? v : AI_PROVIDERS[p].models[0]; };
 
 function audit(db: DB, s: Session, action: string, entity: string, entityId: string | null, summary: string) {
   db.prepare('INSERT INTO audit_log(at, user_id, username, action, entity, entity_id, summary) VALUES (?,?,?,?,?,?,?)')
@@ -840,23 +844,40 @@ export const routes: Record<string, Route> = {
   } },
 
   // AI natural-language queries (optional; translation only — see server/ai.ts)
-  'ai.status': { roles: ALL, fn: (_p, { db, env }) => ({
-    enabled: getSetting(db, 'aiEnabled') === '1', configured: !!env.secrets.load('anthropicApiKey'), secureStorage: env.secrets.available(), model: AI_MODEL,
-  }) },
+  'ai.status': { roles: ALL, fn: (_p, { db, env }) => {
+    const provider = aiProvider(db), info = AI_PROVIDERS[provider];
+    return {
+      enabled: getSetting(db, 'aiEnabled') === '1', provider, model: aiModel(db, provider), providerLabel: info.label,
+      configured: !!env.secrets.load(info.keySetting), secureStorage: env.secrets.available(),
+      providers: Object.values(AI_PROVIDERS).map(p => ({ id: p.id, label: p.label, models: p.models, model: aiModel(db, p.id), keyHint: p.keyHint, notice: p.notice, configured: !!env.secrets.load(p.keySetting) })),
+    };
+  } },
   'ai.configure': { roles: ['admin'], fn: (p, { db, session, env }) => {
+    const changes: string[] = [];
+    if (p.provider !== undefined) {
+      if (!isProvider(p.provider)) fail('Unknown AI provider');
+      setSetting(db, 'aiProvider', p.provider); changes.push(`provider ${AI_PROVIDERS[p.provider as AiProvider].label}`);
+    }
+    const target: AiProvider = isProvider(p.keyProvider) ? p.keyProvider : aiProvider(db);
+    const info = AI_PROVIDERS[target];
+    if (p.model !== undefined) {
+      if (!info.models.includes(p.model)) fail(`Unknown model for ${info.label}`);
+      setSetting(db, `aiModel:${target}`, p.model); changes.push(`model ${p.model}`);
+    }
     if (typeof p.apiKey === 'string' && p.apiKey.trim()) {
       if (!env.secrets.available()) fail('This computer has no secure key storage, so an API key cannot be saved.');
-      if (!/^sk-ant-[\w-]{20,}$/.test(p.apiKey.trim())) fail('That does not look like an Anthropic API key (sk-ant-…)');
-      env.secrets.save('anthropicApiKey', p.apiKey.trim());
+      if (!info.keyPattern.test(p.apiKey.trim())) fail(`That does not look like a${/^[AEIOU]/.test(info.vendor) ? 'n' : ''} ${info.vendor} API key (${info.keyHint})`);
+      env.secrets.save(info.keySetting, p.apiKey.trim()); changes.push(`${info.label} API key replaced`);
     }
-    if (p.removeKey) env.secrets.save('anthropicApiKey', null);
-    if (typeof p.enabled === 'boolean') setSetting(db, 'aiEnabled', p.enabled ? '1' : '0');
-    audit(db, session, 'update', 'settings', null, `AI questions ${p.enabled === false ? 'disabled' : p.enabled ? 'enabled' : 'updated'}${p.apiKey ? ' (API key replaced)' : ''}${p.removeKey ? ' (API key removed)' : ''}`);
+    if (p.removeKey) { env.secrets.save(info.keySetting, null); changes.push(`${info.label} API key removed`); }
+    if (typeof p.enabled === 'boolean') { setSetting(db, 'aiEnabled', p.enabled ? '1' : '0'); changes.push(p.enabled ? 'enabled' : 'disabled'); }
+    audit(db, session, 'update', 'settings', null, `AI questions: ${changes.join(', ') || 'no change'}`);
     return true;
   } },
   'ai.ask': { roles: ALL, fn: async (p, { db, session, now, env }) => {
     if (getSetting(db, 'aiEnabled') !== '1') fail('AI questions are switched off. An administrator can enable them in Settings.');
-    const apiKey = env.secrets.load('anthropicApiKey') ?? fail('No AI API key is configured.');
+    const provider = aiProvider(db), info = AI_PROVIDERS[provider];
+    const apiKey = env.secrets.load(info.keySetting) ?? fail(`No ${info.label} API key is configured.`);
     const question = String(p.question ?? '').trim();
     if (question.length < 5) fail('Type a question');
     if (question.length > 600) fail('Keep the question under 600 characters');
@@ -866,8 +887,8 @@ export const routes: Record<string, Route> = {
     }
     const { fields } = buildExplorer(db, now());
     try {
-      const t = await translateQuestion(question, fields, toLocal(new Date(now())).slice(0, 10), apiKey, env.translator);
-      audit(db, session, 'query', 'ai', null, `AI translated a question into: ${t.description.join('; ').slice(0, 400)}`);
+      const t = await translateQuestion(question, fields, toLocal(new Date(now())).slice(0, 10), apiKey, env.translator ?? TRANSLATORS[provider], aiModel(db, provider));
+      audit(db, session, 'query', 'ai', null, `AI (${info.label}) translated a question into: ${t.description.join('; ').slice(0, 400)}`);
       return t;
     } catch (e: any) {
       if (e instanceof AiError) fail(e.message);
@@ -931,7 +952,7 @@ export const routes: Record<string, Route> = {
 };
 
 export function createApi(db: DB, nowFn: () => number = Date.now, envIn: Partial<ApiEnv> = {}) {
-  const env: ApiEnv = { secrets: envIn.secrets ?? memorySecrets(), translator: envIn.translator ?? claudeTranslator };
+  const env: ApiEnv = { secrets: envIn.secrets ?? memorySecrets(), translator: envIn.translator ?? null };
   const local = newSession('desktop');
   const sessions = new Map<string, Session>([['local', local]]);
   const endDeviceSessions = (deviceId: string) => { for (const [k, s] of sessions) if (s.deviceId === deviceId) sessions.delete(k); };

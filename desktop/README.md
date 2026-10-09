@@ -312,8 +312,21 @@ backup), or **load clearly-labelled synthetic demo data** to explore.
 Build on a Windows machine (or CI) with:
 
 ```bash
-npm run dist:win     # → release/Antibiome PICU Setup x.y.z.exe  and a portable .exe
+npm run dist:win     # Windows 10/11, 32- and 64-bit → release/Antibiome PICU Setup x.y.z.exe and portable .exe files
+npm run dist:win7    # Windows 7/8.1 edition, 32- and 64-bit → release/… Windows 7.exe
 ```
+
+Pushing a tag such as `v0.2.0` builds both on GitHub Actions and attaches them to a release
+(`.github/workflows/release.yml`).
+
+**Windows 7 edition.** Electron 22 is the last release that runs on Windows 7, so the Windows 7
+edition is the same app built on Electron 22: the renderer is compiled for its Chromium 108
+(`scripts/win7-css.mjs` resolves the colours Chromium 108 cannot mix) and the main process for its
+Node 16. Node 16 has no `node:sqlite`, so the database uses a WebAssembly build of SQLite
+(`server/sqlite.ts`; same file format, rollback journal instead of WAL). A database copied over from
+the regular edition is converted on first open; the original is kept as `antibiome.db.wal-mode.bak`.
+Electron 22 no longer receives security updates, so use the regular edition wherever Windows 10 or
+later is available.
 
 Data is stored at `%APPDATA%\Antibiome PICU\data\antibiome.db`. Set `ANTIBIOME_DATA_DIR` to put it
 elsewhere, for example an encrypted drive. A consistent snapshot is written to `data\backups\` once a
@@ -353,5 +366,7 @@ phone, the same API over HTTPS with the phone allow-list applied by the server).
 - **No encryption by the app.** The database file is not encrypted by the app, so use BitLocker.
 - **Statistics are for screening, not publication.** They are exact or standard methods, but a
   publication-grade analysis should be repeated in a statistics package from the de-identified export.
+- **Windows 7 edition is on an unsupported Electron.** It works, but Electron 22 gets no security
+  fixes; move the PC to Windows 10 or later when you can.
 - **AI translation needs internet and an API key.** Claude and DeepSeek have been tested against
   simulated responses only; try a few questions with your key before relying on it.

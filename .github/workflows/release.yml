@@ -1,11 +1,13 @@
 name: Release desktop app
 
-# Push a tag such as v0.1.0 to build the Windows installer and portable .exe
-# and attach them to a GitHub release of the same name.
+# Push a tag such as v0.1.0 to build the Windows installers and portable .exe files (the regular
+# edition and the Windows 7 edition, each 32- and 64-bit) and attach them to a GitHub release.
 on:
   push:
     tags:
       - 'v*'
+    branches:
+      - ccr-0a61f55c-lk2hgu
   workflow_dispatch:
     inputs:
       tag:
@@ -36,8 +38,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build installer and portable exe
+      - name: Test
+        run: npm test
+
+      - name: Build Windows 10/11 edition
         run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Build Windows 7 edition
+        run: npm run dist:win7
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
@@ -56,4 +66,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Antibiome PICU ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
-          files: desktop/release/*.exe
+          # Installers and the per-architecture portables (not the combined portable).
+          files: |
+            desktop/release/*Setup*.exe
+            desktop/release/*Portable ia32*.exe
+            desktop/release/*Portable x64*.exe

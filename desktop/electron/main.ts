@@ -2,6 +2,7 @@
 //  Electron main process — owns the database. The renderer is sandboxed
 //  (no Node, context isolation) and can only reach the whitelisted API.
 // ═══════════════════════════════════════════════════════════
+import './compat';
 import { app, BrowserWindow, dialog, ipcMain, Menu, powerSaveBlocker, safeStorage, shell } from 'electron';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

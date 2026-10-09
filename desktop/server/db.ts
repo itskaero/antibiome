@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
-//  Local SQLite database (Node's built-in node:sqlite — no native build).
+//  Local SQLite database (node:sqlite, or WebAssembly SQLite on Windows 7 — no native build).
 //  One file on the PICU PC; WAL mode; foreign keys on; versioned migrations.
 // ═══════════════════════════════════════════════════════════
-import { DatabaseSync } from 'node:sqlite';
+import { openSqlite, type Database } from './sqlite';
 import { ensureBuiltInModules } from './modules';
 import { ensureBuiltInProtocols } from './protocols';
 
-export type DB = DatabaseSync;
+export type DB = Database;
 
 const MIGRATIONS: string[] = [
   // v1 — PICU core
@@ -274,8 +274,10 @@ const MIGRATIONS: string[] = [
 ];
 
 export function openDatabase(file: string): DB {
-  const db = new DatabaseSync(file);
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
+  const db = openSqlite(file);
+  // The WebAssembly driver has no shared-memory support, so it keeps SQLite's rollback journal.
+  if (db.driver === 'native') db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
   migrate(db);
   ensureBuiltInModules(db);
   ensureBuiltInProtocols(db);

@@ -1,7 +1,7 @@
 {
   "name": "antibiome-picu",
   "productName": "Antibiome PICU",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "PICU Intelligence — standalone desktop app with a local SQLite database",
   "main": "dist-electron/main.cjs",
   "private": true,
@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "dist:win": "npm run build && electron-builder --win",
+    "dist:win7": "node scripts/dist-win7.mjs",
     "dist:linux": "npm run build && electron-builder --linux"
   },
   "build": {
@@ -29,20 +30,31 @@
       "package.json"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
-        "nsis",
-        "portable"
-      ],
-      "icon": "build/icon.ico"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Antibiome PICU",
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "artifactName": "Antibiome-PICU-Setup-${version}.${ext}"
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     },
     "linux": {
       "target": [
@@ -52,7 +64,7 @@
     },
     "publish": null,
     "portable": {
-      "artifactName": "Antibiome-PICU-${version}-portable.${ext}"
+      "artifactName": "${productName} ${version} Portable ${arch}.${ext}"
     }
   },
   "devDependencies": {
@@ -69,6 +81,7 @@
     "esbuild": "^0.28.2",
     "lucide-react": "^1.53.0",
     "motion": "^14.0.0",
+    "node-sqlite3-wasm": "^0.8.60",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -76,6 +89,7 @@
     "selfsigned": "^5.5.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
+    "undici": "^5.29.0",
     "vite": "^8.3.3",
     "vitest": "^5.0.3"
   },

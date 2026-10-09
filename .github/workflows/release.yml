@@ -6,8 +6,6 @@ on:
   push:
     tags:
       - 'v*'
-    branches:
-      - ccr-0a61f55c-lk2hgu
   workflow_dispatch:
     inputs:
       tag:

@@ -8,19 +8,21 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%2311121a%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279.5%27 fill=%27none%27 stroke=%27%23f26b3a%27 stroke-width=%273%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%273.5%27 fill=%27%23f26b3a%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: a light gallery page. Content sits in large rounded frames on an off-white ground; the
    big frames hold imagery (the painted ward window, stills from the launch film) with frosted-glass
    UI floating on top. Quiet type, one orange accent from the app, dark footer with a giant wordmark. */
 :root {
-  --ground: #f3f3f1;       /* page */
-  --paper: #ffffff;        /* cards on the ground */
-  --ink: #121316;          /* text */
-  --ink-2: #55575d;
-  --ink-3: #8d8f95;        /* the grey continuation in headlines */
-  --rule: #e3e3e0;
-  --night: #0f1014;        /* footer, dark frames */
+  --ground: #0b0b0c;       /* page: near-black */
+  --paper: #121214;        /* cards */
+  --ink: #ecebe6;          /* text */
+  --ink-2: #a3a39e;
+  --ink-3: #6c6c69;        /* the grey continuation in headlines */
+  --rule: #222224;         /* hairline grid */
+  --night: #070708;        /* footer, deepest frames */
+  --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --dot: #ffcf8a;          /* the dot-matrix glow */
   --accent: #f26b3a;       /* Antibiome orange, from the app */
   --accent-ink: #c94c1f;
   --glass: rgba(255, 255, 255, 0.13);
@@ -29,7 +31,7 @@
   --font: "Manrope", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
   --r-frame: 28px; --r-card: 20px; --pill: 999px;
-  color-scheme: light;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -299,6 +301,86 @@ kbd { font: 500 12px var(--mono); border: 1px solid var(--rule); border-bottom-w
   .head-row { align-items: start; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .ask .q::after { animation: none; } }
+
+/* ═══ Editorial dark layer: serif display type, hairline grid, dot-matrix hero, film band ═══ */
+h1, h2, .lead, .quote, .page-head h1, .doc-title h1 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em; }
+.lead { font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.08; }
+.quote { font-size: clamp(1.9rem, 3.2vw, 2.7rem); line-height: 1.12; }
+.wrap { border-inline: 1px solid var(--rule); }
+.btn-dark { background: var(--ink); color: var(--ground); }
+.btn-dark:hover { background: #fff; }
+.btn-white { background: var(--ink); color: var(--ground); }
+.btn-ghost { color: var(--ink); border-color: #333336; }
+.nav-inner { color: var(--ink); }
+.nav.solid .nav-inner { background: rgba(11, 11, 12, 0.78); color: var(--ink); box-shadow: 0 1px 0 var(--rule); }
+.nav.solid .btn-white, .nav .btn-white { background: var(--ink); color: var(--ground); }
+.tab[aria-selected="true"], .nav.solid .tab[aria-selected="true"] { background: rgba(255, 255, 255, 0.08); }
+.arrows button { background: var(--paper); color: var(--ink); border-color: var(--rule); }
+.rcard { border-color: var(--rule); }
+.rcard[style*="#e9e7e2"], .where .w .img[style*="#e9e7e2"], .fimg[style*="#e9e7e2"] { background: #17171a !important; }
+.notice .up { background: rgba(207, 61, 61, 0.15); color: #f07070; } .notice .down { background: rgba(29, 154, 91, 0.15); color: #4cc76a; }
+.chiprow span { background: #1b1b1e; }
+.file:hover { background: #17171a; border-color: var(--ink-3); }
+.file .get { background: var(--ink); color: var(--ground); }
+.file.primary .get { background: var(--accent); color: #140700; }
+.dl.rec { border-color: #3a3a3d; box-shadow: 0 40px 80px -50px rgba(255, 207, 138, 0.25); }
+.dl .badge { background: var(--accent); color: #140700; } .dl .badge.old { background: #1e1e21; color: var(--ink-2); }
+.note { background: #1a130d; border-color: #3b2a1c; color: #e6c7a8; }
+.doc .note { background: var(--paper); }
+.doc .note.warn { background: #1a130d; border-color: #3b2a1c; }
+.table-wrap { background: var(--paper); } th { background: #161618; }
+kbd { background: #17171a; }
+summary::after { background: var(--ink); color: var(--ground); }
+.steps > li::before { background: var(--ink); color: var(--ground); }
+.fimg { border-color: var(--rule); }
+footer { background: var(--night); border: 1px solid var(--rule); }
+
+/* hero */
+.mx-hero { position: relative; text-align: center; padding-top: 150px; overflow: hidden; }
+.mx-hero .badge { display: inline-flex; align-items: center; gap: 10px; padding: 5px 12px 5px 6px; border-radius: 999px; border: 1px solid var(--rule); font-size: 13px; color: var(--ink-2); text-decoration: none; cursor: pointer; background: rgba(255,255,255,0.02); }
+.mx-hero .badge b { font-weight: 500; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid #333336; color: var(--ink); }
+.mx-hero h1 { margin: 26px auto 0; font-size: clamp(3rem, 6.4vw, 5.6rem); line-height: 1.0; max-width: 13ch; }
+.mx-hero h1 em { font-style: italic; color: var(--dot); }
+.mx-hero .lede { margin: 22px auto 0; max-width: 54ch; color: var(--ink-2); font-size: 17.5px; line-height: 1.55; }
+.mx-hero .ctas { margin-top: 30px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 11px 20px; font: 600 14px var(--font); border: 0; cursor: pointer; text-decoration: none; }
+.pill-accent { background: var(--accent); color: #140700; box-shadow: 0 0 30px -6px rgba(242, 107, 58, 0.7); }
+.pill-ghost { background: transparent; color: var(--ink); border: 1px solid #333336; }
+.matrix { position: relative; width: min(1100px, 100%); height: 560px; margin: -10px auto 0; }
+.matrix canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.matrix::after { content: ""; position: absolute; inset: auto 0 0 0; height: 160px; background: linear-gradient(transparent, var(--ground)); pointer-events: none; }
+.mx-sub { text-align: left; padding: 10px 0 0; }
+.mx-sub h2 { font-size: clamp(2.2rem, 4vw, 3.3rem); }
+.mx-sub p { color: var(--ink-2); margin-top: 8px; font-size: 17px; } .mx-sub p b { color: var(--ink); font-weight: 500; }
+
+/* ask the unit vignette */
+.ask-v { position: relative; margin-top: 36px; height: 360px; border: 1px solid var(--rule); border-radius: 22px; overflow: hidden;
+  background: radial-gradient(60% 70% at 50% 60%, rgba(255, 207, 138, 0.07), transparent 70%), linear-gradient(var(--rule) 1px, transparent 1px) 0 0 / 100% 60px; }
+.ask-v .past { position: absolute; left: 50%; top: 46px; transform: translateX(-50%); width: min(560px, 90%); display: grid; gap: 12px; font-size: 14px; }
+.ask-v .past div { display: flex; gap: 18px; color: var(--ink-3); white-space: nowrap; overflow: hidden; }
+.ask-v .past div b { width: 120px; font-weight: 400; flex: none; text-align: right; }
+.ask-v .past div:nth-child(1) { opacity: 0.35; } .ask-v .past div:nth-child(2) { opacity: 0.6; } .ask-v .past div:nth-child(3) { color: var(--ink-2); }
+.ask-v .input { position: absolute; left: 50%; top: 186px; transform: translateX(-50%); width: min(560px, 90%); display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 16px; background: #141416; border: 1px solid #2c2c2f; box-shadow: 0 30px 60px -30px rgba(0,0,0,0.9), 0 0 0 6px rgba(255,255,255,0.02); font-size: 15px; }
+.ask-v .input i { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); box-shadow: 0 0 12px var(--dot); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.3; } }
+.ask-v .input span { color: var(--ink-3); } .ask-v .input span b { color: var(--ink); font-weight: 500; }
+.ask-v .foot2 { position: absolute; left: 28px; right: 28px; bottom: 24px; display: flex; justify-content: space-between; align-items: end; gap: 20px; flex-wrap: wrap; }
+.ask-v .foot2 p { color: var(--ink-3); max-width: 46ch; font-size: 15px; } .ask-v .foot2 p b { color: var(--ink); font-weight: 500; }
+
+/* film band: the launch film as a full-bleed background */
+.film-band { position: relative; margin-inline: calc(50% - 50vw); min-height: 720px; overflow: hidden; isolation: isolate; border-block: 1px solid var(--rule); display: grid; align-content: end; }
+.film-band video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.film-band::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, var(--ground) 0%, rgba(11,11,12,0.1) 14%, rgba(11,11,12,0.1) 50%, rgba(11,11,12,0.9) 100%), linear-gradient(90deg, rgba(11,11,12,0.85), rgba(11,11,12,0.2) 55%, transparent); }
+.film-band .play i, .play i { background: var(--ink); color: var(--ground); }
+.film-band .inner { width: min(1240px, 100%); margin-inline: auto; padding: 0 48px 56px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 30px; align-items: end; }
+.film-band h2 { font-size: clamp(2.4rem, 4.6vw, 4rem); line-height: 1.02; max-width: 14ch; }
+.film-band h2 em { font-style: italic; color: var(--dot); }
+.film-band p { color: var(--ink-2); margin-top: 12px; max-width: 44ch; }
+.film-band .play { margin-top: 22px; }
+.film-band .plan { background: rgba(14, 14, 16, 0.55); }
+
+@media (max-width: 1000px) { .film-band .inner { grid-template-columns: minmax(0, 1fr); padding: 0 22px 32px; } .film-band { min-height: 620px; } }
+@media (max-width: 640px) { .wrap { border-inline: 0; } .matrix { height: 360px; } .mx-hero { padding-top: 120px; } .ask-v .past div b { display: none; } .ask-v { height: 400px; } }
 </style>
 </head>
 <body>
@@ -321,39 +403,15 @@ kbd { font: 500 12px var(--mono); border: 1px solid var(--rule); border-bottom-w
 
 <!-- ══════════════ PRODUCT ══════════════ -->
 <main id="home" class="page" role="tabpanel" aria-labelledby="tab-home">
-  <div class="hero">
-    <canvas id="scene" aria-hidden="true"></canvas>
-    <div class="hero-grid">
-      <div class="clock">
-        <span class="date glass" id="date">Morning census</span>
-        <span class="time glass" id="clock" aria-label="Local time">08:00</span>
-      </div>
-      <div class="hero-copy">
-        <h1>Turn PICU data into intelligence.</h1>
-        <p class="lede">Record a child's stay at the bedside in seconds. Antibiome connects every admission, culture, antibiotic and vital sign into patterns your unit can act on — on your own PC, nothing sent to the cloud.</p>
-      </div>
-      <div class="bed-card glass" aria-label="Example bed card">
-        <div class="row"><span>Bed 7</span><span>Today</span></div>
-        <s>08:10 · Ceftriaxone, empiric</s>
-        <small>culture-directed after <i>K. pneumoniae</i> grew</small>
-        <span>Meropenem · day 2 · Watch</span>
-        <hr>
-        <small>Phoenix 3 · septic shock criteria · lactate falling</small>
-      </div>
-      <div class="dock">
-        <div class="chips">
-          <span class="glass"><b>08:00</b>Morning census</span>
-          <span class="glass"><b>09:30</b>Daily reconcile</span>
-          <span class="glass"><b>11:15</b>Culture resulted</span>
-          <span class="glass">+ 6 more today</span>
-        </div>
-        <div class="ask glass">
-          <span aria-hidden="true">＋</span>
-          <span class="q" id="askq">Septic shock this year — antibiotics within 60 minutes?</span>
-          <button class="btn btn-white" data-go="features" data-anchor="f-research">Ask →</button>
-        </div>
-        <span class="status"><i></i>Antibiome right now: comparing this month with last</span>
-      </div>
+  <div class="wrap mx-hero">
+    <a class="badge" data-go="features" data-anchor="f-scores"><b>New</b>Phoenix sepsis scoring, therapy charts and Windows 7 builds ›</a>
+    <h1>Turn PICU data into <em>intelligence</em></h1>
+    <p class="lede">Record a child's stay at the bedside in seconds. Antibiome connects every admission, culture, antibiotic and vital sign into patterns your unit can act on — on your own PC, nothing sent to the cloud.</p>
+    <div class="ctas"><button class="pill pill-accent" data-go="download">Download for Windows</button><button class="pill pill-ghost" id="watch-top" type="button">▶ Watch the film</button></div>
+    <div class="matrix" aria-hidden="true"><canvas id="matrix"></canvas></div>
+    <div class="mx-sub">
+      <h2>See the whole unit, miss less</h2>
+      <p>Antibiome keeps your PICU's record <b>complete, linked and honest</b> — from one bed to twelve months.</p>
     </div>
   </div>
 
@@ -398,18 +456,25 @@ kbd { font: 500 12px var(--mono); border: 1px solid var(--rule); border-bottom-w
       </div>
     </section>
 
-    <section class="s">
-      <div class="frame film-frame">
+    <section class="s" style="padding-top:110px">
+      <div class="film-band" id="film-band">
         <video id="loop" src="assets/film-loop.mp4" poster="assets/film-app.jpg" muted loop playsinline preload="metadata" aria-hidden="true"></video>
-        <div class="plan glass">
-          <h3>From data to intelligence</h3>
-          <span style="opacity:.8">How every record moves through the app.</span>
-          <div class="tick done"><b>✓</b><span>Recorded at the bedside</span></div>
-          <div class="tick done"><b>✓</b><span>Organised per admission</span></div>
-          <div class="tick done"><b>✓</b><span>Patterns across months</span></div>
-          <div class="tick"><b></b><span>Intelligence for the unit</span></div>
+        <div class="inner">
+          <div>
+            <span class="kicker" style="color:var(--dot)">The launch film · 45 s</span>
+            <h2 style="margin-top:12px">Individual data, <em>collective</em> intelligence</h2>
+            <p>Made from the app's own screens and data: a culture becomes a pattern, a patient becomes the unit.</p>
+            <button class="play glass" id="watch" type="button"><i>▶</i>Watch with sound</button>
+          </div>
+          <div class="plan glass">
+            <h3>From data to intelligence</h3>
+            <span style="opacity:.8">How every record moves through the app.</span>
+            <div class="tick done"><b>✓</b><span>Recorded at the bedside</span></div>
+            <div class="tick done"><b>✓</b><span>Organised per admission</span></div>
+            <div class="tick done"><b>✓</b><span>Patterns across months</span></div>
+            <div class="tick"><b></b><span>Intelligence for the unit</span></div>
+          </div>
         </div>
-        <button class="play glass" id="watch" type="button"><i>▶</i>Watch the 45-second film</button>
       </div>
     </section>
 
@@ -424,6 +489,20 @@ kbd { font: 500 12px var(--mono); border: 1px solid var(--rule); border-bottom-w
         <div class="card"><h3>Association, not causation</h3><p>Comparisons carry their test and p value, and say plainly what they cannot show. Logistic regression is refused when there are too few events.</p><span class="fact">Fisher · Mann–Whitney · EPV ≥ 10</span></div>
         <div class="card"><h3>Small numbers flagged</h3><p>The antibiogram counts the first isolate per patient and marks every cell under 30 isolates. Months with few patients say so.</p><span class="fact">CLSI M39 · days present</span></div>
         <div class="card"><h3>Missing stays missing</h3><p>A value nobody recorded is never treated as “no”. Scores list the inputs they are missing, so an underestimate is visible.</p><span class="fact">Phoenix · PIM3 · modules</span></div>
+      </div>
+    </section>
+
+    <section class="s">
+      <span class="kicker"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>Get answers</span>
+      <h2 class="lead" style="margin-top:12px">Ask the unit anything it has recorded</h2>
+      <div class="ask-v">
+        <div class="past">
+          <div><b>Stewardship</b>Meropenem days per 1,000 days present, by month</div>
+          <div><b>Severity</b>Phoenix septic shock vs PIM3 risk, last 12 months</div>
+          <div><b>Sepsis bundle</b>Septic shock this year — antibiotics within 60 minutes?</div>
+        </div>
+        <div class="input"><i></i><span><b>Checking</b> the record…</span><span style="margin-left:auto;font-size:12px">⏎</span></div>
+        <div class="foot2"><p>Build a cohort from <b>any recorded field</b> — or type the question and confirm the query. Answers are counts and statistics, <b>labelled as association.</b></p><button class="pill pill-ghost" data-go="features" data-anchor="f-research">Learn more</button></div>
       </div>
     </section>
 
@@ -907,6 +986,7 @@ npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
   // Hero: live clock and date in the viewer's time zone
   var clock = document.getElementById('clock'), date = document.getElementById('date');
   function tick() {
+    if (!clock || !date) return;
     var d = new Date();
     clock.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     date.textContent = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + (d.getHours() < 12 ? ' · morning round' : d.getHours() < 18 ? ' · afternoon' : ' · night shift');
@@ -916,7 +996,7 @@ npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
   // Example questions in the ask bar
   var qs = ['Septic shock this year — antibiotics within 60 minutes?', 'Pneumonia: mortality by highest respiratory support', 'Phoenix septic shock vs PIM3 risk, last 12 months', 'Meropenem days per 1,000 days present, by month'];
   var q = document.getElementById('askq'), qi = 0;
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(function () { qi = (qi + 1) % qs.length; q.textContent = qs[qi]; }, 4200);
+  if (q && !matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(function () { qi = (qi + 1) % qs.length; q.textContent = qs[qi]; }, 4200);
 
   // Card rail arrows
   var rail = document.getElementById('rail');
@@ -933,6 +1013,7 @@ npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
   function openFilm() { if (!video.src) video.src = 'assets/film.mp4'; film.hidden = false; video.play().catch(function () {}); }
   function closeFilm() { film.hidden = true; video.pause(); }
   document.getElementById('watch').addEventListener('click', openFilm);
+  document.getElementById('watch-top').addEventListener('click', openFilm);
   document.getElementById('foot-film').addEventListener('click', openFilm);
   document.getElementById('film-close').addEventListener('click', closeFilm);
   film.addEventListener('click', function (e) { if (e.target === film) closeFilm(); });
@@ -963,119 +1044,44 @@ npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
     }).catch(function () {});
 })();
 
-// ── The scene: a ward window at first light, painted live in a fragment shader ──
-//  Sky with lit cloud banks and a low sun, sea and reflection, window frame, two sheer curtains
-//  drifting in the draught, paper cranes crossing the window, warm light spilling into the room,
-//  and a brush-stroke texture so it reads as a painting rather than a render.
+// ── Dot matrix: the Antibiome mark (ring, tilted orbit, core) drawn in glowing dots, with drifting
+//    clusters of "records" pulled toward the core and released again. Canvas 2D, cheap.
 (function () {
-  var c = document.getElementById('scene');
-  var gl = c.getContext('webgl', { antialias: false, premultipliedAlpha: false });
-  if (!gl) return; // CSS gradient fallback stays
-  var vs = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
-  var fs = [
-    'precision highp float;uniform vec2 r;uniform float t;uniform vec4 win;uniform float dim;',
-    'float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
-    'float n(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y);}',
-    'float fbm(vec2 p){float v=0.,a=.5;for(int k=0;k<5;k++){v+=a*n(p);p=p*2.02+vec2(3.1,1.7);a*=.5;}return v;}',
-    'vec3 sky(vec2 q,float ar){',
-    '  vec3 top=vec3(.07,.10,.22),mid=vec3(.36,.30,.45),low=vec3(1.,.60,.30);',
-    '  vec3 c=mix(low,mid,smoothstep(.10,.50,q.y));c=mix(c,top,smoothstep(.45,1.,q.y));',
-    '  vec2 sp=vec2(.62,.30);float d=length((q-sp)*vec2(ar,1.));',
-    '  c+=vec3(1.,.70,.38)*exp(-d*5.)*.85+vec3(1.,.93,.78)*smoothstep(.055,.035,d);',
-    '  float w=fbm(q*3.+vec2(t*.015,0.));',
-    '  float cl=fbm(vec2(q.x*1.6+t*.01,q.y*5.5)+w*1.4);',
-    '  float band=smoothstep(.40,.70,cl)*smoothstep(1.02,.30,q.y);',
-    '  float lit=clamp(smoothstep(.65,.1,q.y)*1.1+exp(-d*3.5)*.8,0.,1.);',
-    '  float edge=smoothstep(.40,.62,cl)-smoothstep(.62,.80,cl);',
-    '  vec3 cc=mix(vec3(.13,.14,.28),vec3(1.,.62,.34),lit)+vec3(1.,.75,.5)*edge*lit*.6;',
-    '  c=mix(c,cc,band);',
-    '  float hz=.22+.018*sin(q.x*6.+1.)+.025*fbm(vec2(q.x*7.,2.));',
-    '  if(q.y<hz){c=mix(vec3(.04,.06,.12),vec3(.25,.18,.22),pow(q.y/hz,1.5));',
-    '    float rl=exp(-abs(q.x-sp.x)*ar*7.)*(.45+.55*n(vec2(q.x*30.,q.y*240.+t*1.5)));',
-    '    c+=vec3(1.,.62,.32)*rl*.65*smoothstep(0.,hz,q.y);}',
-    '  return c;}',
-    'void main(){',
-    '  vec2 uv=gl_FragCoord.xy/r;float a=r.x/r.y;',
-    '  vec2 ws=win.zw-win.xy;float ar=ws.x*a/ws.y;',
-    '  vec2 q=(uv-win.xy)/ws;',
-    // room
-    '  vec3 col=mix(vec3(.02,.028,.055),vec3(.055,.07,.12),smoothstep(0.,1.,uv.y));',
-    '  vec2 wc=(win.xy+win.zw)*.5;vec2 dd=(uv-wc)*vec2(a,1.);',
-    '  col+=vec3(1.,.58,.30)*exp(-length(dd)*2.)*.20;',
-    // light pool on the floor below the window
-    '  vec2 fp=vec2((uv.x-wc.x+(win.y-uv.y)*.55)/(ws.x*1.1),(win.y-uv.y)/(ws.y*.55));',
-    '  if(uv.y<win.y){float pool=smoothstep(.55,.0,abs(fp.x))*smoothstep(1.,.0,fp.y)*smoothstep(0.,.08,fp.y);col+=vec3(1.,.62,.32)*pool*.16;}',
-    '  bool inside=q.x>0.&&q.x<1.&&q.y>0.&&q.y<1.;',
-    '  vec3 behind=col;',
-    '  if(inside){vec3 s=sky(q,ar);',
-    // paper cranes
-    '    for(int i=0;i<5;i++){float fi=float(i);',
-    '      float spd=.010+.008*h(vec2(fi,1.));',
-    '      vec2 c0=vec2(fract(h(vec2(fi,2.))+t*spd)*1.5-.25,.42+.42*h(vec2(fi,3.))+.025*sin(t*.35+fi*2.));',
-    '      float sc=.022+.018*h(vec2(fi,4.));',
-    '      vec2 pp=(q-c0)/sc;pp.x*=ar;pp.x/=1.6;',
-    '      float flap=.35+.45*sin(t*1.6+fi*1.9);',
-    '      float dv=abs(pp.y-abs(pp.x)*flap)-.07*(1.-abs(pp.x));',
-    '      float m=smoothstep(.12,.0,dv)*smoothstep(1.,.75,abs(pp.x));',
-    '      s=mix(s,vec3(.10,.10,.18),m*.9);}',
-    // frame and mullions
-    '    float b=min(min(q.x*ar,(1.-q.x)*ar),min(q.y,1.-q.y));',
-    '    float fr=step(b,.02)+step(abs(q.x-.5)*ar,.008)+step(abs(q.y-.6),.008);',
-    '    behind=s;col=mix(s,vec3(.025,.03,.05),clamp(fr,0.,1.));}',
-    // sheer curtains, billowing in the draught
-    '  float yy=q.y;',
-    '  if(yy>-.25&&yy<1.06){',
-    '    float eL=.17+.06*sin(yy*3.+t*.55)+.03*sin(yy*7.3-t*.9)+.04*smoothstep(.4,-.2,yy)*sin(t*.4);',
-    '    float eR=.83-.05*sin(yy*2.6+t*.5+1.3)-.03*sin(yy*8.1+t*.8)-.04*smoothstep(.4,-.2,yy)*sin(t*.37+2.);',
-    '    float inL=smoothstep(.0,.035,eL-q.x)*smoothstep(-.22,-.15,q.x);',
-    '    float inR=smoothstep(.0,.035,q.x-eR)*smoothstep(1.22,1.15,q.x);',
-    '    float cur=max(inL,inR)*smoothstep(1.06,1.0,yy)*smoothstep(-.25,-.18,yy);',
-    '    if(cur>0.){',
-    '      float fold=.5+.5*sin(q.x*ar*38.+2.2*sin(yy*2.2+t*.45)+fbm(q*vec2(3.,1.5)+t*.05)*4.);',
-    '      float lum=dot(behind,vec3(.3,.5,.2));',
-    '      vec3 sheer=mix(vec3(.55,.5,.55),vec3(1.,.86,.70),clamp(lum*1.6,0.,1.))*(.16+1.3*lum)*(.62+.6*fold);',
-    '      float al=(.5+.32*fold)*cur;',
-    '      col=mix(col,sheer,al*.85);}}',
-    // painting: brush strokes, quantised light, vignette, readable left side, grain
-    '  float st=fbm(vec2(uv.x*a*70.,uv.y*11.)+fbm(uv*6.)*2.);',
-    '  col*=.9+.2*st;',
-    '  col=floor(col*48.)/48.;',
-    '  col*=mix(1.,smoothstep(1.25,.25,length((uv-vec2(.62,.55))*vec2(a*.8,1.))),.55);',
-    '  col*=mix(1.,smoothstep(.05,.62,uv.x),dim);',
-    '  col+=(h(gl_FragCoord.xy+fract(t))-.5)*.035;',
-    '  gl_FragColor=vec4(col,1.);}'
-  ].join('\n');
-  function sh(type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.warn(gl.getShaderInfoLog(s)); return null; } return s; }
-  var v = sh(gl.VERTEX_SHADER, vs), f = sh(gl.FRAGMENT_SHADER, fs);
-  if (!v || !f) return;
-  var pr = gl.createProgram(); gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr);
-  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return;
-  gl.useProgram(pr);
-  var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-  var loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  var ur = gl.getUniformLocation(pr, 'r'), ut = gl.getUniformLocation(pr, 't'), uw = gl.getUniformLocation(pr, 'win'), ud = gl.getUniformLocation(pr, 'dim');
-  var scale = Math.min(window.devicePixelRatio || 1, 1.5) * 0.65;
-  function layout() {
-    var W = c.clientWidth, H = c.clientHeight, narrow = W < 760;
-    // Window in CSS pixels from the top-left, converted to shader UV (origin bottom-left).
-    var x0 = narrow ? 0.08 * W : 0.5 * W, x1 = narrow ? 0.92 * W : Math.min(0.9 * W, x0 + 620);
-    var yTop = narrow ? 70 : 80, yBot = H * (narrow ? 0.55 : 0.8);
-    gl.uniform4f(uw, x0 / W, 1 - yBot / H, x1 / W, 1 - yTop / H);
-    gl.uniform1f(ud, narrow ? 0.2 : 0.35);
+  var c = document.getElementById('matrix'); if (!c) return;
+  var g = c.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches, visible = true, raf = 0, t0 = performance.now();
+  var dpr = Math.min(window.devicePixelRatio || 1, 2), W = 0, H = 0, step = 9;
+  function size() { W = c.clientWidth; H = c.clientHeight; c.width = W * dpr; c.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0); step = W < 600 ? 7 : 9; }
+  function h(x, y) { var s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
+  function n(x, y) {
+    var ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    return (h(ix, iy) * (1 - ux) + h(ix + 1, iy) * ux) * (1 - uy) + (h(ix, iy + 1) * (1 - ux) + h(ix + 1, iy + 1) * ux) * uy;
   }
-  function size() {
-    var w = Math.max(1, Math.round(c.clientWidth * scale)), hh = Math.max(1, Math.round(c.clientHeight * scale));
-    if (c.width !== w || c.height !== hh) { c.width = w; c.height = hh; gl.viewport(0, 0, w, hh); layout(); }
-  }
-  var still = matchMedia('(prefers-reduced-motion: reduce)').matches, t0 = performance.now(), visible = true, raf = 0;
   function frame(now) {
-    raf = 0; size(); gl.uniform2f(ur, c.width, c.height); gl.uniform1f(ut, 30 + (still ? 0 : (now - t0) / 1000));
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    raf = 0; var t = still ? 4 : (now - t0) / 1000;
+    if (c.clientWidth !== W || c.clientHeight !== H) size();
+    g.clearRect(0, 0, W, H);
+    var cx = W / 2, cy = H * 0.48, R = Math.min(W * 0.36, H * 0.6), rot = -0.49 + Math.sin(t * 0.25) * 0.06;
+    var cr = Math.cos(rot), sr = Math.sin(rot), pull = 0.5 + 0.5 * Math.sin(t * 0.45);
+    for (var y = step / 2; y < H; y += step) for (var x = step / 2; x < W; x += step) {
+      var dx = (x - cx) / R, dy = (y - cy) / R, d = Math.sqrt(dx * dx + dy * dy);
+      var ring = Math.exp(-Math.pow((d - 0.78) / 0.035, 2));
+      var ox = dx * cr + dy * sr, oy = -dx * sr + dy * cr, oe = Math.sqrt(ox * ox + (oy / 0.4) * (oy / 0.4));
+      var orbit = Math.exp(-Math.pow((oe - 0.98) / 0.04, 2)) * (0.55 + 0.45 * Math.sin(Math.atan2(oy / 0.4, ox) * 3 - t * 1.6));
+      var core = Math.exp(-Math.pow(d / 0.2, 2)) * (0.85 + 0.15 * Math.sin(t * 2));
+      var nx = dx * (1 + pull * 0.35) + t * 0.05, ny = dy * (1 + pull * 0.35) - t * 0.03;
+      var cloud = Math.max(0, n(nx * 3.1 + 5, ny * 3.1) * n(nx * 6.3, ny * 6.3 + 2) * 2.4 - 0.62) * Math.exp(-Math.pow(d / 1.25, 4));
+      var twinkle = h(x * 0.13, y * 0.17) > 0.997 ? 0.6 + 0.4 * Math.sin(t * 3 + x) : 0;
+      var v = Math.min(1, ring * 0.9 + orbit * 0.8 + core + cloud * 1.6 + twinkle);
+      if (v < 0.06) continue;
+      var r = 0.6 + v * (step * 0.42);
+      g.fillStyle = v > 0.75 ? 'rgba(255,238,210,' + (0.35 + 0.65 * v) + ')' : 'rgba(255,' + Math.round(150 + 70 * v) + ',' + Math.round(80 + 60 * v) + ',' + (0.25 + 0.75 * v) + ')';
+      g.fillRect(x - r / 2, y - r / 2, r, r);
+    }
     if (!still && visible) raf = requestAnimationFrame(frame);
   }
+  size();
   if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { visible = e[0].isIntersecting; if (visible && !raf && !still) raf = requestAnimationFrame(frame); }).observe(c);
-  window.addEventListener('resize', function () { c.width = 0; if (!raf) raf = requestAnimationFrame(frame); });
+  window.addEventListener('resize', function () { size(); if (!raf) raf = requestAnimationFrame(frame); });
   raf = requestAnimationFrame(frame);
 })();
 </script>

@@ -1,7 +1,7 @@
 {
   "name": "antibiome-picu",
   "productName": "Antibiome PICU",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "PICU Intelligence — standalone desktop app with a local SQLite database",
   "main": "dist-electron/main.cjs",
   "private": true,
@@ -20,7 +20,8 @@
     "appId": "org.antibiome.picu",
     "productName": "Antibiome PICU",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**",
@@ -28,22 +29,42 @@
       "package.json"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
       ]
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     },
     "linux": {
       "target": [
         "AppImage"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
-    "publish": null
+    "publish": null,
+    "portable": {
+      "artifactName": "${productName} ${version} Portable ${arch}.${ext}"
+    }
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.132.1",

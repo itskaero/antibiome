@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Activity, BedDouble, Biohazard, ClipboardCheck, ClipboardList, FlaskRound, Layers, FileBarChart2, FlaskConical, Gauge, LayoutDashboard,
-  ListChecks, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Wind,
+  ChevronDown, ChevronUp, ListChecks, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Users, Wind,
 } from 'lucide-react';
 import { call, getDevice, isPhone } from '@/lib/api';
 import { go, useApi, useHotkey, useRoute } from '@/lib/hooks';
@@ -25,6 +25,7 @@ import { SettingsPage } from '@/pages/Settings';
 import { Research } from '@/pages/Research';
 import { ModulesAdmin } from '@/pages/ModulesAdmin';
 import { Protocols } from '@/pages/Protocols';
+import { Patients } from '@/pages/Patients';
 import type { CensusRow } from '@/pages/types';
 import { MobileShell, PairScreen } from '@/pages/mobile/Mobile';
 
@@ -129,11 +130,13 @@ function Login({ unitName, idleMinutes, onDone }: { unitName: string; idleMinute
 
 // ── Shell ───────────────────────────────────────────────────
 
+// `bedside` pages make up the short sidebar clinicians see by default; the rest sit under "More pages".
 const NAV = [
-  { id: 'home', label: 'Command centre', icon: LayoutDashboard, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
-  { id: 'census', label: 'Census board', icon: BedDouble, roles: ['admin', 'clinician', 'viewer'], key: 'B' },
-  { id: 'reconcile', label: 'Daily reconcile', icon: ListChecks, roles: ['admin', 'clinician'], key: 'R' },
-  { id: 'micro', label: 'Microbiology', icon: FlaskConical, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
+  { id: 'home', label: 'Command centre', icon: LayoutDashboard, roles: ['admin', 'clinician', 'viewer', 'researcher'], bedside: true },
+  { id: 'census', label: 'Census board', icon: BedDouble, roles: ['admin', 'clinician', 'viewer'], key: 'B', bedside: true },
+  { id: 'patients', label: 'Patients', icon: Users, roles: ['admin', 'clinician', 'viewer'], bedside: true },
+  { id: 'reconcile', label: 'Daily reconcile', icon: ListChecks, roles: ['admin', 'clinician'], key: 'R', bedside: true },
+  { id: 'micro', label: 'Microbiology', icon: FlaskConical, roles: ['admin', 'clinician', 'viewer', 'researcher'], bedside: true },
   { id: 'stewardship', label: 'Stewardship', icon: Pill, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'report', label: 'Monthly report', icon: FileBarChart2, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'research', label: 'Research', icon: FlaskRound, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
@@ -148,6 +151,10 @@ function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: ()
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
+  // Bedside view: clinicians see the everyday pages; research and QI pages are one click away.
+  const [showAllNav, setShowAllNav] = useState(() => { try { return localStorage.getItem('antibiome-nav-all') === '1'; } catch { return false; } });
+  useEffect(() => { try { localStorage.setItem('antibiome-nav-all', showAllNav ? '1' : '0'); } catch { /* ignore */ } }, [showAllNav]);
+  const compactNav = user.role === 'clinician' && !showAllNav;
   const clinical = user.role === 'admin' || user.role === 'clinician';
   const canCensus = user.role !== 'researcher';
   const census = useApi<{ rows: CensusRow[]; beds: number }>(canCensus ? 'census.list' : null);
@@ -166,6 +173,7 @@ function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: ()
     if (clinical) {
       items.push({ id: 'admit', title: 'Admit a patient', section: 'Actions', icon: <Plus size={15} />, shortcut: 'A', keywords: 'new admission', action: () => setAdmitOpen(true) });
       items.push({ id: 'rec', title: 'Daily reconcile', section: 'Actions', icon: <ListChecks size={15} />, shortcut: 'R', keywords: 'ventilator oxygen antibiotics grid', action: () => go('reconcile') });
+      items.push({ id: 'find', title: 'Find a patient (current or past)', section: 'Actions', icon: <Users size={15} />, keywords: 'archive search previous discharged history mrn', action: () => go('patients') });
       items.push({ id: 'cult', title: 'Add culture result', section: 'Actions', icon: <FlaskConical size={15} />, keywords: 'microbiology organism susceptibility', action: () => go('micro/new') });
     }
     NAV.filter(n => (n.roles as readonly string[]).includes(user.role)).forEach(n => items.push({ id: `nav-${n.id}`, title: n.label, section: 'Go to', icon: <n.icon size={15} />, action: () => go(n.id) }));
@@ -183,6 +191,7 @@ function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: ()
 
   const page = (() => {
     switch (route) {
+      case 'patients': return <Patients />;
       case 'census': return <Census onAdmit={() => setAdmitOpen(true)} canEdit={clinical} />;
       case 'patient': return <PatientPage id={args[0]} canEdit={clinical} isAdmin={user.role === 'admin'} />;
       case 'reconcile': return <Reconcile canEdit={clinical} />;
@@ -220,11 +229,18 @@ function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: ()
         )}
         <div className="mb-4 border-t border-line" />
         <nav className="flex flex-col gap-1">
-          {NAV.filter(n => n.id !== 'reconcile' && (n.roles as readonly string[]).includes(user.role)).map(n => (
+          {NAV.filter(n => n.id !== 'reconcile' && (n.roles as readonly string[]).includes(user.role) && (!compactNav || ('bedside' in n && n.bedside) || n.id === route)).map(n => (
             <SideItem key={n.id} icon={n.icon} label={n.label} onClick={() => go(n.id)} collapsed={collapsed}
               active={route === n.id || (n.id === 'census' && route === 'patient') || (n.id === 'home' && !NAV.some(x => x.id === route) && !['patient', 'settings'].includes(route))}
               badge={n.id === 'quality' && dash.data?.quality.issues ? dash.data.quality.issues : undefined} />
           ))}
+          {user.role === 'clinician' && (
+            <button onClick={() => setShowAllNav(!showAllNav)} title={collapsed ? (showAllNav ? 'Fewer pages' : 'More pages') : undefined}
+              className={cx('flex items-center gap-3 rounded-xl text-[12.5px] text-ink-3 hover:bg-panel-2 hover:text-ink', collapsed ? 'h-9 justify-center' : 'h-8 px-2.5')}>
+              {showAllNav ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              {!collapsed && (showAllNav ? 'Fewer pages' : `More pages · ${NAV.filter(n => !('bedside' in n) && (n.roles as readonly string[]).includes(user.role)).length}`)}
+            </button>
+          )}
         </nav>
 
         {!collapsed && canCensus && (

@@ -1,0 +1,71 @@
+name: Release desktop app
+
+# Push a tag such as v0.1.0 to build the Windows installers and portable .exe files (the regular
+# edition and the Windows 7 edition, each 32- and 64-bit) and attach them to a GitHub release.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build Windows 10/11 edition
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Build Windows 7 edition
+        run: npm run dist:win7
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_type }}" = tag ]; then echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Antibiome PICU ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          # Installers and the per-architecture portables (not the combined portable).
+          files: |
+            desktop/release/*Setup*.exe
+            desktop/release/*Portable ia32*.exe
+            desktop/release/*Portable x64*.exe

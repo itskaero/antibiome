@@ -19,6 +19,7 @@ import { DAY_MS, ms, nowLocal, shiftMonth, toLocal } from '../shared/time';
 import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/pim3';
 import { VITALS, VITAL_CONTEXTS, VITAL_FEATURES, vitalFeatures, admissionSet, flags24, sfRatio, shockIndex, validateVitals, vitalFlags, worst24, type VitalCode, type VitalContext, type VitalSet, type VitalValues } from '../shared/vitals';
 import { buildExplorer } from './explorer';
+import { infectionSuspected, phoenix24, phoenixPerSet, phoenixSepsis, phoenixSepticShock } from '../shared/scores';
 import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
 import { describeCondition, describeSpec, narrate, runCohort, validateSpec } from '../shared/explorer';
@@ -42,7 +43,7 @@ const newSession = (channel: Channel = 'desktop', device?: { id: string; name: s
 
 /** Bedside work only. Research, exports, AI, settings, users and configuration stay on the PC. */
 export const MOBILE_METHODS = new Set([
-  'auth.status', 'auth.login', 'auth.logout', 'auth.unpairDevice', 'census.list', 'patient.lookup', 'recent.list',
+  'auth.status', 'auth.login', 'auth.logout', 'auth.unpairDevice', 'census.list', 'patient.lookup', 'patients.search', 'recent.list',
   'admission.create', 'admission.get', 'admission.update', 'admission.discharge',
   'resp.set', 'drug.toggle', 'episode.update', 'episode.delete', 'event.add', 'event.delete',
   'values.forAdmission', 'values.set', 'modules.list', 'pim3.save',
@@ -377,7 +378,10 @@ export const routes: Record<string, Route> = {
     const vitals = loadVitals(db, p.id);
     const admVitals = admissionSet(vitals, admission.admitAt)?.values ?? {};
     const ds = loadDataset(db);
-    const previous = (db.prepare('SELECT admit_at, discharge_at FROM admissions WHERE patient_id = ? AND id != ? AND deleted_at IS NULL ORDER BY admit_at DESC').all(r.patient_id, p.id) as any[]);
+    const previous = (db.prepare(`SELECT a.id, a.admit_at, a.discharge_at, a.disposition, d.code FROM admissions a
+      LEFT JOIN diagnoses d ON d.admission_id = a.id AND d.role = 'primary'
+      WHERE a.patient_id = ? AND a.id != ? AND a.deleted_at IS NULL ORDER BY a.admit_at DESC`).all(r.patient_id, p.id) as any[])
+      .map(x => ({ id: x.id, admit_at: x.admit_at, discharge_at: x.discharge_at, disposition: x.disposition, dx: dxLabel(x.code) }));
     return {
       admission, label: pseudo(r.patient_id), identifiers: ident ?? null, episodes, events, cultures,
       losDays: losDays(admission, now()), peakSupport: peakSupport(admission, episodes),
@@ -462,9 +466,16 @@ export const routes: Record<string, Route> = {
     const a = getAdmissionRow(db, p.admissionId);
     const sets = loadVitals(db, p.admissionId);
     const adm = admissionSet(sets, a.admit_at);
+    const admission = rowToAdmission(a, db.prepare('SELECT code, role FROM diagnoses WHERE admission_id = ?').all(p.admissionId) as any[]);
+    const eps = (db.prepare('SELECT * FROM episodes WHERE admission_id = ? AND deleted_at IS NULL').all(p.admissionId) as any[]).map(rowToEpisode);
+    const evs = (db.prepare('SELECT * FROM clinical_events WHERE admission_id = ? AND deleted_at IS NULL').all(p.admissionId) as any[]).map(rowToEvent);
+    const infection = infectionSuspected(admission, eps, evs, loadCultures(db, 'admission_id = ?', [p.admissionId]));
+    const perSet = new Map(phoenixPerSet(sets, eps, a.age_months).map(x => [x.set.id, x.score]));
+    const p24 = phoenix24(sets, eps, a.admit_at, a.age_months);
     return {
-      sets: [...sets].reverse().map(s => ({ ...s, flags: vitalFlags(s.values, a.age_months), sf: sfRatio(s.values), shockIndex: shockIndex(s.values) })),
+      sets: [...sets].reverse().map(s => ({ ...s, flags: vitalFlags(s.values, a.age_months), sf: sfRatio(s.values), shockIndex: shockIndex(s.values), phoenix: perSet.get(s.id) ?? null })),
       admissionSetId: adm?.id ?? null, worst24: worst24(sets, a.admit_at), flags24: flags24(sets, a.admit_at, a.age_months), ageMonths: a.age_months,
+      phoenix24: p24 ? { ...p24, sepsis: phoenixSepsis(p24, infection), septicShock: phoenixSepticShock(p24, infection), infectionSuspected: infection } : null,
     };
   } },
   'resp.set': { roles: CLINICAL, fn: (p, { db, session }) => tx(db, () => setResp(db, session, p.admissionId, p.level, reqDT(p.at ?? nowLocal(), 'Time'))) },
@@ -609,7 +620,7 @@ export const routes: Record<string, Route> = {
     const ds = loadDataset(db);
     const months = Array.from({ length: 12 }, (_, i) => shiftMonth(end, i - 11)).map(m => {
       const s = monthSummary(ds, m, t);
-      return { month: m, patientDays: s.patientDays, per1000: s.dot.per1000, byDrug: s.dot.byDrug, byAware: s.dot.byAware,
+      return { month: m, patientDays: s.patientDays, daysPresent: s.daysPresent, per1000: s.dot.per1000, byDrug: s.dot.byDrug, byAware: s.dot.byAware,
         exposedPct: s.patientsManaged ? (s.dot.exposedPatients / s.patientsManaged) * 100 : null, patients: s.patientsManaged };
     });
     // Culture-directed therapy: antimicrobials started as 'targeted' (after a result) vs empiric, last 3 months.
@@ -635,6 +646,36 @@ export const routes: Record<string, Route> = {
       ? db.prepare('SELECT * FROM audit_log WHERE id < ? ORDER BY id DESC LIMIT ?').all(p.before, limit)
       : db.prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?').all(limit);
     return rows;
+  } },
+  /** Every admission, newest first: the patients archive. Name/MRN search only for roles that may see them. */
+  'patients.search': { roles: NON_RESEARCH, fn: (p, { db, session, now }) => {
+    const named = canSeeIdentifiers(session, db);
+    const q = String(p?.q ?? '').trim().toLowerCase().slice(0, 60);
+    const status = ['all', 'in', 'discharged', 'died'].includes(p?.status) ? p.status : 'all';
+    const limit = Math.min(200, Math.max(1, Number(p?.limit) || 50));
+    const where: string[] = ['a.deleted_at IS NULL'], args: any[] = [];
+    if (status === 'in') where.push('a.discharge_at IS NULL');
+    if (status === 'discharged') where.push('a.discharge_at IS NOT NULL');
+    if (status === 'died') where.push("a.disposition = 'Died'");
+    if (p?.from) { where.push('a.admit_at >= ?'); args.push(String(p.from)); }
+    if (p?.to) { where.push('a.admit_at < ?'); args.push(`${String(p.to)}T99`); }
+    const rows = db.prepare(`SELECT a.*, pt.sex, i.mrn, i.name FROM admissions a JOIN patients pt ON pt.id = a.patient_id
+      LEFT JOIN patient_identifiers i ON i.patient_id = a.patient_id WHERE ${where.join(' AND ')} ORDER BY a.admit_at DESC`).all(...args) as any[];
+    const dxRows = db.prepare('SELECT admission_id, code, role FROM diagnoses').all() as any[];
+    const dxBy: Record<string, { code: string; role: string }[]> = {};
+    dxRows.forEach(d => (dxBy[d.admission_id] ??= []).push(d));
+    const t = now();
+    const matched = rows.filter(r => {
+      if (!q) return true;
+      const dx = (dxBy[r.id] ?? []).map(d => `${dxLabel(d.code)} ${DX_BY_CODE[d.code]?.icd10 ?? ''}`).join(' ');
+      const hay = [pseudo(r.patient_id), dx, r.bed ? `bed ${r.bed}` : '', ...(named ? [r.mrn ?? '', r.name ?? ''] : [])].join(' ').toLowerCase();
+      return q.split(/\s+/).every(w => hay.includes(w));
+    });
+    const page = matched.slice(0, limit).map(r => {
+      const a = rowToAdmission(r, dxBy[r.id] ?? []);
+      return { admission: a, label: pseudo(r.patient_id), name: named ? r.name : null, mrn: named ? r.mrn : null, losDays: losDays(a, t) };
+    });
+    return { rows: page, total: matched.length, showIdentifiers: named };
   } },
   'recent.list': { roles: NON_RESEARCH, fn: (_p, { db }) => {
     // Recently discharged admissions for the sidebar.
@@ -663,7 +704,10 @@ export const routes: Record<string, Route> = {
     const vitalCols = p?.includeVitals === false ? [] : VITAL_FEATURES;
     header.push(...vitalCols.map(f => f.id));
     const vitalCells = (a: Admission) => {
-      const f = vitalFeatures(vitalsBy.get(a.id) ?? [], a.admitAt, a.ageMonths);
+      const eps = ds.episodes.filter(e => e.admissionId === a.id);
+      const f = vitalFeatures(vitalsBy.get(a.id) ?? [], a.admitAt, a.ageMonths, {
+        episodes: eps, infectionSuspected: infectionSuspected(a, eps, ds.events.filter(e => e.admissionId === a.id), ds.cultures.filter(c => c.admissionId === a.id)),
+      });
       return vitalCols.map(c => { const v = f[c.id]; return v === undefined ? '' : Array.isArray(v) ? v.join(';') : typeof v === 'boolean' ? +v : v; });
     };
     const seq: Record<string, number> = {};

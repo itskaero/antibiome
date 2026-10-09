@@ -36,6 +36,8 @@ export interface MonthSummary {
   mortalityPct: number | null;
   los: ReturnType<typeof medianIqr>;
   patientDays: number;
+  /** Calendar days each patient spent any time in the unit (NHSN "days present") — the denominator for DOT. */
+  daysPresent: number;
   occupancyPct: number | null;
   /** Admissions present at any point in the month (denominator for support rates). */
   patientsManaged: number;
@@ -60,6 +62,9 @@ export function monthSummary(ds: Dataset, month: string, now: number): MonthSumm
   const present = adm.filter(a => ms(a.admitAt) < q && endMs(a, now) > p);
   const deaths = discharged.filter(a => a.disposition === 'Died').length;
   const patientDays = present.reduce((s, a) => s + overlapDays(ms(a.admitAt), endMs(a, now), p, q), 0);
+  // DOT counts whole calendar days, so its denominator must too; mixing it with exact hours lets one
+  // drug exceed 1,000 per 1,000 for short stays.
+  const daysPresent = present.reduce((s, a) => s + calendarDaysTouched(ms(a.admitAt), endMs(a, now), p, q), 0);
 
   const presentIds = new Set(present.map(a => a.id));
   const eps = ds.episodes.filter(e => presentIds.has(e.admissionId) && ms(e.startAt) < q && episodeEnd(e, ds, now) > p);
@@ -129,12 +134,12 @@ export function monthSummary(ds: Dataset, month: string, now: number): MonthSumm
     deaths,
     mortalityPct: discharged.length ? (deaths / discharged.length) * 100 : null,
     los: medianIqr(losAll),
-    patientDays,
+    patientDays, daysPresent,
     occupancyPct: ds.beds && elapsedDays ? (patientDays / (ds.beds * elapsedDays)) * 100 : null,
     patientsManaged: present.length,
     support, vaso, topDx,
     dot: {
-      total: dotTotal, per1000: patientDays ? (dotTotal / patientDays) * 1000 : null, byDrug, byAware,
+      total: dotTotal, per1000: daysPresent ? (dotTotal / daysPresent) * 1000 : null, byDrug, byAware,
       exposedPatients: new Set(eps.filter(e => e.kind === 'abx').map(e => e.admissionId)).size,
     },
     micro: { cultures: cultures.length, positives: positives.length, mdr: positives.filter(isMDR).length, organisms, mdrByOrganism },
@@ -268,9 +273,9 @@ export function detectChanges(ds: Dataset, month: string, now: number): { notice
     const direction = rel > 0 ? 'up' : 'down';
     out.push({
       id, domain, direction, tone: direction === 'up' ? upTone : upTone === 'watch' ? 'good' : 'info', relChange: rel, p,
-      test: 'Exact Poisson rate test (per patient-day)', significant: p < ALPHA,
+      test: 'Exact Poisson rate test (per day present)', significant: p < ALPHA,
       title: `${what} ${direction} ${fmtPct(rel)}`,
-      detail: `${Math.round(r1)} vs ${Math.round(r2)} days of therapy per 1,000 patient-days`,
+      detail: `${Math.round(r1)} vs ${Math.round(r2)} days of therapy per 1,000 days present`,
     });
   };
 
@@ -283,8 +288,8 @@ export function detectChanges(ds: Dataset, month: string, now: number): { notice
   propRule('mv', 'respiratory', 'Ventilated patients', cur.support.MV.patients, cur.patientsManaged, prev.support.MV.patients, prev.patientsManaged, 'watch');
   propRule('mortality', 'outcome', 'Mortality', cur.deaths, cur.discharges, prev.deaths, prev.discharges, 'watch');
   const drugs = new Set([...Object.keys(cur.dot.byDrug), ...Object.keys(prev.dot.byDrug)]);
-  drugs.forEach(d => rateRule(`dot:${d}`, 'stewardship', `${d} use`, cur.dot.byDrug[d] ?? 0, cur.patientDays, prev.dot.byDrug[d] ?? 0, prev.patientDays, 'watch'));
-  rateRule('dot:reserve', 'stewardship', 'Reserve-group antibiotic use', cur.dot.byAware.Reserve, cur.patientDays, prev.dot.byAware.Reserve, prev.patientDays, 'watch');
+  drugs.forEach(d => rateRule(`dot:${d}`, 'stewardship', `${d} use`, cur.dot.byDrug[d] ?? 0, cur.daysPresent, prev.dot.byDrug[d] ?? 0, prev.daysPresent, 'watch'));
+  rateRule('dot:reserve', 'stewardship', 'Reserve-group antibiotic use', cur.dot.byAware.Reserve, cur.daysPresent, prev.dot.byAware.Reserve, prev.daysPresent, 'watch');
   propRule('mdr', 'microbiology', 'MDR share of positive isolates', cur.micro.mdr, cur.micro.positives, prev.micro.mdr, prev.micro.positives, 'watch');
   const orgs = new Set([...Object.keys(cur.micro.organisms), ...Object.keys(prev.micro.organisms)]);
   orgs.forEach(o => countRule(`org:${o}`, 'microbiology', `${o} isolates`, cur.micro.organisms[o] ?? 0, prev.micro.organisms[o] ?? 0, 'watch', 8));

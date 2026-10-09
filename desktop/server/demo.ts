@@ -122,6 +122,16 @@ export function seedDemo(db: DB, opts: { months?: number; now?: number } = {}) {
       if (dx === 'DKA' || rv() < 0.35) v.glucose = Math.round((dx === 'DKA' ? vb(14, 32) * (0.4 + 0.6 * k) : vb(3.4, 9)) * 10) / 10;
       if (idx > 0 && rv() < 0.5) v.urine = Math.round((shock || dx === 'AKI' ? vb(0.1, 1) : vb(0.6, 3)) * 10) / 10;
       if (context !== 'admission' && rv() < 0.3) delete v.crt;
+      // Point-of-care labs and PEWS on the admission set (and some deterioration reviews).
+      if ((idx === 0 && context === 'admission') || (context === 'event' && rv() < 0.5)) {
+        if (FEBRILE.has(dx) || c.shock || rv() < 0.3) v.lactate = Math.round((c.shock ? vb(2.5, 9 + 4 * (c.died ? 1 : 0)) : vb(0.7, 3.2)) * 10) / 10;
+        if (rv() < 0.55) {
+          v.platelets = Math.round(c.sick >= 2 ? vb(35, 190) : vb(140, 420));
+          v.inr = Math.round((c.sick >= 2 ? vb(1.1, 2.3) : vb(0.9, 1.25)) * 10) / 10;
+        }
+        if (idx === 0 && rv() < 0.6) v.pews = Math.min(13, Math.round(vb(1, 4) + 2 * c.sick * rv()));
+        if (c.died && NEURO.has(dx) && rv() < 0.3) v.pupils_fixed = 1;
+      }
       const id = randomUUID();
       insVs.run(id, aid, L(t), context, L(t));
       Object.entries(v).forEach(([code, val]) => { if (val != null) insVv.run(id, code, val); });

@@ -7,14 +7,17 @@ import { useApi } from '@/lib/hooks';
 import { cx } from '@/lib/format';
 import { Button, CardHeader, ChoiceChips, Chip, ErrorNote, Field, Modal, useToast } from '@/components/ui';
 import { TrendLine } from '@/components/charts';
+import { PEWS_EXTRAS, PEWS_ITEMS, emptyPews, pewsTotal, type Phoenix, type PewsDraft } from '@shared/scores';
 import {
-  VITALS, VITAL_CONTEXTS, VITAL_CONTEXT_LABEL, VITAL_FLAGS, ageBand, shockIndex, sfRatio, validateVitals, vitalFlags,
+  LAB_CODES, VITALS, VITAL_CONTEXTS, VITAL_CONTEXT_LABEL, VITAL_FLAGS, ageBand, shockIndex, sfRatio, validateVitals, vitalFlags,
   type VitalCode, type VitalContext, type VitalFlag, type VitalValues, type Worst24,
 } from '@shared/vitals';
 import { nowLocal } from '@shared/time';
 
 /** Entry order: the sequence nurses read them off the monitor. */
 const ENTRY: VitalCode[] = ['hr', 'rr', 'spo2', 'fio2', 'sbp', 'dbp', 'map', 'temp', 'crt', 'gcs', 'glucose', 'urine'];
+/** Everything shown back on the card: vitals, then labs and PEWS. */
+const DISPLAY: VitalCode[] = [...ENTRY, ...LAB_CODES, 'pews'];
 export type VitalsDraft = Partial<Record<VitalCode, string>>;
 
 /** Draft → validated values, or null when nothing (valid) has been entered yet. */
@@ -29,6 +32,10 @@ export function VitalsGrid({ d, onChange, ageMonths, dense }: { d: VitalsDraft; 
   const flags = ageMonths != null && parsed && 'values' in parsed ? vitalFlags(v, ageMonths) : [];
   const sf = sfRatio(v), si = shockIndex(v);
   const derivedMap = d.map ? null : v.map;
+  const [labsOpen, setLabsOpen] = useState(() => LAB_CODES.some(c => d[c]) || !!d.pupils_fixed);
+  const [pewsOpen, setPewsOpen] = useState(() => !!d.pews);
+  const [pews, setPews] = useState<PewsDraft>(emptyPews);
+  const setPewsDraft = (next: PewsDraft) => { setPews(next); const t = pewsTotal(next); onChange({ ...d, pews: t == null ? '' : String(t) }); };
   return (
     <div className="flex flex-col gap-3">
       <div className={cx('grid gap-2.5', dense ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-3 md:grid-cols-6')}>
@@ -52,7 +59,70 @@ export function VitalsGrid({ d, onChange, ageMonths, dense }: { d: VitalsDraft; 
         {si != null && <span className="text-ink-3">· shock index {si.toFixed(2)}</span>}
         {ageMonths != null && <span className="ml-auto text-[11.5px] text-ink-3">Age band {ageBand(ageMonths).label} (IPSCC)</span>}
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant={labsOpen ? 'subtle' : 'ghost'} type="button" onClick={() => setLabsOpen(!labsOpen)}>{labsOpen ? '− Labs' : '+ Labs'} <span className="text-ink-3">lactate, platelets, INR…</span></Button>
+        <Button size="sm" variant={pewsOpen ? 'subtle' : 'ghost'} type="button" onClick={() => setPewsOpen(!pewsOpen)}>{pewsOpen ? '− PEWS' : '+ PEWS'} {d.pews ? <b className="tnum">{d.pews}</b> : null}</Button>
+      </div>
+
+      {labsOpen && (
+        <div className="inset flex flex-col gap-2.5 p-3">
+          <div className={cx('grid gap-2.5', dense ? 'grid-cols-3' : 'grid-cols-3 md:grid-cols-6')}>
+            {LAB_CODES.map(code => {
+              const def = VITALS[code];
+              return (
+                <label key={code} className="flex min-w-0 flex-col gap-1">
+                  <span className="truncate text-[11.5px] font-medium text-ink-3">{def.short}{def.unit ? <span className="font-normal"> · {def.unit}</span> : null}</span>
+                  <input className="field tnum h-10 text-[15px]" inputMode="decimal" aria-label={def.label} placeholder="—"
+                    value={d[code] ?? ''} onChange={e => onChange({ ...d, [code]: e.target.value.replace(',', '.') })} />
+                </label>
+              );
+            })}
+          </div>
+          <label className="flex items-center gap-2 text-[12.5px] text-ink-2">
+            <input type="checkbox" checked={d.pupils_fixed === '1'} onChange={e => onChange({ ...d, pupils_fixed: e.target.checked ? '1' : '' })} />
+            Both pupils fixed to light
+          </label>
+          <p className="text-[11.5px] text-ink-3">Used for the Phoenix Sepsis Score with the vitals above. PaO₂ pairs with the FiO₂ entered in this set.</p>
+        </div>
+      )}
+
+      {pewsOpen && (
+        <div className="inset flex flex-col gap-3 p-3">
+          {PEWS_ITEMS.map(item => (
+            <div key={item.key} className="flex flex-col gap-1.5">
+              <span className="text-[11.5px] font-medium text-ink-3">{item.label}</span>
+              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {item.options.map((o, i) => (
+                  <button key={i} type="button" onClick={() => setPewsDraft({ ...pews, [item.key]: i })}
+                    className={cx('flex items-start gap-2 rounded-xl border px-2.5 py-1.5 text-left text-[12px]', pews[item.key] === i ? 'border-accent bg-accent-soft text-ink' : 'border-line text-ink-2 hover:border-line-2')}>
+                    <b className="tnum shrink-0">{i}</b>{o}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-3">
+            {PEWS_EXTRAS.map(x => (
+              <label key={x.key} className="flex items-center gap-2 text-[12.5px] text-ink-2">
+                <input type="checkbox" checked={pews[x.key]} onChange={e => setPewsDraft({ ...pews, [x.key]: e.target.checked })} />{x.label} (+2)
+              </label>
+            ))}
+          </div>
+          <p className="text-[12px] text-ink-3">{d.pews ? <>PEWS <b className="tnum text-ink">{d.pews}</b> / 13 (Brighton)</> : 'Score all three items to record PEWS.'}</p>
+        </div>
+      )}
     </div>
+  );
+}
+
+const PHOENIX_PARTS: [keyof Pick<Phoenix, 'resp' | 'cardio' | 'coag' | 'neuro'>, string, number][] = [['resp', 'Resp', 3], ['cardio', 'Cardio', 6], ['coag', 'Coag', 2], ['neuro', 'Neuro', 2]];
+export function PhoenixLine({ p }: { p: Phoenix }) {
+  return (
+    <span className="tnum inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      <b className="text-ink">Phoenix {p.total}</b>
+      <span className="text-ink-3">{PHOENIX_PARTS.map(([k, l, max]) => `${l} ${p[k]}/${max}`).join(' · ')}</span>
+    </span>
   );
 }
 
@@ -91,8 +161,9 @@ export function RecordVitalsModal({ open, onClose, admissionId, ageMonths, defau
 }
 
 interface VitalsData {
-  sets: { id: string; at: string; context: VitalContext; values: VitalValues; flags: VitalFlag[]; sf: number | null; shockIndex: number | null }[];
+  sets: { id: string; at: string; context: VitalContext; values: VitalValues; flags: VitalFlag[]; sf: number | null; shockIndex: number | null; phoenix: Phoenix | null }[];
   admissionSetId: string | null; worst24: Worst24 | null; flags24: VitalFlag[]; ageMonths: number;
+  phoenix24: (Phoenix & { sepsis: boolean; septicShock: boolean; infectionSuspected: boolean }) | null;
 }
 
 const fmtV = (code: VitalCode, v: number | undefined) => (v == null ? '—' : v.toFixed(VITALS[code].decimals));
@@ -128,7 +199,7 @@ export function VitalsCard({ admissionId, canEdit, editable }: { admissionId: st
               Latest · {latest.at.replace('T', ' ')} · {VITAL_CONTEXT_LABEL[latest.context]}{latest.id === data.admissionSetId ? ' (admission set)' : ''}
             </p>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(78px,1fr))] gap-2">
-              {ENTRY.filter(c => latest.values[c] != null).map(c => (
+              {DISPLAY.filter(c => latest.values[c] != null).map(c => (
                 <div key={c} className="min-w-0 rounded-xl bg-panel-2 px-2.5 py-2">
                   <p className="truncate text-[11px] text-ink-3">{VITALS[c].short}{VITALS[c].unit && <span className="opacity-70"> {VITALS[c].unit}</span>}</p>
                   <p className="tnum text-[17px] font-semibold leading-tight">{fmtV(c, latest.values[c])}</p>
@@ -162,6 +233,18 @@ export function VitalsCard({ admissionId, canEdit, editable }: { admissionId: st
             </div>
           )}
 
+          {data.phoenix24 && (
+            <div className="inset flex flex-col gap-1.5 p-3 text-[12.5px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <PhoenixLine p={data.phoenix24} />
+                <span className="text-[11.5px] text-ink-3">worst in first 24 h</span>
+                {data.phoenix24.septicShock ? <Chip tone="crit">Septic shock (Phoenix)</Chip> : data.phoenix24.sepsis ? <Chip tone="warn">Sepsis (Phoenix)</Chip> : null}
+              </div>
+              {!!data.phoenix24.missing.length && <p className="text-[11.5px] text-ink-3">Not recorded: {data.phoenix24.missing.join(', ')} — counted as 0, so the score may be an underestimate.</p>}
+              {!data.phoenix24.infectionSuspected && data.phoenix24.total >= 2 && <p className="text-[11.5px] text-ink-3">No suspected infection recorded (antimicrobial, culture or infection diagnosis), so this is organ dysfunction without Phoenix sepsis.</p>}
+            </div>
+          )}
+
           {!!trends.length && (
             <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3">
               {trends.map(c => {
@@ -185,7 +268,7 @@ export function VitalsCard({ admissionId, canEdit, editable }: { admissionId: st
                 {data.sets.map(s => (
                   <div key={s.id} className="group flex items-center gap-3 py-1.5">
                     <span className="tnum w-28 shrink-0 text-ink-3">{s.at.slice(5, 16).replace('T', ' ')}</span>
-                    <span className="tnum min-w-0 flex-1 truncate">{ENTRY.filter(c => s.values[c] != null).map(c => `${VITALS[c].short} ${fmtV(c, s.values[c])}`).join(' · ')}</span>
+                    <span className="tnum min-w-0 flex-1 truncate">{DISPLAY.filter(c => s.values[c] != null).map(c => `${VITALS[c].short} ${fmtV(c, s.values[c])}`).join(' · ')}{s.values.pupils_fixed ? ' · pupils fixed' : ''}{s.phoenix ? ` · Phoenix ${s.phoenix.total}` : ''}</span>
                     {s.flags.length > 0 && <span className="shrink-0 text-[11.5px] text-warn-ink">{s.flags.length} flag{s.flags.length > 1 ? 's' : ''}</span>}
                     {canEdit && <button onClick={() => del(s.id)} className="shrink-0 text-ink-3 opacity-0 transition group-hover:opacity-100 hover:text-crit-ink" aria-label="Remove"><Trash2 size={13} /></button>}
                   </div>

@@ -165,8 +165,8 @@ export function Dashboard({ user, onAdmit }: { user: User; onAdmit: () => void }
         </div>
         <div className="card p-5">
           <CardHeader title="Antimicrobial use" info="Days of therapy (DOT) per 1,000 patient-days, this month. WHO AWaRe groups simplified." right={<button onClick={() => go('stewardship')} className="text-[12px] text-ink-3 hover:text-ink">Stewardship →</button>} />
-          <div className="mb-4 flex items-baseline gap-2"><span className="tnum text-[26px] font-semibold">{fmtInt(c.dot.per1000)}</span><span className="text-[12px] text-ink-3">DOT / 1,000 patient-days</span></div>
-          <HBars rows={topDrugs.map(([drug, dot]) => ({ key: drug, label: drug, value: c.patientDays ? (dot / c.patientDays) * 1000 : 0 }))} fmt={v => fmtInt(v)} />
+          <div className="mb-4 flex items-baseline gap-2"><span className="tnum text-[26px] font-semibold">{fmtInt(c.dot.per1000)}</span><span className="text-[12px] text-ink-3">DOT / 1,000 days present</span></div>
+          <HBars rows={topDrugs.map(([drug, dot]) => ({ key: drug, label: drug, value: c.daysPresent ? (dot / c.daysPresent) * 1000 : 0 }))} fmt={v => fmtInt(v)} />
           <div className="mt-4"><StackBar parts={[
             { label: 'Access', value: c.dot.byAware.Access, color: 'var(--series-3)' },
             { label: 'Watch', value: c.dot.byAware.Watch, color: 'var(--series-1)' },

@@ -10,13 +10,17 @@
 Sound design (clicks, whooshes, low impacts) is placed on the same frames as the visuals.
 
 Usage: python film/score.py   → film/score.wav (48 kHz, 16-bit stereo)
+       python film/score.py --vertical   → film/score-vertical.wav: the 50 s portrait cut
+       (film/vertical.html), whose resolution holds 5 s longer under the download card.
 """
 import numpy as np
 from scipy.signal import fftconvolve, butter, sosfilt
 from pathlib import Path
+import sys
 
+VERTICAL = '--vertical' in sys.argv
 SR = 48000
-DUR = 45.0
+DUR = 50.0 if VERTICAL else 45.0
 N = int(SR * DUR)
 BEAT = 0.5
 rng = np.random.default_rng(20261009)
@@ -110,7 +114,7 @@ def pad_layer():
 
 
 pl, pr = pad_layer()
-pad_gain = np.interp(t_axis(N), [0, 2, 5, 5.2, 12, 25, 29, 33, 38, 40, 44, 45], [0, .05, .08, .05, .06, .055, .07, .06, .07, .09, .07, 0])
+pad_gain = np.interp(t_axis(N), [0, 2, 5, 5.2, 12, 25, 29, 33, 38, 40, DUR - 1, DUR], [0, .05, .08, .05, .06, .055, .07, .06, .07, .09, .07, 0])
 L += pl * pad_gain; R += pr * pad_gain
 send += (pl + pr) * pad_gain * 0.35
 
@@ -289,6 +293,9 @@ for k in range(9):
     add(click(3200, 0.6), 38.6 + 0.045 * k, pan=-0.4 + 0.1 * k, gain=0.3, rev=0.3)
 add(click(1500, 1.4), 28.45, gain=0.5, rev=0.3)   # Phoenix: septic shock chip
 add(click(1300, 1.4), 40.4, gain=0.35, rev=0.6)   # tagline
+if VERTICAL:  # download card: link, then QR code
+    add(click(1600, 1.2), 42.2, gain=0.4, rev=0.5)
+    add(click(2400, 1.0), 42.9, gain=0.35, rev=0.5)
 
 # ── reverb (synthetic hall) ──
 irn = int(2.6 * SR)
@@ -301,14 +308,14 @@ L += wet; R += np.roll(wet, int(0.013 * SR))
 # ── master: gentle glue, fades, limiter ──
 master = np.stack([L, R])
 master = hp(master, 25)
-fade = np.interp(t_axis(N), [0, 0.15, 44.2, 45], [0, 1, 1, 0])
+fade = np.interp(t_axis(N), [0, 0.15, DUR - 0.8, DUR], [0, 1, 1, 0])
 master *= fade
 master = np.tanh(master * 1.4) / np.tanh(1.4)
 master /= np.max(np.abs(master)) / 0.89
 out = (master.T * 32767).astype(np.int16)
 
 import wave
-path = Path(__file__).with_name('score.wav')
+path = Path(__file__).with_name('score-vertical.wav' if VERTICAL else 'score.wav')
 with wave.open(str(path), 'wb') as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
     w.writeframes(out.tobytes())

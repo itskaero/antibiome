@@ -33,6 +33,8 @@ outcomes, stewardship and research answers from your own unit's data — on your
 |---|---|
 | **Product page and setup guide** | [`site/index.html`](site/index.html) — published at the root of this repository's GitHub Pages site |
 | **Desktop app (source, build, full documentation)** | [`desktop/`](desktop/README.md) |
+| **Download (Windows 10/11 and Windows 7/8/8.1, 32- and 64-bit)** | [GitHub releases](https://github.com/itskaero/antibiome/releases/latest), or the Download tab on the product page |
+| **Launch film (45 s)** | [`site/assets/film.mp4`](site/assets/film.mp4) — made from the app's own data; source in [`desktop/film/`](desktop/film/README.md) |
 | **Design and roadmap** | [`docs/PICU_INTELLIGENCE_PLAN.md`](docs/PICU_INTELLIGENCE_PLAN.md) |
 
 Quick start for developers:

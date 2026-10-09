@@ -1,0 +1,3305 @@
+{
+ "chain": {
+  "patient": {
+   "id": "P-59952",
+   "dx": "Encephalitis",
+   "age": 109
+  },
+  "culture": {
+   "date": "2026-09-15",
+   "specimen": "Blood"
+  },
+  "organism": "Acinetobacter baumannii",
+  "mdr": true,
+  "ast": [
+   [
+    "Ceftriaxone",
+    "R"
+   ],
+   [
+    "Cefepime",
+    "R"
+   ],
+   [
+    "Piperacillin-Tazobactam",
+    "R"
+   ],
+   [
+    "Colistin",
+    "S"
+   ]
+  ],
+  "antibiotic": {
+   "drug": "Colistin",
+   "group": "Reserve",
+   "intent": "targeted"
+  }
+ },
+ "unit": {
+  "beds": 14,
+  "inUnit": 13
+ },
+ "census": [
+  {
+   "bed": "1",
+   "id": "P-D351C",
+   "dx": "Severe pneumonia",
+   "age": 29,
+   "sex": "M",
+   "resp": "O2",
+   "vaso": [],
+   "abx": [
+    "Meropenem",
+    "Vancomycin"
+   ],
+   "los": 0
+  },
+  {
+   "bed": "2",
+   "id": "P-7B5A8",
+   "dx": "Acute liver failure",
+   "age": 59,
+   "sex": "M",
+   "resp": "NIV",
+   "vaso": [
+    "Noradrenaline"
+   ],
+   "abx": [
+    "Ceftriaxone"
+   ],
+   "los": 0.1
+  },
+  {
+   "bed": "3",
+   "id": "P-F9380",
+   "dx": "Acute severe asthma",
+   "age": 32,
+   "sex": "M",
+   "resp": "NIV",
+   "vaso": [],
+   "abx": [
+    "Azithromycin"
+   ],
+   "los": 2.1
+  },
+  {
+   "bed": "4",
+   "id": "P-BFA94",
+   "dx": "Bronchiolitis",
+   "age": 4,
+   "sex": "F",
+   "resp": "O2",
+   "vaso": [],
+   "abx": [],
+   "los": 2.4
+  },
+  {
+   "bed": "5",
+   "id": "P-B8053",
+   "dx": "Encephalitis",
+   "age": 60,
+   "sex": "F",
+   "resp": "RA",
+   "vaso": [],
+   "abx": [
+    "Ceftriaxone"
+   ],
+   "los": 3.1
+  },
+  {
+   "bed": "6",
+   "id": "P-17B6F",
+   "dx": "Sepsis",
+   "age": 46,
+   "sex": "M",
+   "resp": "O2",
+   "vaso": [],
+   "abx": [
+    "Meropenem",
+    "Amikacin"
+   ],
+   "los": 4.3
+  },
+  {
+   "bed": "7",
+   "id": "P-CC063",
+   "dx": "Septic shock",
+   "age": 28,
+   "sex": "F",
+   "resp": "MV",
+   "vaso": [],
+   "abx": [
+    "Meropenem",
+    "Vancomycin",
+    "Amikacin"
+   ],
+   "los": 5.6
+  },
+  {
+   "bed": "8",
+   "id": "P-00B11",
+   "dx": "Bronchiolitis",
+   "age": 4,
+   "sex": "M",
+   "resp": "O2",
+   "vaso": [],
+   "abx": [
+    "Ceftriaxone"
+   ],
+   "los": 2.1
+  },
+  {
+   "bed": "9",
+   "id": "P-56A03",
+   "dx": "Sepsis",
+   "age": 33,
+   "sex": "F",
+   "resp": "RA",
+   "vaso": [],
+   "abx": [],
+   "los": 12.1
+  },
+  {
+   "bed": "10",
+   "id": "P-645A0",
+   "dx": "Status epilepticus",
+   "age": 42,
+   "sex": "F",
+   "resp": "RA",
+   "vaso": [],
+   "abx": [],
+   "los": 1.3
+  },
+  {
+   "bed": "11",
+   "id": "P-5E4DE",
+   "dx": "Post-operative care",
+   "age": 94,
+   "sex": "M",
+   "resp": "RA",
+   "vaso": [],
+   "abx": [
+    "Cefazolin"
+   ],
+   "los": 1
+  },
+  {
+   "bed": "12",
+   "id": "P-1A9CF",
+   "dx": "Pneumonia",
+   "age": 56,
+   "sex": "M",
+   "resp": "RA",
+   "vaso": [],
+   "abx": [],
+   "los": 8.6
+  },
+  {
+   "bed": "13",
+   "id": "P-F59D1",
+   "dx": "Bronchiolitis",
+   "age": 4,
+   "sex": "F",
+   "resp": "O2",
+   "vaso": [],
+   "abx": [],
+   "los": 3.9
+  }
+ ],
+ "cultures": [
+  {
+   "date": "2026-10-08",
+   "specimen": "Urine",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-09-23",
+   "specimen": "Blood",
+   "organism": "Pseudomonas aeruginosa",
+   "mdr": true,
+   "ast": [
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "I"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ],
+    [
+     "Ciprofloxacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-09-20",
+   "specimen": "Blood",
+   "organism": "Salmonella spp.",
+   "mdr": false,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Ciprofloxacin",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-09-15",
+   "specimen": "Blood",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-09-15",
+   "specimen": "ETT",
+   "organism": "Candida albicans",
+   "mdr": false,
+   "ast": []
+  },
+  {
+   "date": "2026-09-07",
+   "specimen": "Blood",
+   "organism": "Pseudomonas aeruginosa",
+   "mdr": false,
+   "ast": [
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ],
+    [
+     "Ciprofloxacin",
+     "I"
+    ]
+   ]
+  },
+  {
+   "date": "2026-08-27",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-08-20",
+   "specimen": "Blood",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-08-20",
+   "specimen": "Blood",
+   "organism": "Enterobacter cloacae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-08-14",
+   "specimen": "Blood",
+   "organism": "Salmonella spp.",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "I"
+    ],
+    [
+     "Ciprofloxacin",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-08-11",
+   "specimen": "ETT",
+   "organism": "Coagulase-negative Staphylococci (CoNS)",
+   "mdr": false,
+   "ast": [
+    [
+     "Oxacillin",
+     "S"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-08-03",
+   "specimen": "Urine",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "I"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "I"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-08-02",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "S"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-08-02",
+   "specimen": "Urine",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-30",
+   "specimen": "ETT",
+   "organism": "Salmonella spp.",
+   "mdr": false,
+   "ast": [
+    [
+     "Ampicillin",
+     "S"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Ciprofloxacin",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-29",
+   "specimen": "Blood",
+   "organism": "Staphylococcus aureus",
+   "mdr": false,
+   "ast": [
+    [
+     "Oxacillin",
+     "S"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "I"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-24",
+   "specimen": "Blood",
+   "organism": "Staphylococcus aureus",
+   "mdr": false,
+   "ast": [
+    [
+     "Oxacillin",
+     "S"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-13",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-12",
+   "specimen": "ETT",
+   "organism": "Enterobacter cloacae",
+   "mdr": false,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-09",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-06",
+   "specimen": "Blood",
+   "organism": "Coagulase-negative Staphylococci (CoNS)",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "S"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "R"
+    ],
+    [
+     "Erythromycin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-05",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "I"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-04",
+   "specimen": "ETT",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-07-01",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-29",
+   "specimen": "Urine",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "I"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-27",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": false,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-26",
+   "specimen": "Blood",
+   "organism": "Enterobacter cloacae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-25",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-23",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-12",
+   "specimen": "Blood",
+   "organism": "Staphylococcus aureus",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "R"
+    ],
+    [
+     "Erythromycin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "I"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-10",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "I"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-06",
+   "specimen": "Blood",
+   "organism": "Salmonella spp.",
+   "mdr": false,
+   "ast": [
+    [
+     "Ampicillin",
+     "S"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Ciprofloxacin",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "I"
+    ]
+   ]
+  },
+  {
+   "date": "2026-06-05",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "I"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-30",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-28",
+   "specimen": "ETT",
+   "organism": "Enterobacter cloacae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-28",
+   "specimen": "ETT",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-26",
+   "specimen": "Urine",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-24",
+   "specimen": "Urine",
+   "organism": "Enterococcus faecium",
+   "mdr": false,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-17",
+   "specimen": "Blood",
+   "organism": "Pseudomonas aeruginosa",
+   "mdr": false,
+   "ast": [
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ],
+    [
+     "Ciprofloxacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-15",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-09",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "I"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-09",
+   "specimen": "Blood",
+   "organism": "Pseudomonas aeruginosa",
+   "mdr": false,
+   "ast": [
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ],
+    [
+     "Ciprofloxacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-07",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-04",
+   "specimen": "ETT",
+   "organism": "Staphylococcus aureus",
+   "mdr": false,
+   "ast": [
+    [
+     "Oxacillin",
+     "S"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-05-02",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "I"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-04-30",
+   "specimen": "Blood",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-04-22",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-27",
+   "specimen": "Urine",
+   "organism": "Staphylococcus aureus",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-25",
+   "specimen": "ETT",
+   "organism": "Enterobacter cloacae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-21",
+   "specimen": "Blood",
+   "organism": "Coagulase-negative Staphylococci (CoNS)",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-20",
+   "specimen": "ETT",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-17",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-17",
+   "specimen": "Urine",
+   "organism": "Enterococcus faecium",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "I"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-15",
+   "specimen": "Urine",
+   "organism": "Coagulase-negative Staphylococci (CoNS)",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-10",
+   "specimen": "Blood",
+   "organism": "Streptococcus pneumoniae",
+   "mdr": false,
+   "ast": [
+    [
+     "Erythromycin",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-06",
+   "specimen": "Blood",
+   "organism": "Coagulase-negative Staphylococci (CoNS)",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "I"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "R"
+    ],
+    [
+     "Erythromycin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-03-04",
+   "specimen": "Blood",
+   "organism": "Streptococcus pneumoniae",
+   "mdr": false,
+   "ast": [
+    [
+     "Erythromycin",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-27",
+   "specimen": "Blood",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-21",
+   "specimen": "Blood",
+   "organism": "Coagulase-negative Staphylococci (CoNS)",
+   "mdr": false,
+   "ast": [
+    [
+     "Oxacillin",
+     "S"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-21",
+   "specimen": "Blood",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-17",
+   "specimen": "ETT",
+   "organism": "Staphylococcus aureus",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "S"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "R"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-15",
+   "specimen": "Blood",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "I"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "I"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-14",
+   "specimen": "Urine",
+   "organism": "Salmonella spp.",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Ciprofloxacin",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-11",
+   "specimen": "Blood",
+   "organism": "Coagulase-negative Staphylococci (CoNS)",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-11",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-09",
+   "specimen": "Blood",
+   "organism": "Pseudomonas aeruginosa",
+   "mdr": false,
+   "ast": [
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ],
+    [
+     "Ciprofloxacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-08",
+   "specimen": "ETT",
+   "organism": "Pseudomonas aeruginosa",
+   "mdr": false,
+   "ast": [
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ],
+    [
+     "Ciprofloxacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-03",
+   "specimen": "Blood",
+   "organism": "Enterobacter cloacae",
+   "mdr": false,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-02-01",
+   "specimen": "ETT",
+   "organism": "Pseudomonas aeruginosa",
+   "mdr": true,
+   "ast": [
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ],
+    [
+     "Ciprofloxacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-29",
+   "specimen": "Blood",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "I"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-22",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-21",
+   "specimen": "ETT",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-20",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "I"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-13",
+   "specimen": "Blood",
+   "organism": "Klebsiella pneumoniae",
+   "mdr": true,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-09",
+   "specimen": "Blood",
+   "organism": "Coagulase-negative Staphylococci (CoNS)",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-08",
+   "specimen": "Blood",
+   "organism": "Escherichia coli",
+   "mdr": false,
+   "ast": [
+    [
+     "Ampicillin",
+     "R"
+    ],
+    [
+     "Ceftriaxone",
+     "S"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "S"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-03",
+   "specimen": "Blood",
+   "organism": "Staphylococcus aureus",
+   "mdr": true,
+   "ast": [
+    [
+     "Oxacillin",
+     "R"
+    ],
+    [
+     "Vancomycin",
+     "S"
+    ],
+    [
+     "Linezolid",
+     "S"
+    ],
+    [
+     "Clindamycin",
+     "S"
+    ],
+    [
+     "Erythromycin",
+     "R"
+    ],
+    [
+     "Gentamicin",
+     "I"
+    ]
+   ]
+  },
+  {
+   "date": "2026-01-02",
+   "specimen": "Blood",
+   "organism": "Acinetobacter baumannii",
+   "mdr": true,
+   "ast": [
+    [
+     "Ceftriaxone",
+     "R"
+    ],
+    [
+     "Cefepime",
+     "R"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "R"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2025-12-31",
+   "specimen": "Blood",
+   "organism": "Pseudomonas aeruginosa",
+   "mdr": false,
+   "ast": [
+    [
+     "Cefepime",
+     "S"
+    ],
+    [
+     "Piperacillin-Tazobactam",
+     "R"
+    ],
+    [
+     "Meropenem",
+     "S"
+    ],
+    [
+     "Amikacin",
+     "S"
+    ],
+    [
+     "Gentamicin",
+     "S"
+    ],
+    [
+     "Ciprofloxacin",
+     "R"
+    ]
+   ]
+  },
+  {
+   "date": "2025-12-26",
+   "specimen": "ETT",
+   "organism": "Candida albicans",
+   "mdr": false,
+   "ast": []
+  }
+ ],
+ "antibiogram": {
+  "drugs": [
+   "Amikacin",
+   "Ampicillin",
+   "Cefepime",
+   "Ceftriaxone",
+   "Ciprofloxacin",
+   "Colistin",
+   "Gentamicin",
+   "Meropenem",
+   "Piperacillin-Tazobactam"
+  ],
+  "isolates": 147,
+  "rows": [
+   {
+    "organism": "Klebsiella pneumoniae",
+    "n": 24,
+    "cells": [
+     50,
+     0,
+     38,
+     21,
+     42,
+     96,
+     42,
+     42,
+     50
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "organism": "Escherichia coli",
+    "n": 23,
+    "cells": [
+     91,
+     4,
+     39,
+     43,
+     22,
+     96,
+     48,
+     83,
+     74
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "organism": "Staphylococcus aureus",
+    "n": 19,
+    "cells": [
+     null,
+     null,
+     null,
+     null,
+     53,
+     null,
+     89,
+     null,
+     null
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "organism": "Acinetobacter baumannii",
+    "n": 17,
+    "cells": [
+     12,
+     null,
+     6,
+     0,
+     0,
+     100,
+     6,
+     29,
+     0
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "organism": "Coagulase-negative Staphylococci (CoNS)",
+    "n": 16,
+    "cells": [
+     null,
+     null,
+     null,
+     null,
+     63,
+     null,
+     31,
+     null,
+     null
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "organism": "Pseudomonas aeruginosa",
+    "n": 13,
+    "cells": [
+     85,
+     null,
+     62,
+     null,
+     54,
+     92,
+     54,
+     69,
+     46
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "organism": "Salmonella spp.",
+    "n": 11,
+    "cells": [
+     null,
+     45,
+     null,
+     64,
+     36,
+     null,
+     null,
+     91,
+     null
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "organism": "Enterobacter cloacae",
+    "n": 9,
+    "cells": [
+     100,
+     0,
+     44,
+     44,
+     78,
+     100,
+     78,
+     67,
+     44
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "organism": "Streptococcus pneumoniae",
+    "n": 7,
+    "cells": [
+     null,
+     null,
+     null,
+     100,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "small": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   }
+  ]
+ },
+ "dashboard": {
+  "month": "2026-10",
+  "admissions": 16,
+  "mortality": 11.76470588235294,
+  "los": 5.538194444444445,
+  "smr": {
+   "smr": 1.75734961127999,
+   "lo": 1.3698752531261889,
+   "hi": 2.2203463741395737
+  },
+  "ventilated": 1,
+  "vaso": 1,
+  "abx": 8,
+  "censusSeries": [
+   14,
+   11,
+   14,
+   12,
+   11,
+   13,
+   12,
+   13,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "censusPrev": [
+   13,
+   13,
+   13,
+   10,
+   11,
+   14,
+   11,
+   13,
+   14,
+   13,
+   13,
+   14,
+   11,
+   9,
+   13,
+   14,
+   11,
+   12,
+   14,
+   12,
+   14,
+   14,
+   11,
+   14,
+   14,
+   12,
+   12,
+   14,
+   14,
+   14
+  ],
+  "topDx": [
+   {
+    "dx": "Bronchiolitis",
+    "n": 5
+   },
+   {
+    "dx": "Septic shock",
+    "n": 2
+   },
+   {
+    "dx": "Status epilepticus",
+    "n": 2
+   },
+   {
+    "dx": "Diabetic ketoacidosis",
+    "n": 1
+   },
+   {
+    "dx": "Sepsis",
+    "n": 1
+   },
+   {
+    "dx": "Encephalitis",
+    "n": 1
+   }
+  ],
+  "notices": [
+   {
+    "title": "Amikacin use up 334%",
+    "detail": "174 vs 40 days of therapy per 1,000 days present",
+    "direction": "up"
+   },
+   {
+    "title": "Vancomycin use down 51%",
+    "detail": "107 vs 220 days of therapy per 1,000 days present",
+    "direction": "down"
+   },
+   {
+    "title": "Ventilated patients down 66%",
+    "detail": "10% (3/30) vs 29% (22/75) in Sept 26",
+    "direction": "down"
+   },
+   {
+    "title": "Median length of stay up 45%",
+    "detail": "5.5 d (IQR 3.3–13) vs 3.8 d in Sept 26",
+    "direction": "up"
+   }
+  ]
+ },
+ "stewardship": {
+  "months": [
+   {
+    "month": "2025-11",
+    "per1000": 1185,
+    "aware": {
+     "Access": 123,
+     "Watch": 356,
+     "Reserve": 34,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2025-12",
+    "per1000": 931,
+    "aware": {
+     "Access": 106,
+     "Watch": 309,
+     "Reserve": 27,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-01",
+    "per1000": 957,
+    "aware": {
+     "Access": 78,
+     "Watch": 340,
+     "Reserve": 27,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-02",
+    "per1000": 848,
+    "aware": {
+     "Access": 70,
+     "Watch": 274,
+     "Reserve": 23,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-03",
+    "per1000": 925,
+    "aware": {
+     "Access": 80,
+     "Watch": 322,
+     "Reserve": 17,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-04",
+    "per1000": 923,
+    "aware": {
+     "Access": 101,
+     "Watch": 321,
+     "Reserve": 0,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-05",
+    "per1000": 1028,
+    "aware": {
+     "Access": 100,
+     "Watch": 356,
+     "Reserve": 25,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-06",
+    "per1000": 857,
+    "aware": {
+     "Access": 79,
+     "Watch": 286,
+     "Reserve": 12,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-07",
+    "per1000": 1098,
+    "aware": {
+     "Access": 118,
+     "Watch": 369,
+     "Reserve": 27,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-08",
+    "per1000": 894,
+    "aware": {
+     "Access": 115,
+     "Watch": 279,
+     "Reserve": 28,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-09",
+    "per1000": 847,
+    "aware": {
+     "Access": 52,
+     "Watch": 320,
+     "Reserve": 9,
+     "Unclassified": 0
+    }
+   },
+   {
+    "month": "2026-10",
+    "per1000": 744,
+    "aware": {
+     "Access": 23,
+     "Watch": 67,
+     "Reserve": 0,
+     "Unclassified": 0
+    }
+   }
+  ],
+  "topDrugs": [
+   {
+    "drug": "Ceftriaxone",
+    "dot": 266,
+    "group": "Watch"
+   },
+   {
+    "drug": "Meropenem",
+    "dot": 194,
+    "group": "Watch"
+   },
+   {
+    "drug": "Vancomycin",
+    "dot": 181,
+    "group": "Watch"
+   },
+   {
+    "drug": "Amikacin",
+    "dot": 86,
+    "group": "Access"
+   },
+   {
+    "drug": "Gentamicin",
+    "dot": 41,
+    "group": "Access"
+   },
+   {
+    "drug": "Ampicillin",
+    "dot": 40,
+    "group": "Access"
+   }
+  ],
+  "courses": 149
+ },
+ "patient": {
+  "id": "P-56A03",
+  "dx": "Sepsis",
+  "age": 33,
+  "sex": "F",
+  "bed": "9",
+  "admitAt": "2026-09-26T18:00",
+  "losDays": 12.145833333333334,
+  "episodes": [
+   {
+    "kind": "abx",
+    "detail": "Ceftriaxone",
+    "start": "2026-09-26T18:55",
+    "end": "2026-10-04T06:47",
+    "group": "Watch"
+   },
+   {
+    "kind": "abx",
+    "detail": "Amikacin",
+    "start": "2026-09-26T19:03",
+    "end": "2026-10-04T06:47",
+    "group": "Access"
+   },
+   {
+    "kind": "vaso",
+    "detail": "Adrenaline",
+    "start": "2026-09-26T20:48",
+    "end": "2026-10-04T22:58",
+    "group": null
+   }
+  ],
+  "cultures": [
+   {
+    "date": "2026-09-26",
+    "specimen": "Urine",
+    "organism": null,
+    "mdr": false
+   }
+  ],
+  "vitals": [
+   {
+    "at": "2026-09-26T18:00",
+    "crt": 5,
+    "dbp": 36,
+    "gcs": 14,
+    "hr": 154,
+    "lactate": 7.7,
+    "map": 45,
+    "rr": 21,
+    "sbp": 64,
+    "spo2": 96,
+    "temp": 39.1
+   },
+   {
+    "at": "2026-09-26T23:30",
+    "dbp": 32,
+    "gcs": 15,
+    "hr": 144,
+    "map": 39,
+    "rr": 21,
+    "sbp": 52,
+    "spo2": 97,
+    "temp": 38.1
+   },
+   {
+    "at": "2026-09-27T00:57",
+    "crt": 5,
+    "dbp": 30,
+    "hr": 164,
+    "map": 38,
+    "rr": 22,
+    "sbp": 53,
+    "spo2": 93,
+    "temp": 38.1
+   },
+   {
+    "at": "2026-09-27T14:26",
+    "crt": 2,
+    "dbp": 64,
+    "fio2": 29,
+    "gcs": 13,
+    "hr": 116,
+    "map": 79,
+    "rr": 20,
+    "sbp": 110,
+    "spo2": 98,
+    "temp": 36.6
+   },
+   {
+    "at": "2026-09-27T19:22",
+    "crt": 2,
+    "dbp": 58,
+    "fio2": 35,
+    "hr": 122,
+    "lactate": 8.5,
+    "map": 72,
+    "rr": 20,
+    "sbp": 99,
+    "spo2": 95,
+    "temp": 39.3
+   }
+  ],
+  "phoenix": {
+   "total": 3,
+   "resp": 0,
+   "cardio": 3,
+   "coag": 0,
+   "neuro": 0,
+   "missing": [
+    "coagulation labs"
+   ],
+   "parts": {
+    "vaso": 1,
+    "lactate": 1,
+    "map": 1
+   },
+   "sepsis": true,
+   "septicShock": true,
+   "infectionSuspected": true
+  },
+  "pim3": 0.04118972448562243
+ }
+}

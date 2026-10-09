@@ -4,363 +4,647 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Antibiome PICU</title>
-<meta name="description" content="Antibiome PICU turns paediatric intensive care data into intelligence: fast bedside entry on the unit PC or a phone, therapy charts, Phoenix sepsis scoring, stewardship, research and QI — on the unit's own computer.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%230b0e16%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279.5%27 fill=%27none%27 stroke=%27%23ff6b35%27 stroke-width=%273%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%273.5%27 fill=%27%23ff6b35%27/%3E%3C/svg%3E">
+<meta name="description" content="Antibiome PICU turns paediatric intensive care data into intelligence. Bedside entry on the unit PC or a phone, therapy charts, Phoenix and PIM3, antibiograms, stewardship, research and QI — on your own computer. Windows 10/11 and Windows 7, 32- and 64-bit.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%2311121a%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279.5%27 fill=%27none%27 stroke=%27%23f26b3a%27 stroke-width=%273%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%273.5%27 fill=%27%23f26b3a%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a living painting of a ward window at first light behind a left-aligned headline; the
-   product rises out of the bottom of the scene. Below, quiet night-shift sections in the same
-   dusk palette. Committed single dark look (the scene only works at night). */
+/* Layout: a light gallery page. Content sits in large rounded frames on an off-white ground; the
+   big frames hold imagery (the painted ward window, stills from the launch film) with frosted-glass
+   UI floating on top. Quiet type, one orange accent from the app, dark footer with a giant wordmark. */
 :root {
-  --night: #070a12;        /* page */
-  --night-2: #0c111d;      /* raised */
-  --night-3: #131a29;      /* insets, code */
-  --line: #1d2638;
-  --line-2: #2b3650;
-  --fg: #f3efe7;           /* warm paper white */
-  --fg-2: #b4b2ad;
-  --fg-3: #77798a;
-  --dawn: #ffb46b;         /* window light */
-  --ember: #ff6b35;        /* Antibiome orange, from the app */
-  --tide: #6f8fd8;         /* night blue for secondary marks */
-  --good: #5fd3a3;
-  --warn: #ffbf5e;
-  --font: "Hanken Grotesk", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --s--1: 0.8125rem; --s-0: 0.96875rem; --s-1: 1.125rem; --s-2: 1.5rem; --s-3: clamp(1.9rem, 3.4vw, 2.6rem); --s-4: clamp(2.5rem, 5.6vw, 4.25rem);
-  --pill: 999px;
-  color-scheme: dark;
+  --ground: #f3f3f1;       /* page */
+  --paper: #ffffff;        /* cards on the ground */
+  --ink: #121316;          /* text */
+  --ink-2: #55575d;
+  --ink-3: #8d8f95;        /* the grey continuation in headlines */
+  --rule: #e3e3e0;
+  --night: #0f1014;        /* footer, dark frames */
+  --accent: #f26b3a;       /* Antibiome orange, from the app */
+  --accent-ink: #c94c1f;
+  --glass: rgba(255, 255, 255, 0.13);
+  --glass-line: rgba(255, 255, 255, 0.28);
+  --good: #1d9a5b; --warn: #c98a12; --crit: #cf3d3d;
+  --font: "Manrope", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --r-frame: 28px; --r-card: 20px; --pill: 999px;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--night); color: var(--fg); font: 400 var(--s-0)/1.6 var(--font); -webkit-font-smoothing: antialiased; }
-a { color: var(--dawn); text-underline-offset: 3px; }
-img { max-width: 100%; display: block; }
-:focus-visible { outline: 2px solid var(--dawn); outline-offset: 3px; border-radius: 6px; }
-h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -0.025em; text-wrap: balance; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 400 16px/1.6 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+img, video { max-width: 100%; display: block; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -0.03em; text-wrap: balance; }
 p { margin: 0; }
-.wrap { width: min(1180px, 100%); margin-inline: auto; padding-inline: 20px; }
-.mono { font-family: var(--mono); font-size: 0.86em; }
-.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
 [hidden] { display: none !important; }
+.page { padding-inline: 12px; }
+.wrap { width: min(1240px, 100%); margin-inline: auto; padding-inline: 24px; }
+.mono { font-family: var(--mono); font-size: 0.86em; }
+.grey { color: var(--ink-3); }
+.kicker { display: inline-flex; align-items: center; gap: 8px; font: 500 13px var(--font); color: var(--ink-2); }
+.kicker svg { color: var(--accent); }
+.btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 12px; padding: 11px 18px; font: 600 14px var(--font); cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .2s ease, background .2s ease; }
+.btn:active { transform: scale(0.98); }
+.btn-dark { background: var(--ink); color: #fff; }
+.btn-dark:hover { background: #26282e; }
+.btn-white { background: #fff; color: var(--ink); }
+.btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
+.btn-ghost:hover { border-color: var(--ink-3); }
+.btn-accent { background: var(--accent); color: #fff; }
+.glass { background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3); color: #fff; }
 
-/* ── Nav: one rounded bar, white pill on the right ─────── */
-.nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 30; padding-inline: 20px; }
-.nav-inner { margin-inline: auto; width: min(1100px, 100%); display: flex; align-items: center; gap: 6px; padding: 7px 7px 7px 18px;
-  background: rgba(10, 13, 22, 0.55); border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 20px; backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); }
-.brand { display: flex; align-items: center; gap: 9px; color: var(--fg); text-decoration: none; font-weight: 600; font-size: 1.05rem; margin-right: 22px; white-space: nowrap; }
-.brand svg { color: var(--ember); }
-.tabs { display: flex; gap: 2px; margin-right: auto; }
-.tab { appearance: none; border: 0; background: none; color: var(--fg-2); font: 500 var(--s--1) var(--font); padding: 8px 13px; border-radius: 12px; cursor: pointer; }
-.tab:hover { color: var(--fg); }
-.tab[aria-selected="true"] { color: var(--fg); background: rgba(255, 255, 255, 0.07); }
-.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: var(--pill); padding: 10px 19px; font: 500 var(--s--1) var(--font); text-decoration: none; cursor: pointer; border: 1px solid transparent; white-space: nowrap; transition: transform .2s ease, background .2s ease; }
-.pill:active { transform: scale(0.98); }
-.pill-white { background: var(--fg); color: #0b0e16; }
-.pill-white:hover { background: #fff; }
-.pill-ghost { color: var(--fg); border-color: rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.04); }
-.pill-ghost:hover { border-color: rgba(255, 255, 255, 0.35); }
-.link-quiet { color: var(--fg); text-decoration: none; font: 500 var(--s--1) var(--font); padding: 8px 12px; }
+/* ── Nav ─────────────────────────────────────────────────── */
+.nav { position: fixed; z-index: 40; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 12px); pointer-events: none; }
+.nav-inner { pointer-events: auto; width: min(1240px, 100%); margin-inline: auto; display: flex; align-items: center; gap: 4px; padding: 10px 12px 10px 22px; border-radius: 18px; color: #fff; transition: background .3s ease, color .3s ease, box-shadow .3s ease; }
+.nav.solid .nav-inner { background: rgba(255, 255, 255, 0.82); color: var(--ink); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.35); }
+.brand { display: flex; align-items: center; gap: 8px; font: 600 19px var(--font); letter-spacing: -0.02em; text-decoration: none; margin-right: 26px; }
+.brand svg { color: var(--accent); }
+.tab { appearance: none; border: 0; background: none; color: inherit; opacity: 0.85; font: 500 14px var(--font); padding: 8px 12px; border-radius: 10px; cursor: pointer; }
+.tab:hover { opacity: 1; }
+.tab[aria-selected="true"] { opacity: 1; background: rgba(255, 255, 255, 0.16); }
+.nav.solid .tab[aria-selected="true"] { background: rgba(0, 0, 0, 0.06); }
+.nav .btn { margin-left: auto; }
+.nav.solid .btn-white { background: var(--ink); color: #fff; }
 
-/* ── Hero: the painting ─────────────────────────────────── */
-.hero { position: relative; margin-top: -72px; padding-top: 150px; isolation: isolate; overflow: hidden; }
-#scene { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; display: block;
-  background: radial-gradient(50% 60% at 72% 42%, rgba(255, 180, 107, 0.45), transparent 70%), radial-gradient(80% 80% at 20% 30%, #121a2c, var(--night)); }
-.hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 220px; z-index: -1; background: linear-gradient(to bottom, rgba(7, 10, 18, 0), var(--night) 85%); pointer-events: none; }
-.hero-copy { display: grid; gap: 22px; justify-items: start; max-width: 600px; padding-top: 30px; }
-.badge { display: inline-flex; align-items: center; gap: 9px; padding: 6px 14px 6px 11px; border-radius: var(--pill); border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(10, 13, 22, 0.45); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: var(--s--1); color: var(--fg); }
-.badge i { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.18); }
-.hero h1 { font-size: var(--s-4); line-height: 1.04; letter-spacing: -0.035em; max-width: 13ch; text-shadow: 0 2px 30px rgba(7, 10, 18, 0.5); }
-.hero .lede { color: #d8d3ca; font-size: var(--s-1); line-height: 1.55; max-width: 46ch; text-shadow: 0 1px 18px rgba(7, 10, 18, 0.8); }
-.hero-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+/* ── Hero ────────────────────────────────────────────────── */
+.hero { position: relative; margin-top: 12px; border-radius: var(--r-frame); overflow: hidden; min-height: min(880px, calc(100svh - 24px)); isolation: isolate; color: #fff; display: grid; }
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; background: radial-gradient(60% 60% at 70% 45%, #f2a46a, #34405e 60%, #10131c); }
+.hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(10, 12, 18, 0.55), rgba(10, 12, 18, 0.05) 55%), linear-gradient(0deg, rgba(10, 12, 18, 0.45), transparent 40%); pointer-events: none; }
+.hero-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto 1fr auto; gap: 24px; padding: 108px 44px 30px; min-height: inherit; }
+.clock { grid-column: 1 / -1; justify-self: center; display: grid; justify-items: center; gap: 10px; }
+.clock .date { padding: 6px 14px; border-radius: var(--pill); font: 600 14px var(--font); }
+.clock .time { padding: 2px 34px 8px; border-radius: 26px; font: 200 clamp(5rem, 13vw, 11.5rem)/1 var(--font); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.86); background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.2); }
+.hero-copy { align-self: end; display: grid; gap: 16px; max-width: 560px; }
+.hero h1 { font-size: clamp(2.6rem, 5.2vw, 4.4rem); line-height: 1.03; font-weight: 500; }
+.hero .lede { font-size: 17px; line-height: 1.55; color: rgba(255, 255, 255, 0.86); max-width: 46ch; }
+.bed-card { align-self: end; padding: 16px 18px; border-radius: 18px; display: grid; gap: 8px; font-size: 14px; }
+.bed-card .row { display: flex; justify-content: space-between; font: 600 12px var(--font); letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.bed-card s { opacity: 0.6; }
+.bed-card small { opacity: 0.72; font-size: 12.5px; }
+.bed-card hr { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.25); margin: 4px 0; }
+.dock { grid-column: 1 / -1; justify-self: center; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 12px; width: min(720px, 100%); min-width: 0; }
+.hero-grid > * { min-width: 0; }
+.status { text-align: center; }
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.chips span { padding: 6px 12px; border-radius: var(--pill); font-size: 13px; }
+.chips b { font-weight: 500; opacity: 0.7; margin-right: 6px; }
+.ask { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 18px; border-radius: 16px; background: rgba(20, 22, 30, 0.38); }
+.ask .q { flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ask .q::after { content: ""; display: inline-block; width: 1.5px; height: 1em; margin-left: 2px; vertical-align: -2px; background: #fff; animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.status { font-size: 13px; color: rgba(255, 255, 255, 0.82); display: flex; align-items: center; gap: 8px; }
+.status i { width: 6px; height: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px #fff; }
 
-.stage { position: relative; margin-top: 110px; }
-.window { position: relative; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.14); background: #0b0e16; overflow: hidden;
-  box-shadow: 0 -30px 120px -40px rgba(255, 180, 107, 0.35), 0 50px 120px -50px rgba(0, 0, 0, 0.9); }
-.window-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); background: #0e121c; }
-.dot { width: 10px; height: 10px; border-radius: 50%; }
-.dot:nth-child(1) { background: #ff5f57; } .dot:nth-child(2) { background: #febc2e; } .dot:nth-child(3) { background: #28c840; }
-.window-bar .addr { margin-left: 10px; color: var(--fg-3); font: 400 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.window img { width: 100%; height: auto; aspect-ratio: 1424 / 855; }
+/* ── Sections ────────────────────────────────────────────── */
+section.s { padding-block: 120px 0; }
+.lead { font-size: clamp(1.7rem, 3vw, 2.5rem); line-height: 1.18; font-weight: 500; letter-spacing: -0.03em; max-width: 30ch; }
+.head-row { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 30px; }
+.arrows { display: flex; gap: 8px; }
+.arrows button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--rule); background: var(--paper); cursor: pointer; font: 500 16px var(--font); color: var(--ink); }
+.rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(300px, 380px); gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 10px; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
+.rcard { position: relative; scroll-snap-align: start; height: 470px; border-radius: var(--r-card); overflow: hidden; background: var(--paper); border: 1px solid var(--rule); }
+.rcard img.cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rcard .lbl { position: absolute; left: 14px; top: 14px; right: 14px; padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.35; }
+.rcard .lbl small { display: block; opacity: 0.75; font-size: 12px; margin-bottom: 2px; }
+.rcard.light .lbl { position: static; margin: 14px; padding: 0; border: 0; background: none; backdrop-filter: none; color: var(--ink); }
+.rcard.light .shot { margin: 0 14px; border-radius: 14px; overflow: hidden; border: 1px solid var(--rule); }
+.rcard .phone { position: absolute; left: 50%; bottom: -40px; transform: translateX(-50%); width: 230px; border-radius: 30px; padding: 7px; background: #121318; box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.6); }
+.rcard .phone img { border-radius: 24px; }
 
-/* ── Sections ───────────────────────────────────────────── */
-section.block { padding-block: 110px 0; }
-.block-head { display: grid; gap: 14px; max-width: 64ch; margin-bottom: 44px; }
-.block-head h2 { font-size: var(--s-3); line-height: 1.08; }
-.block-head p { color: var(--fg-2); font-size: var(--s-1); line-height: 1.55; }
+.split { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 60px; align-items: start; }
+.notices { display: grid; gap: 10px; margin-top: 26px; }
+.notice { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; background: var(--paper); border: 1px solid var(--rule); font-size: 14px; }
+.notice i { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-style: normal; font-weight: 700; }
+.notice .up { background: #fdeceb; color: var(--crit); } .notice .down { background: #e7f6ee; color: var(--good); }
+.notice small { color: var(--ink-3); display: block; }
+.thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 26px; }
+.thumbs img { aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; width: 100%; }
 
-/* the story: data → information → patterns → intelligence */
-.story { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line-2); }
-.story div { padding: 22px 22px 0 0; display: grid; gap: 8px; align-content: start; min-width: 0; position: relative; }
-.story div::before { content: ""; position: absolute; top: -4px; left: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--dawn); box-shadow: 0 0 18px var(--dawn); }
-.story b { font-weight: 500; font-size: var(--s-1); }
-.story span { color: var(--fg-2); font-size: var(--s--1); }
+.frame { position: relative; border-radius: var(--r-frame); overflow: hidden; background: var(--night); color: #fff; isolation: isolate; }
+.frame video, .frame > img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
+.film-frame { min-height: 640px; display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 30px; padding: 44px; align-items: end; }
+.film-frame::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(10, 11, 15, 0.7), rgba(10, 11, 15, 0.05) 60%); }
+.plan { padding: 18px; border-radius: 18px; display: grid; gap: 12px; font-size: 14px; }
+.plan h3 { font-size: 20px; letter-spacing: -0.02em; }
+.plan .tick { display: flex; gap: 10px; align-items: center; }
+.plan .tick b { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid rgba(255, 255, 255, 0.7); display: grid; place-items: center; font-size: 11px; }
+.plan .tick.done b { background: #fff; color: var(--ink); }
+.plan .tick.done span { text-decoration: line-through; opacity: 0.7; }
+.play { justify-self: end; display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px 12px 12px; border-radius: 16px; font: 600 15px var(--font); cursor: pointer; border: 1px solid var(--glass-line); }
+.play i { width: 34px; height: 34px; border-radius: 50%; background: #fff; color: var(--ink); display: grid; place-items: center; font-style: normal; font-size: 12px; }
 
-.feature-row { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr); gap: 56px; align-items: center; padding-block: 56px; border-top: 1px solid var(--line); }
-.feature-row:nth-child(even) { grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr); }
-.feature-row:nth-child(even) .copy { order: 2; }
-.feature-row .copy { display: grid; gap: 14px; min-width: 0; }
-.feature-row h3 { font-size: var(--s-2); line-height: 1.15; }
-.feature-row p { color: var(--fg-2); }
-.feature-row ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; color: var(--fg-2); font-size: var(--s--1); }
-.feature-row li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; }
-.feature-row li::before { content: ""; width: 6px; height: 6px; margin-top: 0.62em; border-radius: 50%; background: var(--dawn); }
-.fact { font: 500 12.5px var(--mono); color: var(--dawn); }
-.shot { border-radius: 14px; border: 1px solid var(--line-2); overflow: hidden; background: var(--night-2); box-shadow: 0 40px 90px -50px rgba(255, 180, 107, 0.4); }
-.shot img { width: 100%; height: auto; }
+.honest { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 30px; align-items: start; }
+.quote { font-size: clamp(1.6rem, 2.8vw, 2.3rem); line-height: 1.22; letter-spacing: -0.03em; font-weight: 500; max-width: 32ch; }
+.cards3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 36px; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-card); padding: 22px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card h3 { font-size: 18px; letter-spacing: -0.02em; }
+.card p { color: var(--ink-2); font-size: 14.5px; }
+.card .fact { font: 500 12px var(--mono); color: var(--accent-ink); }
 
-.grid-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
-.grid-feats div { background: var(--night-2); padding: 24px 22px 26px; display: grid; gap: 8px; align-content: start; min-width: 0; }
-.grid-feats h3 { font-size: var(--s-1); letter-spacing: -0.01em; }
-.grid-feats p { color: var(--fg-2); font-size: var(--s--1); }
+.where { display: grid; grid-template-columns: minmax(0, 0.75fr) repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.where .intro { display: grid; gap: 16px; align-content: start; }
+.where .w { border-radius: var(--r-card); overflow: hidden; background: var(--paper); border: 1px solid var(--rule); display: grid; grid-template-rows: auto 1fr; }
+.where .w .img { aspect-ratio: 4 / 5; background: #e9e9e6; position: relative; overflow: hidden; }
+.where .w .img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: left top; }
+.where .w p { padding: 14px 16px 16px; font-size: 14px; color: var(--ink-2); }
+.where .w p b { color: var(--ink); font-weight: 600; display: block; }
+.win7 { position: absolute; inset: 0; display: grid; place-items: center; background: linear-gradient(160deg, #1d3d7a, #0d1a33); color: #fff; text-align: center; padding: 20px; }
+.win7 .tiles { display: grid; grid-template-columns: repeat(2, 38px); gap: 5px; transform: perspective(300px) rotateY(-14deg); margin-bottom: 14px; justify-content: center; }
+.win7 .tiles i { height: 38px; border-radius: 4px; }
+.standards { display: flex; flex-wrap: wrap; gap: 10px 32px; margin-top: 46px; padding-top: 26px; border-top: 1px solid var(--rule); color: var(--ink-3); font: 500 14px var(--font); }
+.standards b { color: var(--ink); font-weight: 600; }
 
-.phones { display: flex; gap: 14px; justify-content: center; align-items: flex-end; }
-.phone { width: min(210px, 31%); border-radius: 26px; padding: 6px; background: #161c2a; border: 1px solid var(--line-2); box-shadow: 0 30px 70px -30px rgba(255, 180, 107, 0.35); }
-.phone img { border-radius: 20px; aspect-ratio: 390 / 664; width: 100%; height: auto; }
-.phone:nth-child(2) { transform: translateY(-26px); }
+.go { min-height: 560px; padding: 44px; display: grid; align-content: space-between; gap: 30px; }
+.go::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(10, 11, 15, 0.86), rgba(10, 11, 15, 0.55) 45%, rgba(10, 11, 15, 0.8)); }
+.go h2 { font-size: clamp(2.2rem, 4vw, 3.4rem); line-height: 1.05; }
+.go .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.go .three div { padding: 20px; border-radius: 18px; display: grid; gap: 8px; min-height: 160px; align-content: start; }
+.go .three svg { opacity: 0.9; }
+.go .three b { font-weight: 600; font-size: 16px; }
+.go .three span { font-size: 14px; opacity: 0.82; }
 
-.privacy { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
-.privacy div { border-top: 1px solid var(--line-2); padding-top: 16px; display: grid; gap: 6px; min-width: 0; }
-.privacy b { font-weight: 500; }
-.privacy span { color: var(--fg-2); font-size: var(--s--1); }
+.faq { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 50px; }
+details { border-bottom: 1px solid var(--rule); }
+summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 2px; font-weight: 500; font-size: 16px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; font-size: 16px; line-height: 1; transition: transform .2s ease; }
+details[open] summary::after { transform: rotate(45deg); }
+details p { color: var(--ink-2); padding: 0 2px 18px; max-width: 62ch; }
 
-.closing { margin-block: 120px 0; padding: 64px 24px; text-align: center; border-radius: 26px; border: 1px solid var(--line); display: grid; justify-items: center; gap: 16px;
-  background: radial-gradient(70% 120% at 50% 120%, rgba(255, 150, 80, 0.28), transparent 60%), var(--night-2); }
-.closing h2 { font-size: var(--s-3); line-height: 1.1; max-width: 18ch; }
-.closing p { color: var(--fg-2); max-width: 52ch; }
+.cta { margin-top: 120px; min-height: 420px; padding: 44px; display: grid; align-content: end; gap: 18px; }
+.cta > img.bg { left: auto; width: 62%; -webkit-mask-image: linear-gradient(90deg, transparent, #000 40%); mask-image: linear-gradient(90deg, transparent, #000 40%); }
+.cta::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(10, 11, 15, 0.75), rgba(10, 11, 15, 0.1) 70%); }
+.cta h2 { font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.08; max-width: 18ch; }
 
-footer { margin-top: 90px; border-top: 1px solid var(--line); padding-block: 28px 40px; color: var(--fg-3); font-size: var(--s--1); }
-footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+footer { margin: 12px 0 12px; border-radius: var(--r-frame); background: var(--night); color: #d9d9dd; padding: 44px 44px 0; overflow: hidden; }
+.foot { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 0.6fr)); gap: 30px; }
+.foot h4 { margin: 0 0 12px; font: 600 13px var(--font); color: #fff; }
+.foot a, .foot span { display: block; color: #9a9ba3; text-decoration: none; font-size: 14px; margin: 6px 0; cursor: pointer; }
+.foot a:hover { color: #fff; }
+.mark { font: 700 clamp(4.5rem, 18.5vw, 16.5rem)/0.82 var(--font); letter-spacing: -0.06em; color: rgba(255, 255, 255, 0.07); margin: 46px -4px 0; white-space: nowrap; user-select: none; overflow: hidden; }
+.legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 18px 0 22px; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 13px; color: #8a8b92; }
 
-/* film modal */
-.film { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; background: rgba(4, 6, 10, 0.86); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.film video { width: min(1100px, 100%); border-radius: 14px; border: 1px solid var(--line-2); background: #000; }
-.film button { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 18px); right: 18px; }
+/* ── Features tab ────────────────────────────────────────── */
+.tabpage { padding-top: 110px; }
+.page-head { display: grid; gap: 14px; max-width: 760px; margin-bottom: 44px; }
+.page-head h1 { font-size: clamp(2.4rem, 4.6vw, 3.8rem); line-height: 1.04; }
+.page-head p { color: var(--ink-2); font-size: 18px; }
+.fgroup { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 40px; padding-block: 44px; border-top: 1px solid var(--rule); align-items: start; }
+.fgroup:nth-of-type(even) .fimg { order: 2; }
+.fimg { border-radius: var(--r-card); overflow: hidden; border: 1px solid var(--rule); background: var(--night); }
+.fimg img { width: 100%; height: auto; }
+.flist h2 { font-size: 28px; margin-bottom: 6px; }
+.flist > p { color: var(--ink-2); margin-bottom: 18px; }
+.flist dl { margin: 0; }
+.flist dt { font-weight: 600; margin-top: 16px; }
+.flist dt:first-child { margin-top: 0; }
+.flist dd { margin: 2px 0 0; color: var(--ink-2); font-size: 15px; }
+.chiprow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.chiprow span { font: 500 12px var(--mono); padding: 4px 10px; border-radius: var(--pill); background: #ebebe8; color: var(--ink-2); }
 
-/* ── Docs ───────────────────────────────────────────────── */
-.docs { padding-block: 80px 0; }
+/* ── Download tab ────────────────────────────────────────── */
+.dl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.dl { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-frame); padding: 28px; display: grid; gap: 16px; align-content: start; }
+.dl.rec { border-color: var(--ink); box-shadow: 0 30px 60px -40px rgba(0, 0, 0, 0.35); }
+.dl h2 { font-size: 26px; }
+.dl .badge { justify-self: start; font: 600 12px var(--font); padding: 4px 10px; border-radius: var(--pill); background: var(--ink); color: #fff; }
+.dl .badge.old { background: #e9e9e6; color: var(--ink-2); }
+.dl .files { display: grid; gap: 8px; }
+.file { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--rule); text-decoration: none; transition: border-color .2s ease, background .2s ease; }
+.file:hover { border-color: var(--ink); background: #fafaf8; }
+.file b { font-weight: 600; }
+.file small { grid-column: 1; color: var(--ink-3); font-size: 13px; }
+.file .get { grid-row: 1 / span 2; grid-column: 2; font: 600 13px var(--font); padding: 8px 12px; border-radius: 10px; background: var(--ink); color: #fff; }
+.file.primary .get { background: var(--accent); }
+.dl ul { margin: 0; padding-left: 1.1em; color: var(--ink-2); font-size: 14.5px; display: grid; gap: 4px; }
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.note { margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: #fff6ee; border: 1px solid #f6d7bd; color: #6b4a2d; font-size: 14.5px; }
+
+/* ── Docs (setup guide) ──────────────────────────────────── */
+.docs { padding-top: 110px; }
 .docs-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; align-items: start; }
-.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 96px); display: grid; gap: 2px; }
-.toc a { color: var(--fg-3); text-decoration: none; font-size: var(--s--1); padding: 6px 10px; border-left: 1px solid var(--line); border-radius: 0 8px 8px 0; }
-.toc a:hover { color: var(--fg); }
-.toc a.on { color: var(--fg); border-left-color: var(--dawn); background: rgba(255, 180, 107, 0.07); }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 100px); display: grid; gap: 2px; }
+.toc a { color: var(--ink-3); text-decoration: none; font-size: 14px; padding: 6px 10px; border-left: 1px solid var(--rule); border-radius: 0 8px 8px 0; }
+.toc a:hover { color: var(--ink); }
+.toc a.on { color: var(--ink); border-left-color: var(--accent); background: rgba(242, 107, 58, 0.07); }
 .doc { min-width: 0; max-width: 72ch; }
 .doc-title { display: grid; gap: 12px; margin-bottom: 28px; }
-.doc-title h1 { font-size: var(--s-3); line-height: 1.05; }
-.doc-title p { color: var(--fg-2); font-size: var(--s-1); }
-.doc section { padding-top: 44px; scroll-margin-top: 96px; }
-.doc h2 { font-size: var(--s-2); margin-bottom: 14px; }
-.doc h3 { font-size: var(--s-1); margin: 22px 0 8px; }
-.doc p, .doc li { color: var(--fg-2); }
+.doc-title h1 { font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.05; }
+.doc-title p { color: var(--ink-2); font-size: 18px; }
+.doc section { padding-top: 44px; scroll-margin-top: 100px; }
+.doc h2 { font-size: 26px; margin-bottom: 14px; }
+.doc h3 { font-size: 18px; margin: 22px 0 8px; }
+.doc p, .doc li { color: var(--ink-2); }
 .doc p + p { margin-top: 12px; }
 .doc ul, .doc ol { padding-left: 1.2em; margin: 10px 0 0; display: grid; gap: 6px; }
-.doc strong { color: var(--fg); font-weight: 500; }
+.doc strong { color: var(--ink); font-weight: 600; }
+.doc a { color: var(--accent-ink); }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
 .steps { list-style: none; padding: 0 !important; counter-reset: s; gap: 14px !important; }
 .steps > li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; }
-.steps > li::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line-2); color: var(--fg); font: 500 12px var(--mono); }
-.code { position: relative; margin-top: 12px; background: var(--night-3); border: 1px solid var(--line); border-radius: 12px; }
+.steps > li::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: #fff; font: 600 12px var(--font); }
+.code { position: relative; margin-top: 12px; background: var(--night); border-radius: 14px; }
 .code pre { margin: 0; padding: 14px 76px 14px 16px; overflow-x: auto; font: 400 13px/1.6 var(--mono); color: #f1e3cf; }
-.code button { position: absolute; top: 8px; right: 8px; font: 500 11.5px var(--font); color: var(--fg-2); background: var(--night-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 9px; cursor: pointer; }
-.code button:hover { color: var(--fg); }
-.note { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--night-2); color: var(--fg-2); font-size: var(--s--1); }
-.note.warn { border-color: rgba(255, 191, 94, 0.35); }
-.note b { color: var(--fg); font-weight: 500; }
-.table-wrap { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; }
-table { border-collapse: collapse; width: 100%; font-size: var(--s--1); }
-th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { color: var(--fg-3); font-weight: 500; background: var(--night-2); }
+.code button { position: absolute; top: 8px; right: 8px; font: 600 12px var(--font); color: #fff; background: #2a2c33; border: 0; border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+.doc .note { background: var(--paper); border-color: var(--rule); color: var(--ink-2); }
+.doc .note.warn { background: #fff6ee; border-color: #f6d7bd; }
+.doc .note b { color: var(--ink); }
+.table-wrap { overflow-x: auto; margin-top: 12px; border: 1px solid var(--rule); border-radius: 14px; background: var(--paper); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { color: var(--ink-3); font-weight: 600; background: #fafaf8; }
 tr:last-child td { border-bottom: 0; }
-td { color: var(--fg-2); }
-td:first-child { color: var(--fg); }
-kbd { font: 500 11.5px var(--mono); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; color: var(--fg); }
+td { color: var(--ink-2); }
+td:first-child { color: var(--ink); }
+kbd { font: 500 12px var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; background: #fff; }
 
-@media (max-width: 960px) {
-  .story { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 28px; }
-  .feature-row, .feature-row:nth-child(even) { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-  .feature-row:nth-child(even) .copy { order: 0; }
-  .grid-feats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .privacy { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .docs-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .toc { position: static; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  .toc a { border: 1px solid var(--line); border-radius: var(--pill); padding: 5px 11px; }
-  .toc a.on { border-color: var(--dawn); }
+/* film modal */
+.film { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: rgba(8, 9, 12, 0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.film video { width: min(1200px, 100%); border-radius: 16px; background: #000; }
+.film button { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 18px); right: 18px; }
+
+@media (max-width: 1000px) {
+  .hero-grid { grid-template-columns: minmax(0, 1fr); padding: 96px 22px 24px; }
+  .bed-card { display: none; }
+  .split, .faq, .honest, .fgroup, .docs-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .fgroup:nth-of-type(even) .fimg { order: 0; }
+  .film-frame { grid-template-columns: minmax(0, 1fr); padding: 26px; }
+  .play { justify-self: start; }
+  .where { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .where .intro { grid-column: 1 / -1; }
+  .cards3, .go .three, .how { grid-template-columns: minmax(0, 1fr); }
+  .foot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toc { position: static; display: flex; flex-wrap: wrap; gap: 6px; }
+  .toc a { border: 1px solid var(--rule); border-radius: var(--pill); padding: 5px 11px; }
 }
-@media (max-width: 600px) {
-  .nav { padding-inline: 12px; }
-  .nav-inner { padding-left: 12px; }
-  .brand span, .link-quiet { display: none; }
-  .brand { margin-right: 6px; }
-  .tab { padding: 8px 10px; }
-  .nav .pill-white { padding: 9px 13px; }
-  .hero { padding-top: 120px; }
-  .hero .lede { color: var(--fg); font-size: 1.0625rem; }
-  /* On phones the text sits over the window: veil the scene behind it. */
-  .hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 760px; z-index: -1; pointer-events: none;
-    background: linear-gradient(180deg, rgba(7, 10, 18, 0.25) 0%, rgba(7, 10, 18, 0.72) 32%, rgba(7, 10, 18, 0.72) 70%, rgba(7, 10, 18, 0) 100%); }
-  .stage { margin-top: 64px; }
-  .story, .grid-feats, .privacy { grid-template-columns: minmax(0, 1fr); }
-  .phone:nth-child(2) { transform: none; }
-  section.block { padding-top: 80px; }
+@media (max-width: 640px) {
+  .page { padding-inline: 8px; }
+  .wrap { padding-inline: 14px; }
+  .nav { left: 8px; right: 8px; }
+  .nav-inner { padding-left: 14px; }
+  .brand span, .tab.hide-sm, .nav .btn { display: none; }
+  .cta > img.bg { width: 100%; opacity: 0.35; }
+  .brand { margin-right: 8px; }
+  .tab { padding: 8px 9px; }
+  .clock .time { padding: 0 18px 6px; }
+  .chips span:nth-child(n+3) { display: none; }
+  .where, .dl-grid, .thumbs { grid-template-columns: minmax(0, 1fr); }
+  .thumbs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .go, .cta { padding: 24px; }
+  section.s { padding-top: 80px; }
+  .head-row { align-items: start; flex-direction: column; }
 }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .ask .q::after { animation: none; } }
 </style>
 </head>
 <body>
 
-<header class="nav">
+<header class="nav" id="nav">
   <div class="nav-inner">
-    <a class="brand" href="#product" data-go="product" aria-label="Antibiome PICU home">
-      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="3"/><ellipse cx="16" cy="16" rx="15" ry="6" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-28 16 16)" opacity="0.55"/><circle cx="16" cy="16" r="4" fill="currentColor"/></svg>
-      <span>Antibiome</span>
+    <a class="brand" href="#home" data-go="home" aria-label="Antibiome PICU home">
+      <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="3"/><ellipse cx="16" cy="16" rx="15" ry="6" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-28 16 16)" opacity="0.6"/><circle cx="16" cy="16" r="4.5" fill="currentColor"/></svg>
+      <span>antibiome.</span>
     </a>
-    <nav class="tabs" role="tablist" aria-label="Sections">
-      <button class="tab" role="tab" id="tab-product" aria-controls="product" aria-selected="true" data-go="product">Product</button>
+    <nav role="tablist" aria-label="Sections" style="display:flex;gap:2px">
+      <button class="tab hide-sm" role="tab" id="tab-home" aria-controls="home" aria-selected="true" data-go="home">Product</button>
+      <button class="tab" role="tab" id="tab-features" aria-controls="features" aria-selected="false" data-go="features">Features</button>
+      <button class="tab" role="tab" id="tab-download" aria-controls="download" aria-selected="false" data-go="download">Download</button>
       <button class="tab" role="tab" id="tab-docs" aria-controls="docs" aria-selected="false" data-go="docs">Docs</button>
     </nav>
-    <a class="link-quiet" href="https://github.com/itskaero/antibiome">Source</a>
-    <button class="pill pill-white" data-go="docs">Get started</button>
+    <button class="btn btn-white" data-go="download">Get Antibiome</button>
   </div>
 </header>
 
 <!-- ══════════════ PRODUCT ══════════════ -->
-<main id="product" role="tabpanel" aria-labelledby="tab-product">
+<main id="home" class="page" role="tabpanel" aria-labelledby="tab-home">
   <div class="hero">
     <canvas id="scene" aria-hidden="true"></canvas>
-    <div class="wrap">
-      <div class="hero-copy">
-        <span class="badge"><i></i>New · Phoenix sepsis scoring and therapy charts</span>
-        <h1>Turn PICU data into intelligence</h1>
-        <p class="lede">Record a child's stay in seconds at the bedside. Antibiome PICU turns every admission, culture, antibiotic and vital sign into patterns your unit can act on — on your own computer, with nothing sent to the cloud.</p>
-        <div class="hero-cta">
-          <button class="pill pill-white" data-go="docs">Set it up →</button>
-          <button class="pill pill-ghost" id="watch" hidden>▶ Watch the film</button>
-          <a class="pill pill-ghost" href="#story">See how it works</a>
-        </div>
+    <div class="hero-grid">
+      <div class="clock">
+        <span class="date glass" id="date">Morning census</span>
+        <span class="time glass" id="clock" aria-label="Local time">08:00</span>
       </div>
-      <div class="stage">
-        <div class="window">
-          <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="addr">Antibiome PICU — Command centre · 12 of 14 beds</span></div>
-          <img src="assets/home-dark.png" alt="The command centre: who is in the unit, admissions, ventilation, mortality with a 12-month PIM3 SMR, and what changed this month" width="1424" height="855">
+      <div class="hero-copy">
+        <h1>Turn PICU data into intelligence.</h1>
+        <p class="lede">Record a child's stay at the bedside in seconds. Antibiome connects every admission, culture, antibiotic and vital sign into patterns your unit can act on — on your own PC, nothing sent to the cloud.</p>
+      </div>
+      <div class="bed-card glass" aria-label="Example bed card">
+        <div class="row"><span>Bed 7</span><span>Today</span></div>
+        <s>08:10 · Ceftriaxone, empiric</s>
+        <small>culture-directed after <i>K. pneumoniae</i> grew</small>
+        <span>Meropenem · day 2 · Watch</span>
+        <hr>
+        <small>Phoenix 3 · septic shock criteria · lactate falling</small>
+      </div>
+      <div class="dock">
+        <div class="chips">
+          <span class="glass"><b>08:00</b>Morning census</span>
+          <span class="glass"><b>09:30</b>Daily reconcile</span>
+          <span class="glass"><b>11:15</b>Culture resulted</span>
+          <span class="glass">+ 6 more today</span>
         </div>
+        <div class="ask glass">
+          <span aria-hidden="true">＋</span>
+          <span class="q" id="askq">Septic shock this year — antibiotics within 60 minutes?</span>
+          <button class="btn btn-white" data-go="features" data-anchor="f-research">Ask →</button>
+        </div>
+        <span class="status"><i></i>Antibiome right now: comparing this month with last</span>
       </div>
     </div>
   </div>
 
   <div class="wrap">
-    <section class="block" id="story">
-      <div class="block-head">
-        <span class="eyebrow">From the bedside to the unit</span>
-        <h2>PICU data is everywhere. The intelligence is hidden inside it.</h2>
-        <p>Cultures in one book, antibiotics in another, vitals on a chart, outcomes in a register. Antibiome connects them for every admission, so the unit can see what it is actually doing.</p>
+    <section class="s">
+      <div class="head-row">
+        <p class="lead">Census, cultures, scores and changes — <span class="grey">everything Antibiome records, linked to the bedside.</span></p>
+        <div class="arrows"><button type="button" data-rail="-1" aria-label="Previous">←</button><button type="button" data-rail="1" aria-label="Next">→</button></div>
       </div>
-      <div class="story">
-        <div><b>Recorded</b><span>Admission, support, drugs, vitals, labs and cultures — one tap each, on the PC or a phone.</span></div>
-        <div><b>Organised</b><span>Every value belongs to an admission and a moment. Days on the ventilator and on each antibiotic are derived, not counted by hand.</span></div>
-        <div><b>Patterns</b><span>Antibiograms, days of therapy, adherence and severity across months, with first isolates and small groups flagged.</span></div>
-        <div><b>Intelligence</b><span>Risk-adjusted mortality, Phoenix sepsis, protocol run charts and a research Explorer that states its limits.</span></div>
-      </div>
-    </section>
-
-    <section class="block" style="padding-top:70px">
-      <div class="feature-row">
-        <div class="copy">
-          <span class="eyebrow">One patient</span>
-          <h3>The whole stay on one chart</h3>
-          <p>Respiratory support, every vasoactive and antimicrobial as bars across the days, cultures and complications where they happened, and vital-sign trends underneath on the same scale.</p>
-          <ul>
-            <li>Antimicrobials coloured by WHO AWaRe group, with days of therapy</li>
-            <li>Phoenix Sepsis Score per moment and worst in the first 24 h</li>
-            <li>Every past admission of the child one click away</li>
-          </ul>
-        </div>
-        <div class="shot"><img src="assets/therapy-chart.png" alt="A patient's therapy chart with support, antibiotics, cultures and vitals across six days" width="1052" height="560" loading="lazy"></div>
-      </div>
-      <div class="feature-row">
-        <div class="copy">
-          <span class="eyebrow">Many cultures</span>
-          <h3>A cumulative antibiogram that knows its limits</h3>
-          <p>Susceptibility by organism and drug from your own cultures, first isolate per patient, with groups under 30 isolates marked so nobody over-reads a percentage.</p>
-          <span class="fact">CLSI M39 first-isolate rule · MDR definition v1</span>
-        </div>
-        <div class="shot"><img src="assets/antibiogram.png" alt="Cumulative antibiogram by organism and antibiotic" width="1052" height="560" loading="lazy"></div>
-      </div>
-      <div class="feature-row">
-        <div class="copy">
-          <span class="eyebrow">The whole unit</span>
-          <h3>Ask a question, get an honest answer</h3>
-          <p>Build a cohort from anything recorded, compare groups and adjust with logistic regression. Every result is written out in plain words, labelled as association, never cause.</p>
-          <ul>
-            <li>Optional AI turns a typed question into a query you confirm (Claude or DeepSeek; no patient data sent)</li>
-            <li>Protocols as measurable rules, with adherence and run charts</li>
-          </ul>
-        </div>
-        <div class="shot"><img src="assets/explorer.png" alt="Research Explorer comparing mortality in septic shock by Phoenix criteria" width="620" height="521" loading="lazy"></div>
+      <div class="rail" id="rail">
+        <article class="rcard"><img class="cover" src="assets/film-dashboard.jpg" alt="The command centre: unit census, admissions, mortality and changes" loading="lazy"><div class="lbl glass"><small>The unit at a glance</small>Census, severity and what changed this month</div></article>
+        <article class="rcard light"><div class="lbl"><small class="grey">One patient</small><b>The whole stay on one chart</b></div><div class="shot"><img src="assets/therapy-chart.png" alt="Therapy chart with support, antibiotics, cultures and vitals across a stay" loading="lazy"></div><p style="margin:14px;color:var(--ink-2);font-size:14px">Support, vasoactives and every antibiotic across the days, cultures where they happened, vitals underneath.</p></article>
+        <article class="rcard"><img class="cover" src="assets/film-antibiogram.jpg" alt="Cumulative antibiogram forming from culture records" loading="lazy"><div class="lbl glass"><small>Many cultures</small>A cumulative antibiogram, first isolate per patient</div></article>
+        <article class="rcard" style="background:#e9e7e2"><div class="lbl" style="color:var(--ink)"><small class="grey">At the bedside</small><b>The census in your pocket</b></div><div class="phone"><img src="assets/phone-census.png" alt="Census on a phone with one-tap respiratory support" loading="lazy"></div></article>
+        <article class="rcard"><img class="cover" src="assets/film-beds.jpg" alt="Every bed in the unit on one board" loading="lazy"><div class="lbl glass"><small>The PICU</small>Every bed, one board</div></article>
+        <article class="rcard"><img class="cover" src="assets/film-chain.jpg" alt="A record connecting patient, culture, organism, sensitivity and antibiotic" loading="lazy"><div class="lbl glass"><small>Linked records</small>Patient → culture → organism → sensitivity → antibiotic</div></article>
       </div>
     </section>
 
-    <section class="block" style="padding-top:60px">
-      <div class="block-head">
-        <span class="eyebrow">Everything a PICU records</span>
-        <h2>Built around the unit's day</h2>
-      </div>
-      <div class="grid-feats">
-        <div><h3>Census &amp; admission</h3><p>Defaults everywhere and one-tap chips. 182 paediatric diagnoses with ICD-10 codes and PIM3 groups.</p><span class="fact">target &lt; 60 s per admission</span></div>
-        <div><h3>Vitals, labs &amp; scores</h3><p>Recorded at key moments. Age-specific flags, S/F ratio, shock index, Brighton PEWS and Phoenix.</p><span class="fact">IPSCC 2005 · Phoenix 2024</span></div>
-        <div><h3>Severity &amp; outcomes</h3><p>PIM3 from the first hour and a rolling 12-month standardised mortality ratio with its confidence interval.</p><span class="fact">SMR with Byar 95% CI</span></div>
-        <div><h3>Stewardship</h3><p>Days of therapy per 1,000 days present, AWaRe mix, why courses were started and how long they ran.</p><span class="fact">NHSN days-present denominator</span></div>
-        <div><h3>Patients archive</h3><p>Every admission, current and past, searchable by MRN, name, diagnosis, ICD-10 or bed.</p><span class="fact">names for clinical roles only</span></div>
-        <div><h3>Disease modules</h3><p>Add fields for sepsis, GBS, DKA or your own protocol without breaking earlier records.</p><span class="fact">versioned, with introduction dates</span></div>
-      </div>
-    </section>
-
-    <section class="block">
-      <div class="feature-row" style="border-top:0;padding-top:0">
-        <div class="copy">
-          <span class="eyebrow">Phones on the ward Wi-Fi</span>
-          <h3>The PC keeps the record. Phones bring it to the bed.</h3>
-          <p>Pair a phone with a single-use QR code. Staff sign in with their own accounts, and changes appear on every open screen.</p>
-          <ul>
-            <li>Encrypted connection to the unit PC; nothing about patients stored on the phone</li>
-            <li>Locks after 5 minutes; names hidden on phones unless the unit turns them on</li>
-            <li>Bedside work only — research, exports and settings stay on the PC</li>
-          </ul>
+    <section class="s">
+      <div class="split">
+        <div>
+          <span class="kicker"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>Built for one unit</span>
+          <p style="margin-top:14px;color:var(--ink-2);max-width:40ch">Antibiome reads the unit the way a senior colleague would: it remembers every admission, every culture and every antibiotic course, and quietly flags what changed — with the test behind it and a reminder that a change is not a cause.</p>
+          <div class="notices">
+            <div class="notice"><i class="up">↗</i><div>Amikacin use up 334%<small>174 vs 40 days of therapy per 1,000 days present</small></div></div>
+            <div class="notice"><i class="down">↘</i><div>Vancomycin use down 51%<small>107 vs 220 days of therapy per 1,000 days present</small></div></div>
+            <div class="notice"><i class="up">↗</i><div>Median length of stay up 45%<small>5.5 d vs 3.8 d last month</small></div></div>
+          </div>
+          <p style="margin-top:10px;font-size:12.5px;color:var(--ink-3)">“Antibiome noticed”, from the synthetic demo data.</p>
         </div>
-        <div class="phones">
-          <div class="phone"><img src="assets/phone-census.png" alt="Census on a phone with one-tap respiratory support" width="390" height="664" loading="lazy"></div>
-          <div class="phone"><img src="assets/phone-vitals.png" alt="Recording vital signs on a phone" width="390" height="664" loading="lazy"></div>
-          <div class="phone"><img src="assets/phone-patient.png" alt="Patient page on a phone" width="390" height="664" loading="lazy"></div>
+        <div>
+          <p class="lead">A colleague that never forgets — <span class="grey">it keeps the unit's memory and tells you what changed, month by month.</span></p>
+          <div class="thumbs">
+            <img src="assets/film-bento.jpg" alt="Unit analytics: SMR, antimicrobial use, susceptibility" loading="lazy">
+            <img src="assets/film-app.jpg" alt="Antibiogram and stewardship in the app" loading="lazy">
+            <img src="assets/film-patient.jpg" alt="A patient's therapy chart" loading="lazy">
+            <img src="assets/film-cultures.jpg" alt="Culture results flowing into the antibiogram" loading="lazy">
+          </div>
+          <button class="btn btn-dark" style="margin-top:26px" data-go="download">Get Antibiome</button>
         </div>
       </div>
     </section>
 
-    <section class="block">
-      <div class="block-head">
-        <span class="eyebrow">Privacy by design</span>
-        <h2>Your data stays in the unit</h2>
-      </div>
-      <div class="privacy">
-        <div><b>Local database</b><span>One SQLite file on the PICU PC, with a daily snapshot. No cloud account.</span></div>
-        <div><b>Roles &amp; audit</b><span>Admin, clinician, viewer, researcher. Every view, change and export is logged, append-only.</span></div>
-        <div><b>Pseudonymous analytics</b><span>Names and MRNs live apart and never reach analytics, exports or the AI service.</span></div>
-        <div><b>De-identified export</b><span>Day offsets instead of dates, with a data dictionary, for ethics-approved research.</span></div>
+    <section class="s">
+      <div class="frame film-frame">
+        <video id="loop" src="assets/film-loop.mp4" poster="assets/film-app.jpg" muted loop playsinline preload="metadata" aria-hidden="true"></video>
+        <div class="plan glass">
+          <h3>From data to intelligence</h3>
+          <span style="opacity:.8">How every record moves through the app.</span>
+          <div class="tick done"><b>✓</b><span>Recorded at the bedside</span></div>
+          <div class="tick done"><b>✓</b><span>Organised per admission</span></div>
+          <div class="tick done"><b>✓</b><span>Patterns across months</span></div>
+          <div class="tick"><b></b><span>Intelligence for the unit</span></div>
+        </div>
+        <button class="play glass" id="watch" type="button"><i>▶</i>Watch the 45-second film</button>
       </div>
     </section>
 
-    <div class="closing">
-      <span class="eyebrow">Antibiome PICU 0.1.0 · Windows</span>
-      <h2>Turn PICU data into intelligence.</h2>
-      <p>Install on one Windows PC, create the unit and admit the first patient. The setup guide covers every step, including phones and IT.</p>
-      <button class="pill pill-white" data-go="docs">Open the setup guide →</button>
+    <section class="s">
+      <div class="honest">
+        <div>
+          <span class="kicker"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.9L22 9.8l-5.5 4.8 1.7 7.4L12 18.3 5.8 22l1.7-7.4L2 9.8l7.1-.9z"/></svg>Honest by design</span>
+          <p class="quote" style="margin-top:14px">«Every result is labelled — association, never cause — <span class="grey">and every number traces back to the records behind it.»</span></p>
+        </div>
+      </div>
+      <div class="cards3">
+        <div class="card"><h3>Association, not causation</h3><p>Comparisons carry their test and p value, and say plainly what they cannot show. Logistic regression is refused when there are too few events.</p><span class="fact">Fisher · Mann–Whitney · EPV ≥ 10</span></div>
+        <div class="card"><h3>Small numbers flagged</h3><p>The antibiogram counts the first isolate per patient and marks every cell under 30 isolates. Months with few patients say so.</p><span class="fact">CLSI M39 · days present</span></div>
+        <div class="card"><h3>Missing stays missing</h3><p>A value nobody recorded is never treated as “no”. Scores list the inputs they are missing, so an underestimate is visible.</p><span class="fact">Phoenix · PIM3 · modules</span></div>
+      </div>
+    </section>
+
+    <section class="s">
+      <div class="where">
+        <div class="intro">
+          <p class="lead" style="font-size:clamp(1.6rem,2.6vw,2.2rem)">Works where your unit works</p>
+          <p style="color:var(--ink-2)">One Windows PC holds the record. Phones on the ward Wi-Fi bring it to the bed. Older PCs get their own edition.</p>
+          <button class="btn btn-dark" data-go="download" style="justify-self:start">Download</button>
+          <span style="font-size:13px;color:var(--ink-3)">Windows 10 &amp; 11 · Windows 7, 8 &amp; 8.1 · 32- and 64-bit</span>
+        </div>
+        <div class="w"><div class="img"><img src="assets/home-dark.png" alt="The command centre on the PICU PC" loading="lazy"></div><p><b>The PICU PC</b>The database, analytics and reports, on one computer.</p></div>
+        <div class="w"><div class="img" style="background:#e9e7e2"><img src="assets/phone-vitals.png" alt="Recording vital signs on a phone" loading="lazy" style="object-fit:contain;object-position:center;padding:18px"></div><p><b>Phones on the Wi-Fi</b>Paired by QR code, locked after 5 minutes, nothing stored.</p></div>
+        <div class="w"><div class="img"><div class="win7"><div><div class="tiles"><i style="background:#f25022"></i><i style="background:#7fba00"></i><i style="background:#00a4ef"></i><i style="background:#ffb900"></i></div><b style="font-size:20px">Windows 7 edition</b><div style="opacity:.8;font-size:13px;margin-top:6px">Same app · 32- and 64-bit</div></div></div></div><p><b>Older PCs too</b>A separate edition for Windows 7, 8 and 8.1 machines.</p></div>
+      </div>
+      <div class="standards"><span>Speaks the standards:</span><span><b>PIM3</b> 2013</span><span><b>Phoenix</b> 2024</span><span><b>IPSCC</b> 2005</span><span><b>WHO</b> AWaRe</span><span><b>NHSN</b> days of therapy</span><span><b>CLSI</b> M39</span><span><b>ICD-10</b></span></div>
+    </section>
+
+    <section class="s">
+      <div class="frame go">
+        <img class="bg" src="assets/film-bento.jpg" alt="" aria-hidden="true">
+        <div>
+          <span class="kicker" style="color:#fff">Ready when the unit is</span>
+          <h2 style="margin-top:10px">Admit. Record.<br>Understand.</h2>
+        </div>
+        <div class="three">
+          <div class="glass"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg><b>Admit in under a minute</b><span>Defaults everywhere, one-tap chips, 182 diagnoses with ICD-10.</span></div>
+          <div class="glass"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><b>It keeps up</b><span>Vitals, labs and scores at key moments; days on each drug derived, not counted.</span></div>
+          <div class="glass"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><b>Always on your PC</b><span>Works offline. The database never leaves the unit.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="s" id="faq">
+      <div class="faq">
+        <div>
+          <span class="kicker">FAQ</span>
+          <p class="lead" style="margin-top:12px">Everything you might be wondering about</p>
+          <p style="margin-top:14px;color:var(--ink-2)">Still have questions? <a href="#docs" data-go="docs" style="color:var(--accent-ink)">Read the setup guide</a>.</p>
+        </div>
+        <div>
+          <details><summary>Does it need the internet?</summary><p>No. Everything runs on the PICU PC with a local database. Internet is only used if you switch on AI questions.</p></details>
+          <details><summary>Where is patient data stored?</summary><p>In one SQLite file on the unit PC (<span class="mono">%APPDATA%\Antibiome PICU\data</span>), with a snapshot every day. Names and MRNs are kept apart from the analytics and never leave the PC.</p></details>
+          <details><summary>Will it run on our old PC?</summary><p>Yes. Windows 10 and 11 use the regular edition. Windows 7, 8 and 8.1 have their own edition, in 32- and 64-bit. It is the same app on an older engine that no longer receives security updates, so move to Windows 10 or later when you can.</p></details>
+          <details><summary>Can staff use their phones?</summary><p>Yes, over the hospital Wi-Fi. An administrator pairs each phone with a single-use QR code; staff sign in with their own accounts; phones lock after 5 minutes and store nothing about patients.</p></details>
+          <details><summary>Does it tell us how to treat a patient?</summary><p>No. Antibiome describes what the unit records and does — severity, use, susceptibility, adherence — for audit, quality improvement and research. Treatment decisions stay with the clinical team.</p></details>
+          <details><summary>What do the scores mean?</summary><p>PIM3 estimates risk of death for unit-level comparison (SMR). Phoenix (2024) is the international paediatric sepsis definition. Brighton PEWS describes deterioration. All are shown with their inputs and limits.</p></details>
+          <details><summary>Can we bring in our old Antibiome cultures?</summary><p>Yes. Export them from the old NICU app (Records → Export CSV) and use Settings → Import Antibiome cultures.</p></details>
+          <details><summary>Which AI does it use, and is it required?</summary><p>It's optional and off by default. An administrator can choose Claude (Anthropic) or DeepSeek to turn typed questions into queries you confirm. Only the question and field names are sent — never patient data.</p></details>
+          <details><summary>What does it cost?</summary><p>The source is on GitHub and the Windows builds are free to download. Ask your hospital's IT and information-governance teams before installing it on a clinical network.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <div class="frame cta">
+      <img class="bg" src="assets/film-logo.jpg" alt="" aria-hidden="true">
+      <h2>Your unit's intelligence starts with one admission.</h2>
+      <p style="opacity:.85;max-width:52ch">Install on one Windows PC, create the unit and admit the first patient.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-white" data-go="download">Download for Windows</button><button class="btn glass" data-go="docs">Setup guide</button></div>
     </div>
   </div>
 </main>
 
+<!-- ══════════════ FEATURES ══════════════ -->
+<div id="features" class="tabpage" role="tabpanel" aria-labelledby="tab-features" hidden>
+  <div class="wrap">
+    <div class="page-head">
+      <span class="kicker">Features · version <span class="ver">0.1.3</span></span>
+      <h1>Everything in Antibiome PICU</h1>
+      <p>From the first minute of an admission to the unit's monthly report — what the app records, what it works out, and what it never does.</p>
+    </div>
+
+    <div class="fgroup" id="f-bedside">
+      <div class="fimg"><img src="assets/film-dashboard.jpg" alt="Command centre" loading="lazy"></div>
+      <div class="flist">
+        <h2>At the bedside</h2>
+        <p>Fast enough to use during a shift, so the data is complete without a second round of entry.</p>
+        <dl>
+          <dt>Census board</dt><dd>Every bed with support, vasoactives and antibiotics; change respiratory support with one tap.</dd>
+          <dt>Admission in under a minute</dt><dd>Defaults, one-tap chips, a visible entry timer; MRN recognises returning patients.</dd>
+          <dt>182 paediatric diagnoses</dt><dd>Intensive-care diagnoses with ICD-10 codes, synonyms and their PIM3 group, from sepsis to post-cardiac surgery and neonatal conditions.</dd>
+          <dt>Therapy &amp; events</dt><dd>Vasoactives and antimicrobials as timed episodes with intent; procedures, complications and cultures on a day-by-day timeline.</dd>
+          <dt>Daily reconcile</dt><dd>One grid to confirm every bed's support and drugs each morning.</dd>
+          <dt>Discharge</dt><dd>Outcome and time close everything still running; only the missing module fields are asked for.</dd>
+        </dl>
+        <div class="chiprow"><span>keyboard-first</span><span>&lt; 60 s target</span><span>audit trail</span></div>
+      </div>
+    </div>
+
+    <div class="fgroup" id="f-patient">
+      <div class="fimg"><img src="assets/therapy-chart.png" alt="Therapy chart" loading="lazy" style="background:#fff"></div>
+      <div class="flist">
+        <h2>One patient, whole stay</h2>
+        <p>Everything about a child's stay in one place, and every past stay one click away.</p>
+        <dl>
+          <dt>Therapy chart</dt><dd>Support, each vasoactive and antimicrobial as bars across the days (coloured by WHO AWaRe), cultures and complications as markers, vitals as aligned trend lanes.</dd>
+          <dt>Vital signs at key moments</dt><dd>HR, RR, SpO₂, FiO₂, BP, MAP, temperature, capillary refill, GCS, glucose, urine output — with age-specific flags (IPSCC 2005), S/F ratio and shock index.</dd>
+          <dt>Labs with the vitals</dt><dd>Lactate, PaO₂, platelets, INR, D-dimer, fibrinogen and fixed pupils, recorded at the same moment.</dd>
+          <dt>Patients archive</dt><dd>Every admission, current and past, searchable by MRN, name, diagnosis, ICD-10 code or bed; other admissions of the same child linked.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="fgroup" id="f-scores">
+      <div class="fimg"><img src="assets/film-patient.jpg" alt="Phoenix score on a therapy chart" loading="lazy"></div>
+      <div class="flist">
+        <h2>Severity &amp; scores</h2>
+        <p>Recognised scores, worked out from what was recorded, with their inputs and gaps shown.</p>
+        <dl>
+          <dt>Phoenix Sepsis Score (2024)</dt><dd>Respiratory, cardiovascular, coagulation and neurological points per moment and worst in the first 24 h; Phoenix sepsis and septic shock.</dd>
+          <dt>PIM3</dt><dd>From the first hour, pre-filled from the record; a rolling 12-month standardised mortality ratio with its 95% confidence interval.</dd>
+          <dt>Brighton PEWS</dt><dd>Behaviour, cardiovascular and respiratory items with the nebuliser and vomiting extras — at referral, admission or step-down.</dd>
+        </dl>
+        <div class="chiprow"><span>Schlapbach 2024</span><span>Straney 2013</span><span>Monaghan 2005</span></div>
+      </div>
+    </div>
+
+    <div class="fgroup" id="f-micro">
+      <div class="fimg"><img src="assets/film-antibiogram.jpg" alt="Antibiogram" loading="lazy"></div>
+      <div class="flist">
+        <h2>Microbiology &amp; stewardship</h2>
+        <p>The original Antibiome, now linked to admissions.</p>
+        <dl>
+          <dt>Cumulative antibiogram</dt><dd>% susceptible by organism and drug, first isolate per patient, cells under 30 isolates marked.</dd>
+          <dt>MDR isolates</dt><dd>Organism-aware multidrug-resistance classification, with every culture's susceptibility results.</dd>
+          <dt>Days of therapy</dt><dd>DOT per 1,000 days present by month and by drug — the standard paediatric stewardship measure, no dosing data needed.</dd>
+          <dt>WHO AWaRe mix</dt><dd>Access, Watch and Reserve shares, why courses were started (empiric, targeted, prophylaxis) and how long they ran.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="fgroup" id="f-research">
+      <div class="fimg"><img src="assets/explorer.png" alt="Research Explorer" loading="lazy" style="background:#1a1a1a"></div>
+      <div class="flist">
+        <h2>Research &amp; questions</h2>
+        <p>Ask the unit's data a question and get an answer that states its limits.</p>
+        <dl>
+          <dt>Research Explorer</dt><dd>Cohorts from any recorded field — diagnoses, support, drugs, cultures, vitals, labs, scores, outcomes — with group comparisons and logistic regression.</dd>
+          <dt>Plain-words summary</dt><dd>Every result written out by the app from its own numbers, labelled as association.</dd>
+          <dt>AI questions (optional)</dt><dd>Type a question; Claude or DeepSeek proposes a query you confirm. Only the question and field names are sent; names and MRNs are blocked.</dd>
+          <dt>De-identified export</dt><dd>One row per admission with day offsets instead of dates and a data dictionary, for ethics-approved studies.</dd>
+          <dt>Disease modules</dt><dd>Add fields for sepsis, GBS, DKA or your own protocol, versioned, without breaking earlier records.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="fgroup" id="f-qi">
+      <div class="fimg"><img src="assets/protocols.png" alt="Protocols and QI" loading="lazy" style="background:#1a1a1a"></div>
+      <div class="flist">
+        <h2>Quality improvement</h2>
+        <p>Local protocols as measurable rules, and a unit that notices change.</p>
+        <dl>
+          <dt>Protocols &amp; run charts</dt><dd>Time windows, if/then rules and conditions; adherence against target by month, with the cases behind each miss. Sepsis first-hour bundle and admission vitals built in.</dd>
+          <dt>Antibiome noticed</dt><dd>Month-on-month changes in admissions, support, drug use and outcomes, each with its statistical test.</dd>
+          <dt>Monthly report &amp; data quality</dt><dd>A printable unit report and a list of implausible or incomplete records to fix.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="fgroup" id="f-access">
+      <div class="fimg" style="background:#e9e7e2;display:grid;place-items:center;padding:24px"><img src="assets/phone-patient.png" alt="Patient on a phone" loading="lazy" style="width:240px;border-radius:24px"></div>
+      <div class="flist">
+        <h2>Phones, privacy &amp; deployment</h2>
+        <p>Built for a hospital's rules.</p>
+        <dl>
+          <dt>Phones on the ward Wi-Fi</dt><dd>Encrypted, paired by single-use QR code, revocable, 5-minute lock, names hidden by default, bedside work only.</dd>
+          <dt>Roles &amp; audit</dt><dd>Administrator, clinician, viewer and researcher; every view, change and export logged, append-only.</dd>
+          <dt>Local, offline, backed up</dt><dd>One SQLite file on the unit PC, a snapshot every day (14 kept) and backup on demand.</dd>
+          <dt>Every Windows PC</dt><dd>Windows 10 and 11, plus a Windows 7/8/8.1 edition; 32- and 64-bit; installer or portable.</dd>
+        </dl>
+        <button class="btn btn-dark" style="margin-top:22px" data-go="download">Download</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ DOWNLOAD ══════════════ -->
+<div id="download" class="tabpage" role="tabpanel" aria-labelledby="tab-download" hidden>
+  <div class="wrap">
+    <div class="page-head">
+      <span class="kicker">Download · <span class="ver">0.1.3</span> · <span id="rel-date">latest release</span></span>
+      <h1>Get Antibiome PICU for Windows</h1>
+      <p>Pick the edition for your PC's Windows version. Each comes as an installer (picks 32- or 64-bit for you) or a portable file you can run from anywhere.</p>
+    </div>
+
+    <div class="dl-grid">
+      <div class="dl rec">
+        <span class="badge">Recommended</span>
+        <h2>Windows 10 &amp; 11</h2>
+        <div class="files">
+          <a class="file primary" data-asset="setup" href="https://github.com/itskaero/antibiome/releases/latest"><b>Installer</b><small data-size>32- and 64-bit · adds Start-menu shortcuts</small><span class="get">Download</span></a>
+          <a class="file" data-asset="x64" href="https://github.com/itskaero/antibiome/releases/latest"><b>Portable · 64-bit</b><small data-size>No install — run from a folder or USB stick</small><span class="get">Download</span></a>
+          <a class="file" data-asset="ia32" href="https://github.com/itskaero/antibiome/releases/latest"><b>Portable · 32-bit</b><small data-size>For 32-bit Windows</small><span class="get">Download</span></a>
+        </div>
+        <ul><li>Fully supported, with current security updates</li><li>Fastest database (built-in SQLite with WAL)</li></ul>
+      </div>
+      <div class="dl">
+        <span class="badge old">Older PCs</span>
+        <h2>Windows 7, 8 &amp; 8.1</h2>
+        <div class="files">
+          <a class="file" data-asset="setup7" href="https://github.com/itskaero/antibiome/releases/latest"><b>Installer · Windows 7 edition</b><small data-size>32- and 64-bit</small><span class="get">Download</span></a>
+          <a class="file" data-asset="x64-7" href="https://github.com/itskaero/antibiome/releases/latest"><b>Portable · 64-bit · Windows 7 edition</b><small data-size>No install</small><span class="get">Download</span></a>
+          <a class="file" data-asset="ia32-7" href="https://github.com/itskaero/antibiome/releases/latest"><b>Portable · 32-bit · Windows 7 edition</b><small data-size>For 32-bit Windows 7</small><span class="get">Download</span></a>
+        </div>
+        <ul><li>The same app and features on Electron 22, the last version that runs on Windows 7</li><li>That engine no longer gets security updates — move the PC to Windows 10 or later when you can</li><li>A database copied from the regular edition is converted on first open (the original is kept)</li></ul>
+      </div>
+    </div>
+
+    <div class="how">
+      <div class="card"><h3>32- or 64-bit?</h3><p>Windows 10/11: Settings → System → About → <b>System type</b>. Windows 7: Start → right-click Computer → Properties. If unsure, use the installer — it picks for you.</p></div>
+      <div class="card"><h3>“Windows protected your PC”</h3><p>The files are not code-signed yet, so SmartScreen warns on first run. Choose <b>More info → Run anyway</b>. Hospital IT can sign them with the hospital's certificate.</p></div>
+      <div class="card"><h3>Requirements</h3><p>Windows 7 or later, 32- or 64-bit, and a few hundred megabytes for the app, plus the database and its daily snapshots. One PC per unit holds the data; phones need the hospital Wi-Fi.</p></div>
+    </div>
+    <div class="note">Patient data stays on the PC you install it on. Before using Antibiome with real patients, agree it with your hospital's IT and information-governance teams. Then follow the <a href="#docs" data-go="docs" style="color:var(--accent-ink)">setup guide</a>.</div>
+    <p style="margin-top:22px;color:var(--ink-2);font-size:15px">All versions and release notes: <a href="https://github.com/itskaero/antibiome/releases" style="color:var(--accent-ink)">github.com/itskaero/antibiome/releases</a> · Build it yourself: <span class="mono">npm run dist:win</span> or <span class="mono">npm run dist:win7</span> in <span class="mono">desktop/</span>.</p>
+  </div>
+</div>
+
 <!-- ══════════════ DOCS ══════════════ -->
-<div id="docs" role="tabpanel" aria-labelledby="tab-docs" hidden>
-  <div class="wrap docs">
+<div id="docs" class="docs" role="tabpanel" aria-labelledby="tab-docs" hidden>
+  <div class="wrap">
     <div class="docs-grid">
       <nav class="toc" aria-label="Setup guide">
         <a href="#d-requirements">Requirements</a>
@@ -385,7 +669,7 @@ kbd { font: 500 11.5px var(--mono); border: 1px solid var(--line-2); border-bott
         <section id="d-requirements">
           <h2>Requirements</h2>
           <ul>
-            <li><strong>One Windows 10 or 11 PC</strong> in the unit, left on during shifts. It holds the database.</li>
+            <li><strong>One Windows PC</strong> in the unit (Windows 10 or 11 recommended; Windows 7, 8 and 8.1 have their own edition), left on during shifts. It holds the database.</li>
             <li><strong>BitLocker</strong> (or another disk encryption) on that PC — the database file is not encrypted by the app.</li>
             <li>A Windows account per user, and screen lock.</li>
             <li><strong>Optional:</strong> staff phones on the hospital Wi-Fi, and internet access for AI questions.</li>
@@ -394,17 +678,20 @@ kbd { font: 500 11.5px var(--mono); border: 1px solid var(--line-2); border-bott
 
         <section id="d-install">
           <h2>Install on the PC</h2>
-          <p>There is no published download yet. Build the installer once on any Windows machine with Node.js 22, then copy it to the unit PC.</p>
           <ol class="steps">
-            <li><div>Get the source and install dependencies.
-              <div class="code"><button type="button">Copy</button><pre>git clone https://github.com/itskaero/antibiome.git
-cd antibiome/desktop
-npm install</pre></div></div></li>
-            <li><div>Build the Windows installer and a portable version.
-              <div class="code"><button type="button">Copy</button><pre>npm run dist:win</pre></div>
-              <p>The files appear in <span class="mono">desktop\release\</span> as <span class="mono">Antibiome PICU Setup 0.1.0.exe</span> and a portable <span class="mono">.exe</span>.</p></div></li>
-            <li><div>Run the installer on the unit PC and open <strong>Antibiome PICU</strong> from the Start menu.</div></li>
+            <li><div>Open the <a href="#download" data-go="download">Download</a> tab and pick the edition for the PC's Windows version: <strong>Windows 10 &amp; 11</strong>, or the <strong>Windows 7 edition</strong> for Windows 7, 8 and 8.1.</div></li>
+            <li><div>Download the <strong>installer</strong> (it picks 32- or 64-bit for you), or a <strong>portable</strong> file if you can't install software.</div></li>
+            <li><div>Run it. If Windows shows “Windows protected your PC”, choose <strong>More info → Run anyway</strong> — the files are not code-signed yet.</div></li>
+            <li><div>Open <strong>Antibiome PICU</strong> from the Start menu.</div></li>
           </ol>
+          <h3>Building it yourself</h3>
+          <p>On any Windows machine with Node.js 22:</p>
+          <div class="code"><button type="button">Copy</button><pre>git clone https://github.com/itskaero/antibiome.git
+cd antibiome/desktop
+npm install
+npm run dist:win     # Windows 10/11, 32- and 64-bit
+npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
+          <p>The files appear in <span class="mono">desktop\release\</span>. Pushing a tag such as <span class="mono">v0.1.4</span> builds every edition on GitHub Actions and publishes a release.</p>
           <div class="note"><b>Where the data lives:</b> <span class="mono">%APPDATA%\Antibiome PICU\data\antibiome.db</span>. To keep it elsewhere (for example an encrypted drive), set the <span class="mono">ANTIBIOME_DATA_DIR</span> environment variable before starting the app.</div>
         </section>
 
@@ -538,63 +825,76 @@ npm install</pre></div></div></li>
 </div>
 
 
-<footer>
-  <div class="wrap">
-    <span>Antibiome PICU 0.1.0 · descriptive and associational analytics for quality improvement and research. It does not give treatment advice.</span>
-    <a href="https://github.com/itskaero/antibiome">github.com/itskaero/antibiome</a>
-  </div>
-</footer>
+
+<div class="page">
+  <footer>
+    <div class="foot">
+      <div>
+        <div class="brand" style="color:#fff;margin:0 0 12px"><svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" style="color:var(--accent)"><circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="3"/><ellipse cx="16" cy="16" rx="15" ry="6" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-28 16 16)" opacity="0.6"/><circle cx="16" cy="16" r="4.5" fill="currentColor"/></svg>antibiome.</div>
+        <p style="color:#9a9ba3;max-width:34ch;font-size:15px">Turn PICU data into intelligence. Descriptive and associational analytics for quality improvement and research — it does not give treatment advice.</p>
+      </div>
+      <div><h4>Product</h4><a data-go="home">Overview</a><a data-go="features">Features</a><a data-go="download">Download</a><a id="foot-film">The film</a></div>
+      <div><h4>Guide</h4><a data-go="docs">Setup guide</a><a href="#d-phones" data-go="docs" data-anchor="d-phones">Phones</a><a href="#d-ai" data-go="docs" data-anchor="d-ai">AI questions</a><a href="#d-trouble" data-go="docs" data-anchor="d-trouble">Troubleshooting</a></div>
+      <div><h4>Source</h4><a href="https://github.com/itskaero/antibiome">GitHub</a><a href="https://github.com/itskaero/antibiome/releases">Releases</a><a href="legacy/">Legacy NICU app</a></div>
+    </div>
+    <div class="mark" aria-hidden="true">antibiome</div>
+    <div class="legal"><span>Antibiome PICU <span class="ver">0.1.3</span> · synthetic demo data in all screenshots</span><span>Built for paediatric intensive care units</span></div>
+  </footer>
+</div>
 
 <div class="film" id="film" hidden>
-  <button class="pill pill-white" id="film-close">Close</button>
-  <video id="film-video" controls playsinline preload="none"></video>
+  <button class="btn btn-white" id="film-close" type="button">Close</button>
+  <video id="film-video" controls playsinline preload="none" poster="assets/film-logo.jpg"></video>
 </div>
 
 <script>
-// ── Tabs (deep-linkable with #product / #docs / #d-section) ──
 (function () {
-  var product = document.getElementById('product'), docs = document.getElementById('docs');
-  var tabs = { product: document.getElementById('tab-product'), docs: document.getElementById('tab-docs') };
+  var panels = ['home', 'features', 'download', 'docs'];
+  var nav = document.getElementById('nav'), current = 'home';
+  function setSolid() { var hero = document.querySelector('.hero'); nav.classList.toggle('solid', current !== 'home' || !hero || window.scrollY > hero.offsetHeight - 90); }
   function show(which, anchor) {
-    var isDocs = which === 'docs';
-    product.hidden = isDocs; docs.hidden = !isDocs;
-    tabs.product.setAttribute('aria-selected', String(!isDocs));
-    tabs.docs.setAttribute('aria-selected', String(isDocs));
+    if (panels.indexOf(which) < 0) which = 'home';
+    current = which;
+    panels.forEach(function (p) {
+      document.getElementById(p).hidden = p !== which;
+      var t = document.getElementById('tab-' + p); if (t) t.setAttribute('aria-selected', String(p === which));
+    });
+    setSolid();
+    var loop = document.getElementById('loop'); if (loop && which !== 'home') loop.pause();
     if (anchor) { var el = document.getElementById(anchor); if (el) { el.scrollIntoView(); return; } }
     window.scrollTo(0, 0);
   }
-  document.querySelectorAll('[data-go]').forEach(function (b) {
-    b.addEventListener('click', function (e) {
-      e.preventDefault();
-      var to = b.getAttribute('data-go');
-      show(to);
-      try { history.replaceState(null, '', '#' + to); } catch (_) {}
-    });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-go]'); if (!b) return;
+    e.preventDefault();
+    var to = b.getAttribute('data-go'), anchor = b.getAttribute('data-anchor');
+    show(to, anchor);
+    try { history.replaceState(null, '', '#' + (anchor || to)); } catch (_) {}
   });
+  function fromHash() {
+    var h = location.hash.slice(1);
+    if (!h || panels.indexOf(h) >= 0) return show(h || 'home');
+    if (h.indexOf('d-') === 0) return show('docs', h);
+    if (h.indexOf('f-') === 0) return show('features', h);
+    var el = document.getElementById(h); if (el) { show('home'); el.scrollIntoView(); }
+  }
+  fromHash();
+  window.addEventListener('hashchange', fromHash);
+  window.addEventListener('scroll', setSolid, { passive: true });
+
+  // Docs: table of contents and copy buttons
   document.querySelectorAll('.toc a').forEach(function (a) {
     a.addEventListener('click', function (e) {
-      e.preventDefault();
-      var id = a.getAttribute('href').slice(1);
+      e.preventDefault(); var id = a.getAttribute('href').slice(1);
       document.getElementById(id).scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
       try { history.replaceState(null, '', '#' + id); } catch (_) {}
     });
   });
-  function fromHash() {
-    var h = location.hash.slice(1);
-    if (h === 'docs' || h.indexOf('d-') === 0) show('docs', h.indexOf('d-') === 0 ? h : null);
-    else if (h === 'product' || h === '') show('product');
-  }
-  fromHash();
-  window.addEventListener('hashchange', fromHash);
-
   var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
   if ('IntersectionObserver' in window) {
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) { if (en.isIntersecting) links.forEach(function (l) { l.classList.toggle('on', l.getAttribute('href') === '#' + en.target.id); }); });
-    }, { rootMargin: '-30% 0px -60% 0px' });
+    var io = new IntersectionObserver(function (entries) { entries.forEach(function (en) { if (en.isIntersecting) links.forEach(function (l) { l.classList.toggle('on', l.getAttribute('href') === '#' + en.target.id); }); }); }, { rootMargin: '-30% 0px -60% 0px' });
     document.querySelectorAll('.doc section').forEach(function (s) { io.observe(s); });
   }
-
   document.querySelectorAll('.code button').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var pre = btn.parentNode.querySelector('pre');
@@ -604,14 +904,63 @@ npm install</pre></div></div></li>
     });
   });
 
-  // The launch film, shown only when it has been published next to the page.
-  var watch = document.getElementById('watch'), film = document.getElementById('film'), video = document.getElementById('film-video');
-  fetch('assets/film.mp4', { method: 'HEAD' }).then(function (r) { if (r.ok) watch.hidden = false; }).catch(function () {});
-  watch.addEventListener('click', function () { if (!video.src) video.src = 'assets/film.mp4'; film.hidden = false; video.play().catch(function () {}); });
+  // Hero: live clock and date in the viewer's time zone
+  var clock = document.getElementById('clock'), date = document.getElementById('date');
+  function tick() {
+    var d = new Date();
+    clock.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    date.textContent = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + (d.getHours() < 12 ? ' · morning round' : d.getHours() < 18 ? ' · afternoon' : ' · night shift');
+  }
+  tick(); setInterval(tick, 15000);
+
+  // Example questions in the ask bar
+  var qs = ['Septic shock this year — antibiotics within 60 minutes?', 'Pneumonia: mortality by highest respiratory support', 'Phoenix septic shock vs PIM3 risk, last 12 months', 'Meropenem days per 1,000 days present, by month'];
+  var q = document.getElementById('askq'), qi = 0;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(function () { qi = (qi + 1) % qs.length; q.textContent = qs[qi]; }, 4200);
+
+  // Card rail arrows
+  var rail = document.getElementById('rail');
+  document.querySelectorAll('[data-rail]').forEach(function (b) { b.addEventListener('click', function () { rail.scrollBy({ left: Number(b.getAttribute('data-rail')) * 394, behavior: 'smooth' }); }); });
+
+  // Background loop plays only while visible
+  var loop = document.getElementById('loop');
+  if (loop && 'IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    new IntersectionObserver(function (e) { if (e[0].isIntersecting && current === 'home') loop.play().catch(function () {}); else loop.pause(); }, { threshold: 0.25 }).observe(loop);
+  }
+
+  // The film
+  var film = document.getElementById('film'), video = document.getElementById('film-video');
+  function openFilm() { if (!video.src) video.src = 'assets/film.mp4'; film.hidden = false; video.play().catch(function () {}); }
   function closeFilm() { film.hidden = true; video.pause(); }
+  document.getElementById('watch').addEventListener('click', openFilm);
+  document.getElementById('foot-film').addEventListener('click', openFilm);
   document.getElementById('film-close').addEventListener('click', closeFilm);
   film.addEventListener('click', function (e) { if (e.target === film) closeFilm(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !film.hidden) closeFilm(); });
+
+  // Downloads: point every button at the exact file in the latest GitHub release (falls back to the release page)
+  var RULES = {
+    'setup': function (n) { return /Setup/.test(n) && !/Windows\.?7/.test(n); },
+    'x64': function (n) { return /Portable\.x64\.exe$/.test(n); },
+    'ia32': function (n) { return /Portable\.ia32\.exe$/.test(n); },
+    'setup7': function (n) { return /Setup/.test(n) && /Windows\.?7/.test(n); },
+    'x64-7': function (n) { return /Portable\.x64\.Windows\.?7\.exe$/.test(n); },
+    'ia32-7': function (n) { return /Portable\.ia32\.Windows\.?7\.exe$/.test(n); },
+  };
+  fetch('https://api.github.com/repos/itskaero/antibiome/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (rel) {
+      if (!rel || !rel.assets) return;
+      var v = String(rel.tag_name || '').replace(/^v/, '');
+      if (v) document.querySelectorAll('.ver').forEach(function (s) { s.textContent = v; });
+      if (rel.published_at) document.getElementById('rel-date').textContent = 'released ' + new Date(rel.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      document.querySelectorAll('[data-asset]').forEach(function (a) {
+        var rule = RULES[a.getAttribute('data-asset')], asset = rel.assets.filter(function (x) { return rule(x.name); })[0];
+        if (!asset) return;
+        a.href = asset.browser_download_url;
+        var small = a.querySelector('[data-size]'); if (small) small.textContent += ' · ' + Math.round(asset.size / 1048576) + ' MB';
+      });
+    }).catch(function () {});
 })();
 
 // ── The scene: a ward window at first light, painted live in a fragment shader ──
@@ -710,12 +1059,10 @@ npm install</pre></div></div></li>
   function layout() {
     var W = c.clientWidth, H = c.clientHeight, narrow = W < 760;
     // Window in CSS pixels from the top-left, converted to shader UV (origin bottom-left).
-    var x0 = narrow ? 0.1 * W : 0.56 * W, x1 = narrow ? 0.9 * W : Math.min(0.9 * W, x0 + 560);
-    // Keep the window clear of the product window that rises from the bottom of the hero.
-    var st = document.querySelector('.stage'), stageTop = st ? st.getBoundingClientRect().top - c.getBoundingClientRect().top : H * 0.6;
-    var yTop = narrow ? 80 : 96, yBot = Math.max(yTop + 260, stageTop - (narrow ? 30 : 60));
+    var x0 = narrow ? 0.08 * W : 0.5 * W, x1 = narrow ? 0.92 * W : Math.min(0.9 * W, x0 + 620);
+    var yTop = narrow ? 70 : 80, yBot = H * (narrow ? 0.55 : 0.8);
     gl.uniform4f(uw, x0 / W, 1 - yBot / H, x1 / W, 1 - yTop / H);
-    gl.uniform1f(ud, narrow ? 0.25 : 0.62);
+    gl.uniform1f(ud, narrow ? 0.2 : 0.35);
   }
   function size() {
     var w = Math.max(1, Math.round(c.clientWidth * scale)), hh = Math.max(1, Math.round(c.clientHeight * scale));

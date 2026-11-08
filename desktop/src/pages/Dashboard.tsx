@@ -164,8 +164,8 @@ export function Dashboard({ user, onAdmit }: { user: User; onAdmit: () => void }
           <Columns data={d.series.map(s => ({ x: s.label.split(' ')[0], y: s.admissions }))} name="Admissions" />
         </div>
         <div className="card p-5">
-          <CardHeader title="Antimicrobial use" info="Days of therapy (DOT) per 1,000 patient-days, this month. WHO AWaRe groups simplified." right={<button onClick={() => go('stewardship')} className="text-[12px] text-ink-3 hover:text-ink">Stewardship →</button>} />
-          <div className="mb-4 flex items-baseline gap-2"><span className="tnum text-[26px] font-semibold">{fmtInt(c.dot.per1000)}</span><span className="text-[12px] text-ink-3">DOT / 1,000 days present</span></div>
+          <CardHeader title="Antimicrobial use" info="Antibiotic-days per 1,000 patient-days (DOT), this month: each antibiotic given on a day counts 1 — one child on 2 drugs for 3 days = 6. WHO AWaRe groups simplified." right={<button onClick={() => go('stewardship')} className="text-[12px] text-ink-3 hover:text-ink">Stewardship →</button>} />
+          <div className="mb-4 flex items-baseline gap-2"><span className="tnum text-[26px] font-semibold">{fmtInt(c.dot.per1000)}</span><span className="text-[12px] text-ink-3">antibiotic-days per 1,000 patient-days (DOT)</span></div>
           <HBars rows={topDrugs.map(([drug, dot]) => ({ key: drug, label: drug, value: c.daysPresent ? (dot / c.daysPresent) * 1000 : 0 }))} fmt={v => fmtInt(v)} />
           <div className="mt-4"><StackBar parts={[
             { label: 'Access', value: c.dot.byAware.Access, color: 'var(--series-3)' },

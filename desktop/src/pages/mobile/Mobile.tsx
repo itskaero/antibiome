@@ -185,7 +185,7 @@ function MobileSummary() {
     ['Admissions this month', String(c.admissions), `${c.emergency} emergency`],
     ['Mortality', fmtPct(c.mortalityPct, 1), d.smr12 ? `12-month SMR ${d.smr12.smr.toFixed(2)} (95% CI ${d.smr12.lo.toFixed(2)}–${d.smr12.hi.toFixed(2)})` : `${c.deaths} of ${c.discharges} discharges`],
     ['Median stay', c.los ? `${fmt1(c.los.median)} d` : '—', c.los ? `IQR ${fmt1(c.los.q1)}–${fmt1(c.los.q3)} d` : undefined],
-    ['Antimicrobial use', c.dot.per1000 != null ? `${Math.round(c.dot.per1000)}` : '—', 'DOT per 1,000 patient-days'],
+    ['Antimicrobial use', c.dot.per1000 != null ? `${Math.round(c.dot.per1000)}` : '—', 'antibiotic-days per 1,000 patient-days'],
     ['Cultures', `${c.micro.positives} / ${c.micro.cultures}`, `positive · ${c.micro.mdr} MDR`],
     ['Data completeness', `${c.completeness.pct}%`, 'this month'],
   ];

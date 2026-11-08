@@ -206,7 +206,7 @@ function Antimicrobials({ episodes, editable, onStart, onStop, onEdit }: { episo
             <span className="text-[11px] font-medium tracking-wide text-ink-3 uppercase">Recently stopped</span>
             {stopped.map(e => (
               <div key={e.id} className="flex items-center justify-between rounded-lg px-3 py-1.5 text-[12.5px] text-ink-2 hover:bg-panel-2">
-                <span className="tnum">{e.detail} <span className="text-ink-3">· {e.startAt.slice(5, 16).replace('T', ' ')} → {e.endAt!.slice(5, 16).replace('T', ' ')}</span></span>
+                <span className="tnum">{e.detail} <b className="ml-1">{((ms(e.endAt!) - ms(e.startAt)) / DAY_MS).toFixed(1)} d</b> <span className="text-ink-3">· {e.startAt.slice(5, 16).replace('T', ' ')} → {e.endAt!.slice(5, 16).replace('T', ' ')}</span></span>
                 {editable && <Button size="sm" variant="ghost" onClick={() => onEdit(e)}><Pencil size={13} />Edit</Button>}
               </div>
             ))}

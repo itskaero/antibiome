@@ -760,8 +760,24 @@ export const routes: Record<string, Route> = {
     const since = ms(`${shiftMonth(end, -2)}-01`);
     const recent = ds.episodes.filter(e => e.kind === 'abx' && ms(e.startAt) >= since);
     const durations = recent.filter(e => e.endAt).map(e => (ms(e.endAt!) - ms(e.startAt)) / DAY_MS);
+    // Course length per drug, last 12 months. A running course counts up to now (or discharge).
+    const from = ms(`${shiftMonth(end, -11)}-01`);
+    const dischargeOf = new Map(ds.admissions.map(a => [a.id, a.dischargeAt]));
+    const byDrug = new Map<string, { durations: number[]; running: number }>();
+    ds.episodes.filter(e => e.kind === 'abx' && ms(e.startAt) >= from).forEach(e => {
+      const stop = e.endAt ? ms(e.endAt) : Math.min(t, dischargeOf.get(e.admissionId) ? ms(dischargeOf.get(e.admissionId)!) : t);
+      const d = byDrug.get(e.detail) ?? { durations: [], running: 0 };
+      d.durations.push(Math.max(0, (stop - ms(e.startAt)) / DAY_MS));
+      if (!e.endAt && !dischargeOf.get(e.admissionId)) d.running++;
+      byDrug.set(e.detail, d);
+    });
+    const courseLengths = [...byDrug].map(([drug, d]) => {
+      const xs = [...d.durations].sort((a, b) => a - b), r1 = (x: number) => Math.round(x * 10) / 10;
+      return { drug, courses: xs.length, running: d.running, medianDays: r1(xs[Math.floor(xs.length / 2)]), minDays: r1(xs[0]), maxDays: r1(xs[xs.length - 1]),
+        totalDays: r1(xs.reduce((a, b) => a + b, 0)), over7: xs.filter(x => x > 7).length };
+    }).sort((a, b) => b.courses - a.courses || b.totalDays - a.totalDays);
     return {
-      months,
+      months, courseLengths,
       intents: { empiric: recent.filter(e => e.intent === 'empiric').length, targeted: recent.filter(e => e.intent === 'targeted').length, prophylaxis: recent.filter(e => e.intent === 'prophylaxis').length },
       medianCourseDays: durations.length ? durations.sort((a, b) => a - b)[Math.floor(durations.length / 2)] : null,
       courses: recent.length,

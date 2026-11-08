@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Activity, BedDouble, Biohazard, ClipboardCheck, ClipboardList, FlaskRound, Layers, FileBarChart2, FlaskConical, Gauge, LayoutDashboard,
-  ChevronDown, ChevronUp, HeartPulse, ListChecks, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Users, Wind,
+  ChevronDown, ChevronUp, HeartPulse, ListChecks, ScrollText, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Users, Wind,
 } from 'lucide-react';
 import { call, getDevice, isPhone } from '@/lib/api';
 import { go, useApi, useHotkey, useRoute } from '@/lib/hooks';
@@ -27,6 +27,7 @@ import { ModulesAdmin } from '@/pages/ModulesAdmin';
 import { Protocols } from '@/pages/Protocols';
 import { Patients } from '@/pages/Patients';
 import { LiveMonitor } from '@/pages/LiveMonitor';
+import { Rounds } from '@/pages/Rounds';
 import type { CensusRow } from '@/pages/types';
 import { MobileShell, PairScreen } from '@/pages/mobile/Mobile';
 
@@ -136,6 +137,7 @@ const NAV = [
   { id: 'home', label: 'Command centre', icon: LayoutDashboard, roles: ['admin', 'clinician', 'viewer', 'researcher'], bedside: true },
   { id: 'census', label: 'Census board', icon: BedDouble, roles: ['admin', 'clinician', 'viewer'], key: 'B', bedside: true },
   { id: 'monitor', label: 'Live monitor', icon: HeartPulse, roles: ['admin', 'clinician', 'viewer'], bedside: true },
+  { id: 'rounds', label: 'Rounds & handover', icon: ScrollText, roles: ['admin', 'clinician', 'viewer'], bedside: true },
   { id: 'patients', label: 'Patients', icon: Users, roles: ['admin', 'clinician', 'viewer'], bedside: true },
   { id: 'reconcile', label: 'Daily reconcile', icon: ListChecks, roles: ['admin', 'clinician'], key: 'R', bedside: true },
   { id: 'micro', label: 'Microbiology', icon: FlaskConical, roles: ['admin', 'clinician', 'viewer', 'researcher'], bedside: true },
@@ -194,6 +196,7 @@ function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: ()
   const page = (() => {
     switch (route) {
       case 'patients': return <Patients />;
+      case 'rounds': return <Rounds />;
       case 'monitor': return <LiveMonitor key={args[0] ?? 'all'} args={args} isAdmin={user.role === 'admin'} canChart={clinical} />;
       case 'census': return <Census onAdmit={() => setAdmitOpen(true)} canEdit={clinical} />;
       case 'patient': return <PatientPage id={args[0]} canEdit={clinical} isAdmin={user.role === 'admin'} />;

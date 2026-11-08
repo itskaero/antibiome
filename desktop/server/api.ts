@@ -9,7 +9,7 @@ import { hashPassword, PASSWORD_MIN, verifyPassword } from './auth';
 import type { Admission, ClinicalEvent, Culture, Dataset, Episode, Role, User } from '../shared/types';
 import {
   ABX_INTENTS, ADMISSION_SOURCES, DISPOSITIONS, DX_BY_CODE, RESP_LEVELS, SPECIMEN_TYPES, VASOACTIVES, dxLabel,
-  type RespLevel,
+  type RespLevel, RESP_LABEL,
 } from '../shared/reference';
 import { detectChanges, losDays, monthSummary, monthlySeries, dailyCensus, presentAt, projectMonth, peakSupport, smrFor } from '../shared/analytics';
 import { runQualityChecks, QUALITY_RULES } from '../shared/quality';
@@ -20,6 +20,7 @@ import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/
 import { VITALS, VITAL_CONTEXTS, VITAL_FEATURES, vitalFeatures, admissionSet, flags24, sfRatio, shockIndex, validateVitals, vitalFlags, worst24, type VitalCode, type VitalContext, type VitalSet, type VitalValues } from '../shared/vitals';
 import { buildExplorer } from './explorer';
 import { FLUID_IN, FLUID_OUT, summarizeFluids } from '../shared/fluids';
+import { labFlag } from '../shared/labs';
 import { infectionSuspected, phoenix24, phoenixPerSet, phoenixSepsis, phoenixSepticShock } from '../shared/scores';
 import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
@@ -48,7 +49,7 @@ export const MOBILE_METHODS = new Set([
   'admission.create', 'admission.get', 'admission.update', 'admission.discharge',
   'resp.set', 'drug.toggle', 'episode.update', 'episode.delete', 'event.add', 'event.delete',
   'values.forAdmission', 'values.set', 'modules.list', 'pim3.save',
-  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'fluids.add', 'fluids.delete', 'fluids.forAdmission', 'vitals.pending', 'vitals.resolvePending', 'culture.save', 'culture.list', 'dashboard.get',
+  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'fluids.add', 'fluids.delete', 'fluids.forAdmission', 'vitals.pending', 'vitals.resolvePending', 'rounds.list', 'culture.save', 'culture.list', 'dashboard.get',
 ]);
 
 /** Secrets live outside the database in clear text: the desktop app encrypts them with the OS keychain (safeStorage). */
@@ -462,6 +463,51 @@ export const routes: Record<string, Route> = {
     db.prepare('UPDATE vital_sets SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
     audit(db, session, 'delete', 'vitals', v.admission_id, `${admissionLabel(db, v.admission_id)}: removed vitals from ${v.at}`);
     return true;
+  } },
+  /** Rounds & handover: one bundle per occupied bed, and what changed since `since` (local date-time). */
+  'rounds.list': { roles: NON_RESEARCH, fn: (p, { db, session, now }) => {
+    const t = now(), day = t - DAY_MS;
+    const since = p.since ? ms(reqDT(p.since, 'Since')) : null;
+    const ds = loadDataset(db);
+    const ROUND_VITALS: VitalCode[] = ['hr', 'rr', 'spo2', 'sbp', 'temp'];
+    const KEY_LABS: VitalCode[] = ['hb', 'wbc', 'platelets', 'crp', 'na', 'k', 'creat', 'lactate'];
+    return censusRows(db, session, t).map(r => {
+      const a = r.admission;
+      const sets = (ds.vitals ?? []).filter(v => v.admissionId === a.id).sort((x, y) => x.at.localeCompare(y.at));
+      const recent = sets.filter(v => ms(v.at) >= day);
+      const vitals = ROUND_VITALS.map(c => {
+        const xs = recent.filter(v => v.values[c] != null).map(v => v.values[c]!);
+        return xs.length ? { code: c, min: Math.min(...xs), max: Math.max(...xs), last: xs[xs.length - 1], series: xs.slice(-12) } : null;
+      }).filter(Boolean);
+      const latestLab = new Map<VitalCode, { value: number; at: string }>();
+      sets.filter(v => ms(v.at) >= t - 3 * DAY_MS).forEach(v => Object.entries(v.values).forEach(([c, x]) => { if (VITALS[c as VitalCode]?.group === 'lab' && x != null) latestLab.set(c as VitalCode, { value: x, at: v.at }); }));
+      const labs = [...latestLab].map(([code, x]) => ({ code, ...x, flag: labFlag(code, x.value, a.ageMonths) }))
+        .filter(l => l.flag || KEY_LABS.includes(l.code));
+      const fluidRows = (db.prepare('SELECT * FROM fluid_entries WHERE admission_id = ? AND deleted_at IS NULL').all(a.id) as any[])
+        .map(f => ({ id: f.id, admissionId: f.admission_id, at: f.at, dir: f.dir, category: f.category, ml: f.ml, note: f.note }));
+      const fluids = fluidRows.length ? summarizeFluids(fluidRows, { now: t, admitAt: a.admitAt, weightKg: a.weightKg ?? null }) : null;
+      const events = ds.events.filter(e => e.admissionId === a.id && ms(e.at) >= day).map(e => ({ at: e.at, label: e.label, type: e.type }));
+      const pendingReadings = (db.prepare('SELECT COUNT(*) n FROM pending_vitals WHERE admission_id = ? AND decided_at IS NULL').get(a.id) as any).n as number;
+      const changes: string[] = [];
+      if (since != null) {
+        ds.episodes.filter(e => e.admissionId === a.id).forEach(e => {
+          const name = e.kind === 'resp' ? RESP_LABEL[e.detail as RespLevel] ?? e.detail : e.detail;
+          if (ms(e.startAt) >= since) changes.push(e.kind === 'resp' ? `Support → ${name}` : `Started ${name}`);
+          if (e.endAt && ms(e.endAt) >= since && e.kind !== 'resp') changes.push(`Stopped ${name}`);
+        });
+        ds.events.filter(e => e.admissionId === a.id && ms(e.at) >= since).forEach(e => changes.push(e.label));
+        ds.cultures.filter(c => c.admissionId === a.id && ms(c.collectedAt.length === 10 ? `${c.collectedAt}T00:00` : c.collectedAt) >= since)
+          .forEach(c => changes.push(`${c.specimen} culture: ${c.organism ?? 'no growth'}${isMDR(c as any) ? ' (MDR)' : ''}`));
+        sets.filter(v => ms(v.at) >= since).forEach(v => Object.entries(v.values).forEach(([c, x]) => {
+          const f = VITALS[c as VitalCode]?.group === 'lab' ? labFlag(c as VitalCode, x, a.ageMonths) : null;
+          if (f) changes.push(`${VITALS[c as VitalCode].short} ${x} ${f}`);
+        }));
+        const flags = sets.filter(v => ms(v.at) >= since).flatMap(v => vitalFlags(v.values, a.ageMonths));
+        [...new Set(flags)].forEach(f => changes.push(`Vitals: ${f.replace(/_/g, ' ')}`));
+      }
+      return { ...r, vitals, labs, fluids, events, pendingReadings, changes,
+        abxDays: r.abx.map(x => ({ drug: x.drug, day: Math.floor((t - ms(x.since)) / DAY_MS) + 1, intent: x.intent })) };
+    });
   } },
   // Monitor readings proposed for the chart (see server/monitorService.ts) — a clinician confirms each.
   'vitals.pending': { roles: NON_RESEARCH, fn: (p, { db }) => {

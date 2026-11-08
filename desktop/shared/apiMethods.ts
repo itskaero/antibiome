@@ -3,7 +3,7 @@
 export const READ_METHODS = new Set(['auth.status', 'census.list', 'patient.lookup', 'admission.get', 'culture.list', 'micro.summary', 'dashboard.get',
   'stewardship.get', 'quality.list', 'activity.list', 'recent.list', 'users.list', 'settings.get', 'desktop.info', 'export.deidentified',
   'modules.list', 'values.forAdmission', 'research.module', 'explorer.fields', 'explorer.run', 'cohorts.list', 'protocols.list', 'protocols.results',
-  'ai.status', 'ai.ask', 'vitals.forAdmission', 'fluids.forAdmission', 'vitals.pending', 'patients.search', 'mobile.devices', 'desktop.mobileStatus',
+  'ai.status', 'ai.ask', 'vitals.forAdmission', 'fluids.forAdmission', 'vitals.pending', 'rounds.list', 'patients.search', 'mobile.devices', 'desktop.mobileStatus',
   'desktop.monitorStatus', 'desktop.monitorSnapshot', 'desktop.monitorTrend', 'desktop.monitorEvents']);
 /** Mutations that change no clinical data (no need to refresh other devices). */
 export const QUIET_METHODS = new Set(['auth.login', 'auth.logout', 'auth.unpairDevice', 'auth.changePassword', 'mobile.pairingCode', 'desktop.saveCsv', 'desktop.print', 'desktop.openDataFolder', 'desktop.backupNow',

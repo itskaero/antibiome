@@ -14,11 +14,15 @@ import type { Episode } from './types';
 import { phoenix24, phoenixSepsis, phoenixSepticShock } from './scores';
 
 export const VITAL_CODES = ['hr', 'rr', 'spo2', 'fio2', 'sbp', 'dbp', 'map', 'temp', 'crt', 'gcs', 'urine', 'glucose',
-  'lactate', 'pao2', 'platelets', 'inr', 'ddimer', 'fibrinogen', 'pupils_fixed', 'pews'] as const;
+  'lactate', 'pao2', 'platelets', 'inr', 'ddimer', 'fibrinogen', 'pupils_fixed', 'pews',
+  // Laboratory panels (see shared/labs.ts). Stored like vitals: one value per code per timed set.
+  'hb', 'wbc', 'neut', 'lymph', 'urea', 'creat', 'na', 'k', 'cl', 'hco3', 'ica', 'mg', 'po4',
+  'alt', 'ast', 'bili', 'alb', 'ph', 'pco2', 'be', 'pt', 'aptt', 'crp', 'pct'] as const;
 export type VitalCode = typeof VITAL_CODES[number];
 export const LAB_CODES: VitalCode[] = ['lactate', 'pao2', 'platelets', 'inr', 'ddimer', 'fibrinogen'];
 
-export interface VitalDef { code: VitalCode; label: string; short: string; unit: string; min: number; max: number; decimals: number; worst: 'max' | 'min' | 'both'; group?: 'vital' | 'lab' | 'score' }
+export interface VitalDef { code: VitalCode; label: string; short: string; unit: string; min: number; max: number; decimals: number; worst: 'max' | 'min' | 'both'; group?: 'vital' | 'lab' | 'score'; panel?: LabPanel }
+export type LabPanel = 'cbc' | 'renal' | 'lytes' | 'lft' | 'gas' | 'coag' | 'inflam';
 export const VITALS: Record<VitalCode, VitalDef> = {
   hr: { code: 'hr', label: 'Heart rate', short: 'HR', unit: '/min', min: 20, max: 300, decimals: 0, worst: 'max' },
   rr: { code: 'rr', label: 'Respiratory rate', short: 'RR', unit: '/min', min: 4, max: 150, decimals: 0, worst: 'max' },
@@ -32,14 +36,38 @@ export const VITALS: Record<VitalCode, VitalDef> = {
   gcs: { code: 'gcs', label: 'Glasgow Coma Scale', short: 'GCS', unit: '', min: 3, max: 15, decimals: 0, worst: 'min' },
   urine: { code: 'urine', label: 'Urine output', short: 'UO', unit: 'mL/kg/h', min: 0, max: 20, decimals: 1, worst: 'min' },
   glucose: { code: 'glucose', label: 'Blood glucose', short: 'Glu', unit: 'mmol/L', min: 0.5, max: 60, decimals: 1, worst: 'both' },
-  lactate: { code: 'lactate', label: 'Lactate', short: 'Lac', unit: 'mmol/L', min: 0.1, max: 30, decimals: 1, worst: 'max', group: 'lab' },
-  pao2: { code: 'pao2', label: 'PaO₂ (arterial)', short: 'PaO₂', unit: 'mmHg', min: 10, max: 700, decimals: 0, worst: 'min', group: 'lab' },
-  platelets: { code: 'platelets', label: 'Platelets', short: 'Plt', unit: '×10⁹/L', min: 1, max: 2000, decimals: 0, worst: 'min', group: 'lab' },
-  inr: { code: 'inr', label: 'INR', short: 'INR', unit: '', min: 0.5, max: 15, decimals: 1, worst: 'max', group: 'lab' },
-  ddimer: { code: 'ddimer', label: 'D-dimer', short: 'D-dimer', unit: 'mg/L FEU', min: 0, max: 100, decimals: 1, worst: 'max', group: 'lab' },
-  fibrinogen: { code: 'fibrinogen', label: 'Fibrinogen', short: 'Fib', unit: 'g/L', min: 0.1, max: 15, decimals: 1, worst: 'min', group: 'lab' },
+  lactate: { panel: 'gas', code: 'lactate', label: 'Lactate', short: 'Lac', unit: 'mmol/L', min: 0.1, max: 30, decimals: 1, worst: 'max', group: 'lab' },
+  pao2: { panel: 'gas', code: 'pao2', label: 'PaO₂ (arterial)', short: 'PaO₂', unit: 'mmHg', min: 10, max: 700, decimals: 0, worst: 'min', group: 'lab' },
+  platelets: { panel: 'cbc', code: 'platelets', label: 'Platelets', short: 'Plt', unit: '×10⁹/L', min: 1, max: 2000, decimals: 0, worst: 'min', group: 'lab' },
+  inr: { panel: 'coag', code: 'inr', label: 'INR', short: 'INR', unit: '', min: 0.5, max: 15, decimals: 1, worst: 'max', group: 'lab' },
+  ddimer: { panel: 'coag', code: 'ddimer', label: 'D-dimer', short: 'D-dimer', unit: 'mg/L FEU', min: 0, max: 100, decimals: 1, worst: 'max', group: 'lab' },
+  fibrinogen: { panel: 'coag', code: 'fibrinogen', label: 'Fibrinogen', short: 'Fib', unit: 'g/L', min: 0.1, max: 15, decimals: 1, worst: 'min', group: 'lab' },
   pupils_fixed: { code: 'pupils_fixed', label: 'Both pupils fixed', short: 'Pupils fixed', unit: '', min: 0, max: 1, decimals: 0, worst: 'max', group: 'score' },
   pews: { code: 'pews', label: 'PEWS (Brighton)', short: 'PEWS', unit: '', min: 0, max: 13, decimals: 0, worst: 'max', group: 'score' },
+  hb: { code: 'hb', label: 'Haemoglobin', short: 'Hb', unit: 'g/L', min: 20, max: 250, decimals: 0, worst: 'min', group: 'lab', panel: 'cbc' },
+  wbc: { code: 'wbc', label: 'White cells', short: 'WBC', unit: '×10⁹/L', min: 0, max: 500, decimals: 1, worst: 'both', group: 'lab', panel: 'cbc' },
+  neut: { code: 'neut', label: 'Neutrophils', short: 'Neut', unit: '×10⁹/L', min: 0, max: 300, decimals: 1, worst: 'both', group: 'lab', panel: 'cbc' },
+  lymph: { code: 'lymph', label: 'Lymphocytes', short: 'Lymph', unit: '×10⁹/L', min: 0, max: 300, decimals: 1, worst: 'both', group: 'lab', panel: 'cbc' },
+  urea: { code: 'urea', label: 'Urea', short: 'Urea', unit: 'mmol/L', min: 0.1, max: 150, decimals: 1, worst: 'max', group: 'lab', panel: 'renal' },
+  creat: { code: 'creat', label: 'Creatinine', short: 'Creat', unit: 'µmol/L', min: 5, max: 3000, decimals: 0, worst: 'max', group: 'lab', panel: 'renal' },
+  na: { code: 'na', label: 'Sodium', short: 'Na', unit: 'mmol/L', min: 90, max: 200, decimals: 0, worst: 'both', group: 'lab', panel: 'lytes' },
+  k: { code: 'k', label: 'Potassium', short: 'K', unit: 'mmol/L', min: 1, max: 12, decimals: 1, worst: 'both', group: 'lab', panel: 'lytes' },
+  cl: { code: 'cl', label: 'Chloride', short: 'Cl', unit: 'mmol/L', min: 50, max: 160, decimals: 0, worst: 'both', group: 'lab', panel: 'lytes' },
+  hco3: { code: 'hco3', label: 'Bicarbonate', short: 'HCO₃', unit: 'mmol/L', min: 1, max: 60, decimals: 0, worst: 'min', group: 'lab', panel: 'lytes' },
+  ica: { code: 'ica', label: 'Ionised calcium', short: 'iCa', unit: 'mmol/L', min: 0.2, max: 3, decimals: 2, worst: 'both', group: 'lab', panel: 'lytes' },
+  mg: { code: 'mg', label: 'Magnesium', short: 'Mg', unit: 'mmol/L', min: 0.1, max: 5, decimals: 2, worst: 'both', group: 'lab', panel: 'lytes' },
+  po4: { code: 'po4', label: 'Phosphate', short: 'PO₄', unit: 'mmol/L', min: 0.1, max: 8, decimals: 2, worst: 'both', group: 'lab', panel: 'lytes' },
+  alt: { code: 'alt', label: 'ALT', short: 'ALT', unit: 'U/L', min: 1, max: 20000, decimals: 0, worst: 'max', group: 'lab', panel: 'lft' },
+  ast: { code: 'ast', label: 'AST', short: 'AST', unit: 'U/L', min: 1, max: 20000, decimals: 0, worst: 'max', group: 'lab', panel: 'lft' },
+  bili: { code: 'bili', label: 'Bilirubin (total)', short: 'Bili', unit: 'µmol/L', min: 0, max: 1500, decimals: 0, worst: 'max', group: 'lab', panel: 'lft' },
+  alb: { code: 'alb', label: 'Albumin', short: 'Alb', unit: 'g/L', min: 5, max: 70, decimals: 0, worst: 'min', group: 'lab', panel: 'lft' },
+  ph: { code: 'ph', label: 'pH', short: 'pH', unit: '', min: 6.5, max: 8, decimals: 2, worst: 'both', group: 'lab', panel: 'gas' },
+  pco2: { code: 'pco2', label: 'pCO₂', short: 'pCO₂', unit: 'mmHg', min: 5, max: 200, decimals: 0, worst: 'both', group: 'lab', panel: 'gas' },
+  be: { code: 'be', label: 'Base excess', short: 'BE', unit: 'mmol/L', min: -40, max: 40, decimals: 1, worst: 'min', group: 'lab', panel: 'gas' },
+  pt: { code: 'pt', label: 'Prothrombin time', short: 'PT', unit: 's', min: 5, max: 150, decimals: 1, worst: 'max', group: 'lab', panel: 'coag' },
+  aptt: { code: 'aptt', label: 'APTT', short: 'APTT', unit: 's', min: 10, max: 250, decimals: 0, worst: 'max', group: 'lab', panel: 'coag' },
+  crp: { code: 'crp', label: 'CRP', short: 'CRP', unit: 'mg/L', min: 0, max: 700, decimals: 0, worst: 'max', group: 'lab', panel: 'inflam' },
+  pct: { code: 'pct', label: 'Procalcitonin', short: 'PCT', unit: 'µg/L', min: 0, max: 1000, decimals: 2, worst: 'max', group: 'lab', panel: 'inflam' },
 };
 
 export const VITAL_CONTEXTS = ['admission', 'routine', 'event'] as const;

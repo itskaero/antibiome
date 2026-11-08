@@ -9,6 +9,7 @@ declare global {
     antibiome?: {
       call: (method: string, params?: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
       onChanged?: (fn: () => void) => () => void;
+      onMonitor?: (fn: (update: any) => void) => () => void;
     };
   }
 }

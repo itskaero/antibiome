@@ -19,6 +19,7 @@ outcomes, stewardship and research answers from your own unit's data — on your
 
 - **Census and fast admission** — defaults everywhere, one-tap chips, MRN recognises returning patients.
 - **Support and therapy** — respiratory support, vasoactives and antimicrobials as timed episodes.
+- **Live bedside monitors** — SpO₂, pulse, temperature and waveforms streamed from the unit's monitors, with a per-bed view and trends (a secondary display; alarms stay on the monitors).
 - **Vital signs at key moments** — IPSCC 2005 age-specific flags, S/F ratio, shock index, worst first-24 h values.
 - **Severity and outcomes** — PIM3 per admission and a rolling 12-month standardised mortality ratio.
 - **Stewardship and microbiology** — days of therapy per 1,000 patient-days, WHO AWaRe, MDR isolates, first-isolate antibiogram.

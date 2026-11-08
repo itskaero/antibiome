@@ -15,6 +15,7 @@ import { nowLocal, toDateStr } from '../shared/time';
 import { lanAddresses, startMobileServer, type MobileServer } from '../server/mobileServer';
 import { generateCertificate, serverFingerprint } from '../server/tls';
 import { QUIET_METHODS, isRead } from '../shared/apiMethods';
+import { DEFAULT_MONITOR_CONFIG, MonitorGateway, type MonitorConfig } from '../server/monitorGateway';
 
 const dataDir = process.env.ANTIBIOME_DATA_DIR || join(app.getPath('userData'), 'data');
 mkdirSync(dataDir, { recursive: true });
@@ -105,6 +106,21 @@ function mobileStatus() {
   };
 }
 
+// ── Live bedside monitors (off by default) ─────────────────────────
+// The gateway takes the central station's place on the monitor network; see server/monitorGateway.ts.
+const monitor = new MonitorGateway();
+monitor.on('update', u => { if (win && !win.isDestroyed()) win.webContents.send('monitor', u); });
+const monitorRecordDir = join(dataDir, 'monitor-recordings');
+function monitorConfig(): MonitorConfig {
+  return {
+    ...DEFAULT_MONITOR_CONFIG,
+    basePort: Number(getSetting(db, 'monitorBasePort', String(DEFAULT_MONITOR_CONFIG.basePort))),
+    maxBed: Number(getSetting(db, 'monitorMaxBed', String(DEFAULT_MONITOR_CONFIG.maxBed))),
+    timeSync: getSetting(db, 'monitorTimeSync') === '1',
+  };
+}
+const monitorStatus = () => ({ ...monitor.status(), enabled: getSetting(db, 'monitorEnabled') === '1', recordDir: monitorRecordDir });
+
 // Desktop-only operations that need native dialogs.
 const desktopRoutes: Record<string, (p: any) => unknown> = {
   'desktop.info': () => {
@@ -176,6 +192,31 @@ const desktopRoutes: Record<string, (p: any) => unknown> = {
     if (mobile) await startMobile();
     return mobileStatus();
   },
+  'desktop.monitorStatus': () => { requireRole('admin', 'clinician', 'viewer'); return monitorStatus(); },
+  'desktop.monitorSnapshot': () => { requireRole('admin', 'clinician', 'viewer'); return monitor.snapshot(); },
+  'desktop.monitorTrend': (p: { bed: number }) => { requireRole('admin', 'clinician', 'viewer'); return monitor.trend(Number(p.bed)); },
+  'desktop.monitorConfigure': async (p: { enabled: boolean; basePort?: number; maxBed?: number; timeSync?: boolean }) => {
+    requireRole('admin');
+    if (p.basePort != null) {
+      const base = Number(p.basePort), max = Number(p.maxBed ?? monitorConfig().maxBed);
+      if (!Number.isInteger(base) || base < 1 || !Number.isInteger(max) || max < 1 || max > 250 || base + max > 65535) throw new ApiError('Base port + highest bed number must stay between 1 and 65535');
+      setSetting(db, 'monitorBasePort', String(base)); setSetting(db, 'monitorMaxBed', String(max));
+    }
+    if (p.timeSync != null) setSetting(db, 'monitorTimeSync', p.timeSync ? '1' : '0');
+    setSetting(db, 'monitorEnabled', p.enabled ? '1' : '0');
+    if (p.enabled) await monitor.start(monitorConfig()); else await monitor.stop();
+    const st = monitorStatus();
+    auditDesktop('update', 'settings', p.enabled ? `Live monitor receiver turned on (ports ${st.config.basePort + 1}–${st.config.basePort + st.config.maxBed}, listening on ${st.listening})` : 'Live monitor receiver turned off');
+    return st;
+  },
+  'desktop.monitorDemo': (p: { on: boolean }) => { requireRole('admin', 'clinician'); monitor.setDemo(!!p.on); return monitorStatus(); },
+  'desktop.monitorRecord': (p: { on: boolean }) => {
+    requireRole('admin');
+    monitor.setRecording(p.on ? monitorRecordDir : null);
+    auditDesktop('update', 'settings', p.on ? 'Raw monitor recording started (protocol verification)' : 'Raw monitor recording stopped');
+    return monitorStatus();
+  },
+  'desktop.monitorOpenRecordings': () => { requireRole('admin'); mkdirSync(monitorRecordDir, { recursive: true }); return shell.openPath(monitorRecordDir); },
   'desktop.print': () => { requireRole('admin', 'clinician', 'viewer', 'researcher'); win?.webContents.print({ printBackground: true }); return true; },
 };
 
@@ -238,6 +279,7 @@ app.whenReady().then(() => {
   try { dailyBackup(); } catch (e) { console.error('[backup]', e); }
   createWindow();
   if (getSetting(db, 'mobileEnabled') === '1') startMobile();
+  if (getSetting(db, 'monitorEnabled') === '1') monitor.start(monitorConfig()).catch(e => console.error('[monitor]', e));
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-app.on('window-all-closed', async () => { await stopMobile(); db.close(); app.quit(); });
+app.on('window-all-closed', async () => { await stopMobile(); await monitor.dispose(); db.close(); app.quit(); });

@@ -83,7 +83,8 @@ async function startMobile() {
   mobileError = null;
   try {
     const port = Number(getSetting(db, 'mobilePort', String(DEFAULT_PORT)));
-    mobile = await startMobileServer({ api, db, distDir: join(__dirname, '../dist'), tls: await tlsOptions(), port, onPhoneMutation: () => win?.webContents.send('changed') });
+    const loopbackPort = Number(getSetting(db, 'remoteLoopbackPort', '0')) || undefined;
+    mobile = await startMobileServer({ api, db, distDir: join(__dirname, '../dist'), tls: await tlsOptions(), port, loopbackPort, allowedHosts, trustedProxies, onPhoneMutation: () => win?.webContents.send('changed') });
     mobileFingerprint = await serverFingerprint(mobile.port);
     if (blocker == null) blocker = powerSaveBlocker.start('prevent-app-suspension');
   } catch (e: any) {
@@ -96,12 +97,19 @@ async function stopMobile() {
   if (mobile) { await mobile.close(); mobile = null; }
   if (blocker != null) { powerSaveBlocker.stop(blocker); blocker = null; }
 }
+// ── Remote access (Cloudflare Tunnel) ─────────────────────────────
+// With a public hostname set, the phone server answers only to that name and this PC's own addresses.
+const publicHostname = () => getSetting(db, 'remotePublicHostname').trim().toLowerCase() || null;
+const allowedHosts = () => { const h = publicHostname(); return h ? [h, 'localhost', '127.0.0.1', ...lanAddresses()] : null; };
+const trustedProxies = () => getSetting(db, 'remoteConnectorIp').split(',').map(x => x.trim()).filter(Boolean);
 function mobileStatus() {
   const port = mobile?.port ?? Number(getSetting(db, 'mobilePort', String(DEFAULT_PORT)));
   const addresses = lanAddresses();
+  const pub = publicHostname();
   return {
     enabled: getSetting(db, 'mobileEnabled') === '1', running: !!mobile, error: mobileError, port, addresses,
-    urls: addresses.map(a => `https://${a}:${port}`), fingerprint: mobile ? mobileFingerprint : null,
+    urls: [...(pub ? [`https://${pub}`] : []), ...addresses.map(a => `https://${a}:${port}`)], fingerprint: mobile ? mobileFingerprint : null,
+    remote: { publicHostname: pub, connectorIp: getSetting(db, 'remoteConnectorIp') || null, loopbackPort: mobile?.loopbackPort ?? (Number(getSetting(db, 'remoteLoopbackPort', '0')) || null), lastTunnelAt: mobile?.lastTunnelAt() ?? null },
     certificate: existsSync(join(tlsDir, 'hospital.pfx')) ? 'hospital' : 'generated', clients: mobile?.clients() ?? 0,
     secureStorage: secrets.available(),
   };
@@ -165,6 +173,21 @@ const desktopRoutes: Record<string, (p: any) => unknown> = {
     setSetting(db, 'mobileEnabled', p.on ? '1' : '0');
     if (p.on) await startMobile(); else { await stopMobile(); mobileError = null; }
     auditDesktop('update', 'settings', p.on ? `Phone access turned on (port ${mobileStatus().port})${mobileError ? ` — failed: ${mobileError}` : ''}` : 'Phone access turned off');
+    return mobileStatus();
+  },
+  'desktop.remoteConfigure': async (p: { publicHostname: string | null; loopbackPort: number | null; connectorIp?: string | null }) => {
+    requireRole('admin');
+    const host = String(p.publicHostname ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (host && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host)) throw new ApiError('Enter a host name like picu.example.org');
+    const lp = p.loopbackPort ? Number(p.loopbackPort) : 0;
+    if (lp && (!Number.isInteger(lp) || lp < 1024 || lp > 65535)) throw new ApiError('Local port must be between 1024 and 65535');
+    const conn = String(p.connectorIp ?? '').trim();
+    if (conn && !/^(\d{1,3}\.){3}\d{1,3}$/.test(conn)) throw new ApiError('Connector address must be an IPv4 address on this network, e.g. 192.168.0.20');
+    setSetting(db, 'remotePublicHostname', host);
+    setSetting(db, 'remoteLoopbackPort', String(lp));
+    setSetting(db, 'remoteConnectorIp', conn);
+    if (mobile) await startMobile();
+    auditDesktop('update', 'settings', host ? `Remote access: public address ${host}, tunnel port 127.0.0.1:${lp || 'off'}` : 'Remote access turned off');
     return mobileStatus();
   },
   'desktop.mobileLoadPfx': async (p: { passphrase?: string }) => {

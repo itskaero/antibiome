@@ -303,6 +303,34 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_pending_adm ON pending_vitals(admission_id, decided_at);
   `,
+  // v8 — staff invites (QR / link) and account requests made from a phone, approved by an admin.
+  `
+  CREATE TABLE invites (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    role TEXT NOT NULL CHECK (role IN ('clinician','viewer','researcher')),
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    max_uses INTEGER NOT NULL,
+    uses INTEGER NOT NULL DEFAULT 0,
+    revoked_at TEXT
+  );
+  CREATE TABLE account_requests (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL COLLATE NOCASE,
+    display_name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    pw_hash TEXT NOT NULL,
+    pw_salt TEXT NOT NULL,
+    device_id TEXT REFERENCES devices(id),
+    invite_id TEXT REFERENCES invites(id),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+    requested_at TEXT NOT NULL,
+    decided_by INTEGER REFERENCES users(id),
+    decided_at TEXT
+  );
+  `,
 ];
 
 export function openDatabase(file: string): DB {

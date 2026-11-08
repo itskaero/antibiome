@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { AlertTriangle, BedDouble, FlaskConical, HeartPulse, LayoutDashboard, LogOut, Moon, Pill, Plus, ShieldCheck, Smartphone, Sun, UserRound } from 'lucide-react';
-import { call, forgetDevice, getDevice, openEvents, pairDevice } from '@/lib/api';
+import { call, forgetDevice, getDevice, joinWithInvite, openEvents, pairDevice } from '@/lib/api';
+import { AccountRequests } from '@/components/StaffAccess';
 import { go, useApi, useRoute } from '@/lib/hooks';
 import { cx, fmt1, fmtPct, losLabel } from '@/lib/format';
 import { Button, Chip, Empty, ErrorNote, Field, RespChip, RespSegment, useToast } from '@/components/ui';
@@ -36,6 +37,45 @@ export function PairScreen({ onDone, Frame }: { onDone: () => void; Frame: React
       </form>
       <ul className="mt-5 flex flex-col gap-1.5 text-[12px] text-ink-3">
         <li>• You still sign in with your own account every time.</li>
+        <li>• Nothing about patients is stored on the phone; it locks after 5 minutes.</li>
+        <li>• An administrator can unpair this phone at any time.</li>
+      </ul>
+    </Frame>
+  );
+}
+
+/** Opened from a staff invite link: pairs this phone and asks an administrator for an account, in one step. */
+export function JoinScreen({ onDone, Frame }: { onDone: () => void; Frame: React.FC<{ title: string; subtitle: string; children: React.ReactNode }> }) {
+  const code = window.location.hash.match(/^#\/join\/([A-Za-z0-9-]+)/)?.[1] ?? '';
+  const [f, setF] = useState({ displayName: '', username: '', password: '', deviceName: '' });
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setErr(null); setBusy(true);
+    try { const r = await joinWithInvite({ code, ...f, deviceName: f.deviceName || `${f.displayName}'s phone` }); setSent(r.role); }
+    catch (x: any) { setErr(x.message); } finally { setBusy(false); }
+  };
+  if (sent) return (
+    <Frame title="Request sent" subtitle={`An administrator will approve your ${sent} account. This phone is now paired.`}>
+      <div className="flex flex-col gap-4">
+        <p className="rounded-xl bg-panel-2 px-4 py-3 text-[13px] text-ink-2">Once approved, sign in with <b>{f.username}</b> and the password you chose. Until then, signing in says the account is waiting.</p>
+        <Button variant="primary" onClick={() => { window.location.hash = '/census'; onDone(); }}>Go to sign in</Button>
+      </div>
+    </Frame>
+  );
+  return (
+    <Frame title="Join the unit" subtitle="Create your account from this phone. An administrator approves it before you can sign in.">
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <Field label="Your name" hint="As colleagues know you, e.g. Dr A. Khan"><input id="join-name" className="field h-11 text-[16px]" value={f.displayName} onChange={set('displayName')} autoFocus autoComplete="name" /></Field>
+        <Field label="Username"><input id="join-user" className="field h-11 text-[16px]" value={f.username} onChange={set('username')} autoCapitalize="none" autoComplete="username" /></Field>
+        <Field label="Password" hint="At least 8 characters."><input id="join-pass" type="password" className="field h-11 text-[16px]" value={f.password} onChange={set('password')} autoComplete="new-password" /></Field>
+        <Field label="Name for this phone" hint="Optional — shown in the audit trail."><input id="join-device" className="field h-11 text-[16px]" value={f.deviceName} onChange={set('deviceName')} placeholder={f.displayName ? `${f.displayName}'s phone` : ''} /></Field>
+        <ErrorNote text={err} />
+        <Button variant="primary" type="submit" disabled={busy || !code || f.displayName.trim().length < 2 || f.username.trim().length < 3 || f.password.length < 8}>Request account</Button>
+      </form>
+      <ul className="mt-5 flex flex-col gap-1.5 text-[12px] text-ink-3">
         <li>• Nothing about patients is stored on the phone; it locks after 5 minutes.</li>
         <li>• An administrator can unpair this phone at any time.</li>
       </ul>
@@ -188,6 +228,7 @@ function MeTab({ user, theme, setTheme, onSignOut }: { user: User; theme: string
         <p className="flex items-center gap-2"><Smartphone size={15} className="text-ink-3" />This phone: <b>{dev?.name}</b></p>
         <p className="text-[12px] text-ink-3">Locks after 5 minutes without activity. Closing the tab signs you out. Nothing about patients is stored on the phone.</p>
       </div>
+      {user.role === 'admin' && <AccountRequests compact />}
       <Button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}{theme === 'dark' ? 'Light theme' : 'Dark theme'}</Button>
       <Button variant="primary" onClick={signOut}><LogOut size={15} />Sign out</Button>
       <button className="mt-2 text-[12px] text-ink-3 underline" onClick={() => { if (confirm('Unpair this phone? You will need a new code from the PC to use it again.')) { call('auth.unpairDevice').catch(() => {}).finally(() => { forgetDevice(); location.reload(); }); } }}>Unpair this phone</button>

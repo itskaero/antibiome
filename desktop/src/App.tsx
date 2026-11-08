@@ -29,7 +29,7 @@ import { Patients } from '@/pages/Patients';
 import { LiveMonitor } from '@/pages/LiveMonitor';
 import { Rounds } from '@/pages/Rounds';
 import type { CensusRow } from '@/pages/types';
-import { MobileShell, PairScreen } from '@/pages/mobile/Mobile';
+import { JoinScreen, MobileShell, PairScreen } from '@/pages/mobile/Mobile';
 
 export const Logo = ({ size = 22 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
@@ -61,6 +61,8 @@ export default function App() {
     return () => { window.removeEventListener('antibiome:locked', h); window.removeEventListener('antibiome:unpaired', u); };
   }, [refresh]);
 
+  const [joining, setJoining] = useState(() => phone && /^#\/join\//.test(window.location.hash));
+  if (joining) return <ToastProvider><JoinScreen Frame={AuthFrame} onDone={() => { setJoining(false); setPaired(true); }} /></ToastProvider>;
   if (phone && !paired) return <ToastProvider><PairScreen Frame={AuthFrame} onDone={() => setPaired(true)} /></ToastProvider>;
   if (error) return <div className="grid h-full place-items-center p-8"><div className="flex flex-col items-center gap-3"><ErrorNote text={error} />{phone && <Button onClick={refresh}>Try again</Button>}</div></div>;
   if (!status) return null;

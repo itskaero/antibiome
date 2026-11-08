@@ -26,7 +26,7 @@ import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
 import { describeCondition, describeSpec, narrate, runCohort, validateSpec } from '../shared/explorer';
 import { AI_PROVIDERS, AiError, TRANSLATORS, containsIdentifier, isProvider, translateQuestion, type AiProvider, type Translator } from './ai';
-import { createPairingCode, listDevices, revokeDevice, touchDevice } from './mobile';
+import { createInvite, createPairingCode, listDevices, listInvites, revokeDevice, revokeInvite, touchDevice } from './mobile';
 import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
 import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
 
@@ -49,7 +49,7 @@ export const MOBILE_METHODS = new Set([
   'admission.create', 'admission.get', 'admission.update', 'admission.discharge',
   'resp.set', 'drug.toggle', 'episode.update', 'episode.delete', 'event.add', 'event.delete',
   'values.forAdmission', 'values.set', 'modules.list', 'pim3.save',
-  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'fluids.add', 'fluids.delete', 'fluids.forAdmission', 'vitals.pending', 'vitals.resolvePending', 'rounds.list', 'culture.save', 'culture.list', 'dashboard.get',
+  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'fluids.add', 'fluids.delete', 'fluids.forAdmission', 'vitals.pending', 'vitals.resolvePending', 'rounds.list', 'users.requests', 'users.decideRequest', 'invites.create', 'invites.list', 'culture.save', 'culture.list', 'dashboard.get',
 ]);
 
 /** Secrets live outside the database in clear text: the desktop app encrypts them with the OS keychain (safeStorage). */
@@ -289,6 +289,10 @@ export const routes: Record<string, Route> = {
     const r = db.prepare('SELECT * FROM users WHERE username = ?').get(String(p.username ?? '').trim()) as any;
     if (!r || !r.active || !verifyPassword(String(p.password ?? ''), r.pw_hash, r.pw_salt)) {
       audit(db, { ...session, user: null }, 'login-failed', 'user', null, `Failed sign-in for "${String(p.username ?? '').slice(0, 40)}"`);
+      // A request from a phone that is still waiting: say so (only to someone who knows its password).
+      const req = !r ? db.prepare("SELECT * FROM account_requests WHERE username = ? AND status != 'approved' ORDER BY requested_at DESC").get(String(p.username ?? '').trim()) as any : null;
+      if (req && verifyPassword(String(p.password ?? ''), req.pw_hash, req.pw_salt))
+        fail(req.status === 'pending' ? 'Your account is waiting for an administrator to approve it.' : 'Your account request was not approved. Ask an administrator.');
       fail('Incorrect username or password');
     }
     if (session.channel === 'mobile' && r.role === 'researcher') fail('Research accounts work on the PICU PC only');
@@ -1099,6 +1103,33 @@ export const routes: Record<string, Route> = {
   } },
   // Phone access (configured on the PC by an admin; never reachable from a phone)
   'mobile.devices': { roles: ['admin'], fn: (_p, { db }) => ({ devices: listDevices(db), showNames: getSetting(db, 'mobileShowNames', '0') === '1' }) },
+  // Staff invites & account requests from phones
+  'invites.create': { roles: ['admin'], fn: (p, { db, session, now }) => {
+    const r = (() => { try { return createInvite(db, session.user!.id, { role: p.role, days: p.days, maxUses: p.maxUses }, now()); } catch (e: any) { return fail(e.message); } })();
+    audit(db, session, 'add', 'invite', r.id, `Created a staff invite (${p.role}, ${p.maxUses} use${Number(p.maxUses) > 1 ? 's' : ''}, ${p.days} day${Number(p.days) > 1 ? 's' : ''})`);
+    return r;
+  } },
+  'invites.list': { roles: ['admin'], fn: (_p, { db, now }) => listInvites(db, now()) },
+  'invites.revoke': { roles: ['admin'], fn: (p, { db, session }) => { revokeInvite(db, String(p.id)); audit(db, session, 'delete', 'invite', String(p.id), 'Revoked a staff invite'); return true; } },
+  'users.requests': { roles: ['admin'], fn: (_p, { db }) => (db.prepare(`SELECT r.id, r.username, r.display_name, r.role, r.requested_at, d.name AS device FROM account_requests r
+      LEFT JOIN devices d ON d.id = r.device_id WHERE r.status = 'pending' ORDER BY r.requested_at`).all() as any[])
+    .map(r => ({ id: r.id, username: r.username, displayName: r.display_name, role: r.role, requestedAt: r.requested_at, device: r.device })) },
+  'users.decideRequest': { roles: ['admin'], fn: (p, { db, session }) => tx(db, () => {
+    const r = db.prepare("SELECT * FROM account_requests WHERE id = ? AND status = 'pending'").get(String(p.id)) as any ?? fail('Request not found or already decided');
+    if (!p.approve) {
+      db.prepare("UPDATE account_requests SET status = 'rejected', decided_by = ?, decided_at = ? WHERE id = ?").run(session.user!.id, nowLocal(), r.id);
+      if (r.device_id) revokeDevice(db, r.device_id);
+      audit(db, session, 'delete', 'account-request', r.id, `Declined account request from ${r.display_name} (${r.username}); their phone was unpaired`);
+      return false;
+    }
+    const role = p.role ?? r.role;
+    if (!['clinician', 'viewer', 'researcher'].includes(role)) fail('Choose clinician, viewer or researcher');
+    if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(r.username)) fail('That username is now taken — decline the request and send a new invite');
+    db.prepare('INSERT INTO users(username, display_name, role, pw_hash, pw_salt, created_at) VALUES (?,?,?,?,?,?)').run(r.username, r.display_name, role, r.pw_hash, r.pw_salt, nowLocal());
+    db.prepare("UPDATE account_requests SET status = 'approved', decided_by = ?, decided_at = ? WHERE id = ?").run(session.user!.id, nowLocal(), r.id);
+    audit(db, session, 'add', 'user', r.username, `Approved ${r.display_name} (${r.username}) as ${role} — requested from a phone`);
+    return true;
+  }) },
   'mobile.pairingCode': { roles: ['admin'], fn: (_p, { db, session, now }) => {
     const r = createPairingCode(db, session.user!.id, now());
     audit(db, session, 'add', 'device', null, 'Created a phone pairing code (valid 10 min, single use)');

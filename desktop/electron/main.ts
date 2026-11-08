@@ -17,6 +17,7 @@ import { generateCertificate, serverFingerprint } from '../server/tls';
 import { QUIET_METHODS, isRead } from '../shared/apiMethods';
 import { MonitorGateway } from '../server/monitorGateway';
 import { createMonitorService } from '../server/monitorService';
+import { TunnelManager, type TunnelMode } from '../server/tunnel';
 
 const dataDir = process.env.ANTIBIOME_DATA_DIR || join(app.getPath('userData'), 'data');
 mkdirSync(dataDir, { recursive: true });
@@ -100,7 +101,18 @@ async function stopMobile() {
 // ── Remote access (Cloudflare Tunnel) ─────────────────────────────
 // With a public hostname set, the phone server answers only to that name and this PC's own addresses.
 const publicHostname = () => getSetting(db, 'remotePublicHostname').trim().toLowerCase() || null;
-const allowedHosts = () => { const h = publicHostname(); return h ? [h, 'localhost', '127.0.0.1', ...lanAddresses()] : null; };
+// Built-in Cloudflare connector (shipped in resources/cloudflared by the Windows installers).
+const cloudflaredDir = app.isPackaged ? join(process.resourcesPath, 'cloudflared') : (process.env.CLOUDFLARED_DIR ?? '');
+const cloudflaredBin = process.env.CLOUDFLARED_PATH || (cloudflaredDir && process.platform === 'win32' ? join(cloudflaredDir, 'cloudflared.exe') : null);
+const cloudflaredVersion = (() => { try { return readFileSync(join(cloudflaredDir, 'cloudflared.version'), 'utf8').split(' ')[0].trim(); } catch { return null; } })();
+const tunnel = new TunnelManager({ binary: cloudflaredBin, version: cloudflaredVersion });
+const TUNNEL_PORT = 8790;
+const allowedHosts = () => {
+  const h = publicHostname();
+  if (!h) return null;
+  const quick = tunnel.status().url;
+  return [h, 'localhost', '127.0.0.1', ...lanAddresses(), ...(quick ? [new URL(quick).hostname] : [])];
+};
 const trustedProxies = () => getSetting(db, 'remoteConnectorIp').split(',').map(x => x.trim()).filter(Boolean);
 function mobileStatus() {
   const port = mobile?.port ?? Number(getSetting(db, 'mobilePort', String(DEFAULT_PORT)));
@@ -190,6 +202,34 @@ const desktopRoutes: Record<string, (p: any) => unknown> = {
     auditDesktop('update', 'settings', host ? `Remote access: public address ${host}, tunnel port 127.0.0.1:${lp || 'off'}` : 'Remote access turned off');
     return mobileStatus();
   },
+  'desktop.tunnelStatus': () => { requireRole('admin'); return { ...tunnel.status(), available: tunnel.available, hasToken: !!secrets.load('tunnel-token'), autostart: getSetting(db, 'tunnelEnabled') === '1' }; },
+  /** Start the built-in connector. Turns on phone access and the loopback listener it points at, if needed. */
+  'desktop.tunnelStart': async (p: { mode: TunnelMode; token?: string }) => {
+    requireRole('admin');
+    if (p.mode !== 'quick' && p.mode !== 'token') throw new ApiError('Choose a quick test or your own tunnel');
+    let token: string | undefined;
+    if (p.mode === 'token') {
+      token = (p.token ?? '').trim() || secrets.load('tunnel-token') || '';
+      if (!token) throw new ApiError('Paste the tunnel token from the Cloudflare dashboard');
+      if (p.token && !secrets.available()) throw new ApiError('Secure storage is not available on this computer, so the token cannot be stored safely.');
+    }
+    if (!Number(getSetting(db, 'remoteLoopbackPort', '0'))) setSetting(db, 'remoteLoopbackPort', String(TUNNEL_PORT));
+    setSetting(db, 'mobileEnabled', '1');
+    await startMobile();
+    if (!mobile?.loopbackPort) throw new ApiError(mobileError ?? 'Phone access could not start, so the tunnel has nothing to connect to.');
+    try { tunnel.start(p.mode, mobile.loopbackPort, token); } catch (e: any) { throw new ApiError(e.message); }
+    if (p.mode === 'token') { if (p.token) secrets.save('tunnel-token', token!); setSetting(db, 'tunnelEnabled', '1'); }
+    auditDesktop('update', 'settings', p.mode === 'quick' ? 'Started a temporary Cloudflare test link' : 'Cloudflare tunnel connected from this PC');
+    return { ...tunnel.status(), available: tunnel.available, hasToken: !!secrets.load('tunnel-token'), autostart: getSetting(db, 'tunnelEnabled') === '1' };
+  },
+  'desktop.tunnelStop': (p: { forget?: boolean }) => {
+    requireRole('admin');
+    tunnel.stop();
+    setSetting(db, 'tunnelEnabled', '0');
+    if (p?.forget) secrets.save('tunnel-token', null);
+    auditDesktop('update', 'settings', p?.forget ? 'Cloudflare tunnel stopped and its token removed' : 'Cloudflare tunnel stopped');
+    return { ...tunnel.status(), available: tunnel.available, hasToken: !!secrets.load('tunnel-token'), autostart: false };
+  },
   'desktop.mobileLoadPfx': async (p: { passphrase?: string }) => {
     requireRole('admin');
     if (p.passphrase && !secrets.available()) throw new ApiError('Secure storage is not available on this computer, so a certificate passphrase cannot be stored safely.');
@@ -276,8 +316,12 @@ app.whenReady().then(() => {
   createWindow();
   if (getSetting(db, 'mobileEnabled') === '1') startMobile();
   if (getSetting(db, 'monitorEnabled') === '1') monitorService.start().catch(e => console.error('[monitor]', e));
+  // Reconnect the unit's own tunnel at launch (never a quick test link).
+  if (getSetting(db, 'tunnelEnabled') === '1' && secrets.load('tunnel-token')) {
+    (async () => { if (!mobile) await startMobile(); if (mobile?.loopbackPort) tunnel.start('token', mobile.loopbackPort, secrets.load('tunnel-token')!); })().catch(e => console.error('[tunnel]', e));
+  }
   // Monitor readings proposed for the chart; tell the window so the pending banner appears.
   setInterval(() => { try { if (monitorService.captureTick() > 0) win?.webContents.send('changed'); } catch (e) { console.error('[monitor capture]', e); } }, 60_000);
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-app.on('window-all-closed', async () => { await stopMobile(); await monitor.dispose(); db.close(); app.quit(); });
+app.on('window-all-closed', async () => { tunnel.stop(); await stopMobile(); await monitor.dispose(); db.close(); app.quit(); });

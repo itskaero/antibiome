@@ -4,3 +4,4 @@ dist-electron/
 release/
 *.db
 *.db-*
+build/bin/

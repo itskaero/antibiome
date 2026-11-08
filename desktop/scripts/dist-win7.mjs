@@ -9,6 +9,8 @@ run('npm run typecheck');
 run('npx vite build');
 run('node scripts/win7-css.mjs');
 run('node scripts/build-electron.mjs');
+// Cloudflare Tunnel connector for "Access from home": the last release that runs on Windows 7.
+run('node scripts/fetch-cloudflared.mjs win7');
 
 await build({
   targets: Platform.WINDOWS.createTarget(['nsis', 'portable'], Arch.ia32, Arch.x64),

@@ -19,6 +19,7 @@ import { DAY_MS, ms, nowLocal, shiftMonth, toLocal } from '../shared/time';
 import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/pim3';
 import { VITALS, VITAL_CONTEXTS, VITAL_FEATURES, vitalFeatures, admissionSet, flags24, sfRatio, shockIndex, validateVitals, vitalFlags, worst24, type VitalCode, type VitalContext, type VitalSet, type VitalValues } from '../shared/vitals';
 import { buildExplorer } from './explorer';
+import { FLUID_IN, FLUID_OUT, summarizeFluids } from '../shared/fluids';
 import { infectionSuspected, phoenix24, phoenixPerSet, phoenixSepsis, phoenixSepticShock } from '../shared/scores';
 import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
@@ -47,7 +48,7 @@ export const MOBILE_METHODS = new Set([
   'admission.create', 'admission.get', 'admission.update', 'admission.discharge',
   'resp.set', 'drug.toggle', 'episode.update', 'episode.delete', 'event.add', 'event.delete',
   'values.forAdmission', 'values.set', 'modules.list', 'pim3.save',
-  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'culture.save', 'culture.list', 'dashboard.get',
+  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'fluids.add', 'fluids.delete', 'fluids.forAdmission', 'culture.save', 'culture.list', 'dashboard.get',
 ]);
 
 /** Secrets live outside the database in clear text: the desktop app encrypts them with the OS keychain (safeStorage). */
@@ -461,6 +462,37 @@ export const routes: Record<string, Route> = {
     db.prepare('UPDATE vital_sets SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
     audit(db, session, 'delete', 'vitals', v.admission_id, `${admissionLabel(db, v.admission_id)}: removed vitals from ${v.at}`);
     return true;
+  } },
+  // Fluid balance
+  'fluids.add': { roles: CLINICAL, fn: (p, { db, session, now }) => {
+    const a = getAdmissionRow(db, p.admissionId);
+    const at = reqDT(p.at ?? nowLocal(), 'Time');
+    if (ms(at) > now() + 10 * 60_000) fail('Time is in the future');
+    if (ms(at) < ms(a.admit_at) - 2 * 3_600_000) fail('Time is before admission');
+    if (a.discharge_at && ms(at) > ms(a.discharge_at) + 3_600_000) fail('Time is after discharge');
+    if (p.dir !== 'in' && p.dir !== 'out') fail('Choose intake or output');
+    const cats: readonly string[] = p.dir === 'in' ? FLUID_IN : FLUID_OUT;
+    if (!cats.includes(p.category)) fail('Unknown fluid type');
+    const ml = Number(p.ml);
+    if (!Number.isFinite(ml) || ml <= 0 || ml > 5000) fail('Volume must be between 1 and 5000 mL');
+    const id = randomUUID();
+    db.prepare('INSERT INTO fluid_entries(id, admission_id, at, dir, category, ml, note, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(id, p.admissionId, at, p.dir, p.category, Math.round(ml * 10) / 10, p.note ? String(p.note).slice(0, 200) : null, session.user?.id ?? null, nowLocal());
+    audit(db, session, 'add', 'fluids', p.admissionId, `${admissionLabel(db, p.admissionId)}: ${p.dir === 'in' ? 'intake' : 'output'} ${p.category} ${ml} mL at ${at.replace('T', ' ')}`);
+    return id;
+  } },
+  'fluids.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
+    const f = db.prepare('SELECT * FROM fluid_entries WHERE id = ? AND deleted_at IS NULL').get(p.id) as any ?? fail('Entry not found');
+    db.prepare('UPDATE fluid_entries SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
+    audit(db, session, 'delete', 'fluids', f.admission_id, `${admissionLabel(db, f.admission_id)}: removed ${f.category} ${f.ml} mL from ${f.at}`);
+    return true;
+  } },
+  'fluids.forAdmission': { roles: NON_RESEARCH, fn: (p, { db, now }) => {
+    const a = getAdmissionRow(db, p.admissionId);
+    const entries = (db.prepare('SELECT * FROM fluid_entries WHERE admission_id = ? AND deleted_at IS NULL ORDER BY at DESC').all(p.admissionId) as any[])
+      .map(r => ({ id: r.id, admissionId: r.admission_id, at: r.at, dir: r.dir, category: r.category, ml: r.ml, note: r.note }));
+    const end = a.discharge_at ? Math.min(now(), ms(a.discharge_at)) : now();
+    return { entries, weightKg: a.weight_kg, summary: summarizeFluids(entries, { now: end, admitAt: a.admit_at, weightKg: a.weight_kg, windowHours: Number(p.hours) || 24 }) };
   } },
   'vitals.forAdmission': { roles: NON_RESEARCH, fn: (p, { db }) => {
     const a = getAdmissionRow(db, p.admissionId);

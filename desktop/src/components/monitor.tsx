@@ -81,12 +81,12 @@ const TILE_BG: Record<TileTone, string> = {
   alert: 'linear-gradient(140deg, #fb7185 0%, #e11d48 100%)',
   plain: '',
 };
-export function VitalTile({ tone = 'plain', title, value, unit, sub, badge, children, className }: {
-  tone?: TileTone; title: ReactNode; value: ReactNode; unit?: ReactNode; sub?: ReactNode; badge?: ReactNode; children?: ReactNode; className?: string;
+export function VitalTile({ tone = 'plain', title, value, unit, sub, badge, children, className, compact }: {
+  tone?: TileTone; title: ReactNode; value: ReactNode; unit?: ReactNode; sub?: ReactNode; badge?: ReactNode; children?: ReactNode; className?: string; compact?: boolean;
 }) {
   const filled = tone !== 'plain';
   return (
-    <div className={cx('relative overflow-hidden rounded-[20px] p-4', filled ? 'text-white shadow-[0_18px_36px_-20px_rgba(8,145,178,0.9)]' : 'card', className)} style={filled ? { background: TILE_BG[tone] } : undefined}>
+    <div className={cx('relative min-w-0 overflow-hidden rounded-[20px]', compact ? 'p-3' : 'p-4', filled ? 'text-white shadow-[0_18px_36px_-20px_rgba(8,145,178,0.9)]' : 'card', className)} style={filled ? { background: TILE_BG[tone] } : undefined}>
       {filled && <div className="pointer-events-none absolute -top-10 -right-10 h-36 w-36 rounded-full" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.28), transparent 70%)' }} />}
       <div className="relative flex items-start justify-between gap-2">
         <span className={cx('text-[13px] font-semibold', filled ? 'text-white' : 'text-ink')}>{title}</span>
@@ -95,7 +95,7 @@ export function VitalTile({ tone = 'plain', title, value, unit, sub, badge, chil
       {sub && <div className={cx('relative mt-0.5 text-[11.5px]', filled ? 'text-white/80' : 'text-ink-3')}>{sub}</div>}
       {children && <div className="relative">{children}</div>}
       <div className="relative mt-2 flex items-baseline gap-1">
-        <span className="tnum text-[38px] leading-none font-semibold tracking-tight">{value}</span>
+        <span className={cx('tnum leading-none font-semibold tracking-tight', compact ? 'text-[26px]' : 'text-[38px]')}>{value}</span>
         {unit && <span className={cx('text-[14px] font-medium', filled ? 'text-white/85' : 'text-ink-3')}>{unit}</span>}
       </div>
     </div>

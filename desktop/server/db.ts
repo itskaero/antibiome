@@ -271,6 +271,22 @@ const MIGRATIONS: string[] = [
     expires_at INTEGER NOT NULL
   );
   `,
+  // v6 — fluid balance: intake and output entries (mL), soft-deleted like everything else.
+  `
+  CREATE TABLE fluid_entries (
+    id TEXT PRIMARY KEY,
+    admission_id TEXT NOT NULL REFERENCES admissions(id),
+    at TEXT NOT NULL,
+    dir TEXT NOT NULL CHECK (dir IN ('in','out')),
+    category TEXT NOT NULL,
+    ml REAL NOT NULL CHECK (ml > 0),
+    note TEXT,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX idx_fluid_adm ON fluid_entries(admission_id, at);
+  `,
 ];
 
 export function openDatabase(file: string): DB {

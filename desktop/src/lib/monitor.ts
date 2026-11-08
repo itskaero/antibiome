@@ -4,7 +4,8 @@
 import { useEffect, useState } from 'react';
 import type { BedSnapshot, MonitorUpdate } from '../../server/monitorGateway';
 
-export type { BedSnapshot, MonitorStatus, TrendPoint, Param } from '../../server/monitorGateway';
+export type { BedSnapshot, MonitorStatus, TrendPoint, Param, BedEvent, ReceiverConfig, ReceiverStatus } from '../../server/monitorGateway';
+export type { PortPlan } from '../../shared/monitor/drivers';
 export type WaveKind = 'ecg' | 'pleth' | 'resp';
 
 const queues = new Map<string, number[]>();
@@ -15,8 +16,8 @@ const subs = new Set<() => void>();
 let unsubscribe: (() => void) | null = null;
 
 /** Samples waiting to be drawn for one bed's waveform (drained by <Waveform>). */
-export const waveQueue = (bed: number, kind: WaveKind) => {
-  const k = `${bed}:${kind}`;
+export const waveQueue = (id: string, kind: WaveKind) => {
+  const k = `${id}|${kind}`;
   let q = queues.get(k); if (!q) queues.set(k, q = []);
   return q;
 };
@@ -27,7 +28,7 @@ function onUpdate(u: MonitorUpdate) {
   for (const [bed, w] of Object.entries(u.waves)) {
     for (const kind of ['ecg', 'pleth', 'resp'] as const) {
       const src = w[kind]; if (!src?.length) continue;
-      const q = waveQueue(Number(bed), kind);
+      const q = waveQueue(bed, kind);
       for (let i = 0; i < src.length; i++) q.push(src[i]);
       if (q.length > rates[kind] * 4) q.splice(0, q.length - rates[kind] * 2); // tab was hidden: catch up
     }

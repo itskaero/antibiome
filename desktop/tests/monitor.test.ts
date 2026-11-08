@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { connect, type Socket } from 'node:net';
 import { FrameReader, HEARTBEAT, decode, encodeTimeSync, headerSum, seal, TYPE, CLASS } from '../shared/monitor/protocol';
-import { patientFrame, secondOfData } from '../shared/monitor/simulator';
-import { MonitorGateway } from '../server/monitorGateway';
+import { patientFrame, secondOfData, type SimPatient } from '../shared/monitor/simulator';
+import { DEFAULT_RECEIVER, MonitorGateway, type ReceiverConfig } from '../server/monitorGateway';
+import { createMonitorService, censusBedFor, loadBedMap, loadReceivers } from '../server/monitorService';
+import { driverById } from '../shared/monitor/drivers';
+import { openDatabase, setSetting } from '../server/db';
 
 const hex = (s: string) => Uint8Array.from(s.trim().split(/\s+/).map(x => parseInt(x, 16)));
 const toHex = (b: Uint8Array) => [...b].map(x => x.toString(16).padStart(2, '0')).join(' ');
@@ -68,22 +71,26 @@ describe('monitor protocol — stream handling', () => {
   });
 });
 
+const rx = (over: Partial<ReceiverConfig>): ReceiverConfig => ({ ...DEFAULT_RECEIVER, host: '127.0.0.1', expectedAddress: undefined, ...over });
+const ddtSecond = (bed: number, p: Partial<SimPatient> = {}) => [patientFrame({ bed, name: 'TEST', hr: 110, spo2: 95, temp: 37, ...p }), ...secondOfData({ bed, name: 'TEST', hr: 110, spo2: 95, temp: 37, ...p }, 0)];
+const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 describe('monitor gateway', () => {
-  let gw: MonitorGateway | null = null, other: MonitorGateway | null = null, client: Socket | null = null;
-  afterEach(async () => { client?.destroy(); await gw?.dispose(); await other?.dispose(); gw = other = client = null; });
+  let gw: MonitorGateway | null = null, other: MonitorGateway | null = null, clients: Socket[] = [];
+  afterEach(async () => { clients.forEach(c => c.destroy()); clients = []; await gw?.dispose(); await other?.dispose(); gw = other = null; });
+  const open = async (port: number) => { const c = connect(port, '127.0.0.1'); clients.push(c); await new Promise(r => c.once('connect', r)); return c; };
 
   it('accepts a monitor on base port + bed, decodes it, and sends the keep-alive', async () => {
     gw = new MonitorGateway();
-    const st = await gw.start({ basePort: 42100, maxBed: 3, host: '127.0.0.1' });
-    expect(st.listening).toBe(3);
+    const st = await gw.configure([rx({ ports: { mode: 'base+bed', base: 42100, maxBed: 3 } })]);
+    expect(st.receivers[0].listening).toEqual([42101, 42102, 42103]);
     const got: Buffer[] = [];
-    client = connect(42102, '127.0.0.1');
-    client.on('data', d => got.push(d));
-    await new Promise(r => client!.once('connect', r));
-    for (const f of [patientFrame({ bed: 2, name: 'TEST', hr: 110, spo2: 95, temp: 37 }), ...secondOfData({ bed: 2, name: 'TEST', hr: 110, spo2: 95, temp: 37 }, 0)]) client.write(f);
-    await new Promise(r => setTimeout(r, 1300));
-    const bed = gw.snapshot().find(b => b.bed === 2)!;
-    expect(bed).toMatchObject({ connected: true, source: 'network', remote: '127.0.0.1', stale: false, patient: { name: 'TEST' } });
+    const c = await open(42102);
+    c.on('data', d => got.push(d));
+    ddtSecond(2).forEach(f => c.write(f));
+    await wait(1300);
+    const bed = gw.snapshot().find(b => b.id === 'r1:2')!;
+    expect(bed).toMatchObject({ bed: 2, receiverId: 'r1', connected: true, source: 'network', remote: '127.0.0.1', stale: false, patient: { name: 'TEST' } });
     expect(bed.values.spo2?.value).toBe(95);
     expect(bed.values.t1?.value).toBe(37);
     expect(toHex(Buffer.concat(got)).startsWith('02 00 13 34')).toBe(true);
@@ -91,24 +98,88 @@ describe('monitor gateway', () => {
 
   it('reports ports that are already taken instead of failing', async () => {
     other = new MonitorGateway();
-    await other.start({ basePort: 42200, maxBed: 2, host: '127.0.0.1' });
+    await other.configure([rx({ ports: { mode: 'base+bed', base: 42200, maxBed: 2 } })]);
     gw = new MonitorGateway();
-    const st = await gw.start({ basePort: 42200, maxBed: 3, host: '127.0.0.1' });
-    expect(st.listening).toBe(1);
-    expect(st.failed.map(f => f.port)).toEqual([42201, 42202]);
-    expect(st.failed[0].error).toMatch(/in use/);
+    const st = await gw.configure([rx({ ports: { mode: 'base+bed', base: 42200, maxBed: 3 } })]);
+    expect(st.receivers[0].listening).toEqual([42203]);
+    expect(st.receivers[0].failed.map(f => f.port)).toEqual([42201, 42202]);
+    expect(st.receivers[0].failed[0].error).toMatch(/in use/);
   });
 
-  it('streams waveform samples and keeps per-minute trends', () => {
+  it('runs several receivers with list and single-port plans; one port can carry many beds', async () => {
+    gw = new MonitorGateway();
+    await gw.configure([
+      rx({ id: 'icu', name: 'ICU', ports: { mode: 'list', map: { '42301': 7 } } }),
+      rx({ id: 'hdu', name: 'HDU', ports: { mode: 'single', port: 42302 } }),
+    ]);
+    const a = await open(42301);
+    ddtSecond(99).forEach(f => a.write(f));          // the port says bed 7, whatever the frames claim
+    const b = await open(42302);
+    [...ddtSecond(3, { spo2: 91 }), ...ddtSecond(4, { spo2: 98 })].forEach(f => b.write(f)); // data names the bed
+    await wait(400);
+    const ids = gw.snapshot().map(x => `${x.id}=${x.values.spo2?.value}`);
+    expect(ids).toEqual(['hdu:3=91', 'hdu:4=98', 'icu:7=95']);
+  });
+
+  it('decodes HL7 ORU messages over MLLP and acknowledges each one', async () => {
+    gw = new MonitorGateway();
+    await gw.configure([rx({ id: 'h', name: 'HL7', driver: 'hl7', ports: { mode: 'single', port: 42401 } })]);
+    const c = await open(42401);
+    const got: Buffer[] = []; c.on('data', d => got.push(d));
+    const msg = ['MSH|^~\\&|MON|ICU|||20261108120000||ORU^R01|MSG42|P|2.3.1', 'PID|||T-9||DOE^JANE||20200105', 'PV1||I|PICU^^12',
+      'OBX|1|NM|150456^MDC_PULS_OXIM_SAT_O2^MDC||93|%|90-100||||F', 'OBX|2|NM|8867-4^Heart rate^LN||141|/min|75-160||||F', 'OBX|3|NM|NIBP_S||88|mmHg||||F'].join('\r');
+    c.write(Buffer.from(`\x0b${msg}\r\x1c\r`, 'latin1'));
+    await wait(300);
+    const bed = gw.snapshot()[0];
+    expect(bed).toMatchObject({ id: 'h:12', patient: { name: 'JANE DOE', patientId: 'T-9', birthDate: '2020-01-05' } });
+    expect(bed.values).toMatchObject({ spo2: { value: 93, low: 90, high: 100 }, hr: { value: 141 }, sys: { value: 88 } });
+    expect(Buffer.concat(got).toString('latin1')).toMatch(/MSA\|AA\|MSG42/);
+  });
+
+  it('streams waveform samples, keeps per-minute trends and logs limit events', () => {
     let t = 0;
     gw = new MonitorGateway(() => t);
     const updates: any[] = [];
     gw.on('update', u => updates.push(u));
-    for (const f of secondOfData({ bed: 5, name: 'T', hr: 90, spo2: 99, temp: 36.6 }, 0)) gw.ingest(5, f.subarray(2), 'network', '10.0.0.5');
+    const reader = driverById('ddt')!.createReader();
+    const feed = (p: Partial<SimPatient>) => secondOfData({ bed: 5, name: 'T', hr: 90, spo2: 99, temp: 36.6, ...p }, 0).forEach(f => gw!.ingestEvents({ id: 'r1', name: 'R' }, 5, reader.push(f).events, 'network', '10.0.0.5'));
+    feed({});
     (gw as any).publish();
-    expect(updates[0].waves[5].pleth).toHaveLength(256);
-    expect(updates[0].waves[5].ecg).toHaveLength(256);
+    expect(updates[0].waves['r1:5'].pleth).toHaveLength(256);
+    expect(updates[0].waves['r1:5'].ecg).toHaveLength(256);
     t = 60_000; (gw as any).rollMinute();
-    expect(gw.trend(5).spo2).toEqual([{ t: 60_000, min: 99, max: 99, mean: 99 }]);
+    expect(gw.trend('r1:5').spo2).toEqual([{ t: 60_000, min: 99, max: 99, mean: 99 }]);
+    // SpO₂ below the monitor's low limit (90) for 12 s → one desaturation event; a 3 s dip is ignored.
+    t = 70_000; feed({ spo2: 86 }); t = 73_000; feed({ spo2: 97 });
+    t = 80_000; feed({ spo2: 85 }); t = 86_000; feed({ spo2: 84 }); t = 92_000; feed({ spo2: 96 });
+    expect(gw.events('r1:5')).toEqual([{ kind: 'desat', param: 'spo2', start: 80_000, end: 92_000, worst: 84, limit: 90 }]);
+  });
+});
+
+describe('monitor settings', () => {
+  const svc = () => {
+    const db = openDatabase(':memory:'), audits: string[] = [];
+    const gateway = new MonitorGateway();
+    return { db, gateway, audits, s: createMonitorService(db, gateway, { requireRole: () => {}, audit: a => audits.push(a), recordDir: '/tmp/x' }) };
+  };
+  it('turns the v0.2 base-port settings into one receiver', () => {
+    const { db, gateway } = svc();
+    setSetting(db, 'monitorBasePort', '600'); setSetting(db, 'monitorMaxBed', '20');
+    expect(loadReceivers(db)).toEqual([expect.objectContaining({ id: 'r1', driver: 'ddt', ports: { mode: 'base+bed', base: 600, maxBed: 20 } })]);
+    return gateway.dispose();
+  });
+  it('validates and saves receivers, and maps monitor beds to census beds', async () => {
+    const { db, gateway, s, audits } = svc();
+    await expect(s.routes['desktop.monitorSaveReceivers']({ receivers: [rx({ driver: 'nope' })] })).rejects.toThrow('Unknown monitor protocol');
+    await expect(s.routes['desktop.monitorSaveReceivers']({ receivers: [rx({ ports: { mode: 'list', map: { '514': 4, '70000': 5 } } })] })).rejects.toThrow('70000');
+    const st: any = await s.routes['desktop.monitorSaveReceivers']({ receivers: [rx({ name: ' Ward ', ports: { mode: 'single', port: 42501 }, enabled: true })] });
+    expect(st.config[0].name).toBe('Ward');
+    expect(st.running).toBe(false); // receiving itself is still off
+    s.routes['desktop.monitorMapBed']({ id: 'r1:13', censusBed: '3' });
+    expect(loadBedMap(db)).toEqual({ 'r1:13': '3' });
+    expect(censusBedFor(loadBedMap(db), 'r1:13', 13, false)).toBe('3');
+    expect(censusBedFor(loadBedMap(db), 'r1:4', 4, false)).toBe('4');
+    expect(audits.join('\n')).toMatch(/mapped to census bed 3/);
+    await gateway.dispose();
   });
 });

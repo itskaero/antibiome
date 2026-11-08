@@ -12,7 +12,7 @@ export const WAVE_COLOR: Record<WaveKind, string> = { ecg: '#34d399', pleth: '#2
  * ahead of itself. Samples come from the live queue; the display runs ~0.5 s behind so the
  * once-a-second frames from the monitor play back smoothly.
  */
-export function Waveform({ bed, kind, height = 72, speed = 110, className, label }: { bed: number; kind: WaveKind; height?: number; speed?: number; className?: string; label?: ReactNode }) {
+export function Waveform({ bed, kind, height = 72, speed = 110, className, label }: { bed: string; kind: WaveKind; height?: number; speed?: number; className?: string; label?: ReactNode }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current!; const ctx = canvas.getContext('2d')!;

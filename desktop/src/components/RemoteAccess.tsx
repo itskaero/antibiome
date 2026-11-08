@@ -38,7 +38,7 @@ export function RemoteAccessCard() {
         </div>
         <ol className="flex list-decimal flex-col gap-2 pl-5 text-[12.5px] text-ink-2">
           <li>Make a free Cloudflare account and add your hospital's domain (or ask IT for a sub-domain).</li>
-          <li>Zero Trust → Networks → Tunnels → <b>Create a tunnel</b>, and install the connector it shows on an always-on computer on this network. <span className="text-warn-ink">This PC runs Windows 7, which current cloudflared does not support — use a Windows 10/11 PC or a Raspberry Pi on the same network and enter its address above.</span></li>
+          <li>Zero Trust → Networks → Tunnels → <b>Create a tunnel</b> (cloudflared), and run the connector with the token it shows. <span className="text-warn-ink">On Windows 7 use <b>cloudflared 2023.10.0</b> (cloudflared-windows-386.exe) — the last release that runs on Windows 7; newer ones need Windows 10. Cloudflare only guarantees connectors up to a year old, so check now and then that the tunnel still connects. If it stops, run a current connector on any other always-on device and enter its address above.</span></li>
           <li>Add a public hostname: your address → service <span className="font-mono text-[11.5px]">{target}</span>.</li>
           <li>Zero Trust → Access → Applications → <b>Self-hosted</b> for the same address; allow your staff's emails with a one-time PIN.</li>
           <li>Save the address here, then use <b>Invite staff</b> — the QR code will use the public address.</li>

@@ -486,16 +486,45 @@ export const routes: Record<string, Route> = {
     getAdmissionRow(db, p.admissionId);
     return tx(db, () => toggleDrug(db, session, p.admissionId, p.kind, String(p.drug), !!p.on, reqDT(p.at ?? nowLocal(), 'Time'), p.intent ?? null));
   } },
-  'episode.update': { roles: CLINICAL, fn: (p, { db, session }) => {
+  /** Correct an episode's start, stop (null = still running) or intent — e.g. an antimicrobial charted late. */
+  'episode.update': { roles: CLINICAL, fn: (p, { db, session, now }) => tx(db, () => {
     const ep = db.prepare('SELECT * FROM episodes WHERE id = ? AND deleted_at IS NULL').get(p.id) as any ?? fail('Episode not found');
+    const adm = getAdmissionRow(db, ep.admission_id);
     const start = p.startAt ? reqDT(p.startAt, 'Start') : ep.start_at;
-    const end = p.endAt === null ? null : p.endAt ? reqDT(p.endAt, 'End') : ep.end_at;
-    if (end && ms(end) < ms(start)) fail('End is before start');
-    const intent = p.intent && ABX_INTENTS.includes(p.intent) ? p.intent : ep.intent;
-    db.prepare('UPDATE episodes SET start_at = ?, end_at = ?, intent = ? WHERE id = ?').run(start, end, intent, p.id);
-    audit(db, session, 'update', 'episode', p.id, `${admissionLabel(db, ep.admission_id)}: corrected ${ep.detail} times`);
+    const end = p.endAt === null ? null : p.endAt ? reqDT(p.endAt, 'Stop') : ep.end_at;
+    const soon = now() + 10 * 60_000;
+    if (ms(start) > soon) fail('Start is in the future');
+    if (end && ms(end) > soon) fail('Stop is in the future');
+    if (end && ms(end) < ms(start)) fail('Stop is before start');
+    if (ms(start) < ms(adm.admit_at) - 6 * 3_600_000) fail('Start is more than 6 h before admission');
+    if (adm.discharge_at) {
+      if (!end) fail('The patient has been discharged — give a stop time');
+      if (ms(end) > ms(adm.discharge_at) + 3_600_000) fail('Stop is after discharge');
+    }
+    let intent = ep.intent;
+    if (p.intent !== undefined && p.intent !== ep.intent) {
+      if (ep.kind !== 'abx') fail('Only antimicrobials have an intent');
+      if (!ABX_INTENTS.includes(p.intent)) fail('Unknown intent');
+      intent = p.intent;
+    }
+    const overlapping = (db.prepare('SELECT * FROM episodes WHERE admission_id = ? AND kind = ? AND id != ? AND deleted_at IS NULL').all(ep.admission_id, ep.kind, ep.id) as any[])
+      .filter(o => ep.kind === 'resp' || o.detail === ep.detail)
+      .filter(o => ms(start) < (o.end_at ? ms(o.end_at) : Infinity) && ms(o.start_at) < (end ? ms(end) : Infinity));
+    if (overlapping.length) {
+      const o = overlapping[0];
+      fail(ep.kind === 'resp' ? `Overlaps the ${o.detail} period from ${o.start_at.replace('T', ' ')} — respiratory support periods cannot overlap` : `Overlaps another ${ep.detail} course from ${o.start_at.replace('T', ' ')}`);
+    }
+    const changes: string[] = [];
+    const show = (v: string | null) => (v ? v.replace('T', ' ') : 'running');
+    if (start !== ep.start_at) changes.push(`start ${show(ep.start_at)} → ${show(start)}`);
+    if (end !== ep.end_at) changes.push(`stop ${show(ep.end_at)} → ${show(end)}`);
+    if (intent !== ep.intent) changes.push(`intent ${ep.intent ?? '—'} → ${intent}`);
+    if (!changes.length) return false;
+    db.prepare('UPDATE episodes SET start_at = ?, end_at = ?, end_reason = ?, intent = ? WHERE id = ?')
+      .run(start, end, end ? (ep.end_reason ?? 'stopped') : null, intent, p.id);
+    audit(db, session, 'update', 'episode', p.id, `${admissionLabel(db, ep.admission_id)}: ${ep.detail} — ${changes.join('; ')}`);
     return true;
-  } },
+  }) },
   'episode.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
     const ep = db.prepare('SELECT * FROM episodes WHERE id = ?').get(p.id) as any ?? fail('Episode not found');
     db.prepare('UPDATE episodes SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);

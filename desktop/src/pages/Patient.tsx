@@ -12,6 +12,7 @@ import { ModuleFormSection, ModulesPanel } from '@/components/ModuleFields';
 import { Pim3Card } from '@/components/Pim3Form';
 import { VitalsCard } from '@/components/VitalsEntry';
 import { TherapyChart } from '@/components/TherapyChart';
+import { EpisodeEditModal } from '@/components/EpisodeEdit';
 import { VITALS, type VitalCode, type VitalSet } from '@shared/vitals';
 import type { Pim3Input } from '@shared/pim3';
 import type { ModuleDef, ParamValue, StoredValue } from '@shared/modules';
@@ -33,6 +34,7 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
   const { data: d, error } = useApi<Detail>('admission.get', { id });
   const [discharge, setDischarge] = useState(false);
   const [edit, setEdit] = useState(false);
+  const [editEp, setEditEp] = useState<Episode | null>(null);
   const [culture, setCulture] = useState<{ open: boolean; existing?: any }>({ open: false });
   const toast = useToast();
   if (error) return <ErrorNote text={error} />;
@@ -124,7 +126,7 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
                   : <span className="text-[13px] text-ink-2">{open.filter(e => e.kind === 'vaso').map(e => e.detail).join(', ') || 'None'}</span>}
               </Field>
               <Antimicrobials episodes={d.episodes.filter(e => e.kind === 'abx')} editable={editable} onStart={(drug, intent) => act('drug.toggle', { admissionId: id, kind: 'abx', drug, on: true, intent }, `Started ${drug}`)}
-                onStop={drug => act('drug.toggle', { admissionId: id, kind: 'abx', drug, on: false }, `Stopped ${drug}`)} />
+                onStop={drug => act('drug.toggle', { admissionId: id, kind: 'abx', drug, on: false }, `Stopped ${drug}`)} onEdit={setEditEp} />
             </div>
           </div>
 
@@ -165,7 +167,8 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
           </div>
         </div>
 
-        <Timeline d={d} canEdit={canEdit} onDelete={(kind, eid) => act(kind === 'event' ? 'event.delete' : 'episode.delete', { id: eid }, 'Entry removed')} />
+        <Timeline d={d} canEdit={canEdit} onEdit={setEditEp} onDelete={(kind, eid) => act(kind === 'event' ? 'event.delete' : 'episode.delete', { id: eid }, 'Entry removed')} />
+        {editEp && <EpisodeEditModal episode={editEp} onClose={() => setEditEp(null)} />}
       </div>
 
       <DischargeModal open={discharge} onClose={() => setDischarge(false)} d={d} />
@@ -175,10 +178,11 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
   );
 }
 
-function Antimicrobials({ episodes, editable, onStart, onStop }: { episodes: Episode[]; editable: boolean; onStart: (d: string, intent: string) => void; onStop: (d: string) => void }) {
+function Antimicrobials({ episodes, editable, onStart, onStop, onEdit }: { episodes: Episode[]; editable: boolean; onStart: (d: string, intent: string) => void; onStop: (d: string) => void; onEdit: (e: Episode) => void }) {
   const [drug, setDrug] = useState('');
   const [intent, setIntent] = useState<string>('empiric');
   const open = episodes.filter(e => !e.endAt);
+  const stopped = episodes.filter(e => e.endAt).sort((a, b) => b.endAt!.localeCompare(a.endAt!)).slice(0, 4);
   const days = (e: Episode) => Math.floor((Date.now() - ms(e.startAt)) / DAY_MS) + 1;
   return (
     <Field label="Antimicrobials">
@@ -187,10 +191,21 @@ function Antimicrobials({ episodes, editable, onStart, onStop }: { episodes: Epi
           <div key={e.id} className="flex items-center justify-between rounded-xl bg-panel-2 px-3 py-2">
             <span className="flex items-center gap-2 text-[13px]"><Pill size={14} className="text-ink-3" />{e.detail}
               <span className="text-[11.5px] text-ink-3">day {days(e)} · {e.intent ?? 'empiric'} · {awareGroup(e.detail)}</span></span>
-            {editable && <Button size="sm" variant="ghost" onClick={() => onStop(e.detail)}>Stop</Button>}
+            {editable && <span className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => onEdit(e)} title="Correct start time or intent"><Pencil size={13} /></Button><Button size="sm" variant="ghost" onClick={() => onStop(e.detail)}>Stop</Button></span>}
           </div>
         ))}
         {!open.length && <span className="text-[12.5px] text-ink-3">None running.</span>}
+        {stopped.length > 0 && (
+          <div className="mt-1 flex flex-col gap-1">
+            <span className="text-[11px] font-medium tracking-wide text-ink-3 uppercase">Recently stopped</span>
+            {stopped.map(e => (
+              <div key={e.id} className="flex items-center justify-between rounded-lg px-3 py-1.5 text-[12.5px] text-ink-2 hover:bg-panel-2">
+                <span className="tnum">{e.detail} <span className="text-ink-3">· {e.startAt.slice(5, 16).replace('T', ' ')} → {e.endAt!.slice(5, 16).replace('T', ' ')}</span></span>
+                {editable && <Button size="sm" variant="ghost" onClick={() => onEdit(e)}><Pencil size={13} />Edit</Button>}
+              </div>
+            ))}
+          </div>
+        )}
         {editable && (
           <div className="mt-1 flex items-center gap-2">
             <select className="field h-8 flex-1 text-[12.5px]" value={drug} onChange={e => setDrug(e.target.value)}>
@@ -210,8 +225,8 @@ function Antimicrobials({ episodes, editable, onStart, onStop }: { episodes: Epi
 
 // ── Timeline (grouped by day, after the "Activity" reference) ─────────
 
-interface TItem { at: string; icon: React.ReactNode; tone: string; text: React.ReactNode; del?: ['event' | 'episode', string] }
-function Timeline({ d, canEdit, onDelete }: { d: Detail; canEdit: boolean; onDelete: (kind: 'event' | 'episode', id: string) => void }) {
+interface TItem { at: string; icon: React.ReactNode; tone: string; text: React.ReactNode; del?: ['event' | 'episode', string]; ep?: Episode }
+function Timeline({ d, canEdit, onDelete, onEdit }: { d: Detail; canEdit: boolean; onDelete: (kind: 'event' | 'episode', id: string) => void; onEdit: (e: Episode) => void }) {
   const items = useMemo(() => {
     const a = d.admission, out: TItem[] = [];
     out.push({ at: a.admitAt, icon: <LogIn size={13} />, tone: 'text-accent-ink', text: <><b>Admitted</b> from {a.source} with {dxLabel(a.primaryDx)}</> });
@@ -219,9 +234,9 @@ function Timeline({ d, canEdit, onDelete }: { d: Detail; canEdit: boolean; onDel
       const cfg = e.kind === 'resp' ? { icon: <Wind size={13} />, tone: e.detail === 'MV' ? 'text-crit-ink' : 'text-info-ink', name: RESP_LABEL[e.detail as RespLevel] }
         : e.kind === 'vaso' ? { icon: <HeartPulse size={13} />, tone: 'text-accent-ink', name: e.detail }
         : { icon: <Pill size={13} />, tone: 'text-ink-2', name: e.detail };
-      out.push({ at: e.startAt, icon: cfg.icon, tone: cfg.tone, del: ['episode', e.id],
+      out.push({ at: e.startAt, icon: cfg.icon, tone: cfg.tone, del: ['episode', e.id], ep: e,
         text: <><b>{e.kind === 'resp' ? `${cfg.name} started` : `Started ${cfg.name}`}</b>{e.kind === 'abx' && <span className="text-ink-3"> · {e.intent}</span>}</> });
-      if (e.endAt) out.push({ at: e.endAt, icon: cfg.icon, tone: 'text-ink-3', text: <>{e.kind === 'resp' ? `${cfg.name} ended` : `Stopped ${cfg.name}`}<span className="text-ink-3"> · {fmtDur(ms(e.endAt) - ms(e.startAt))}{e.endReason ? ` · ${e.endReason}` : ''}</span></> });
+      if (e.endAt) out.push({ at: e.endAt, icon: cfg.icon, tone: 'text-ink-3', ep: e, text: <>{e.kind === 'resp' ? `${cfg.name} ended` : `Stopped ${cfg.name}`}<span className="text-ink-3"> · {fmtDur(ms(e.endAt) - ms(e.startAt))}{e.endReason ? ` · ${e.endReason}` : ''}</span></> });
     });
     d.events.forEach(e => out.push({ at: e.at, del: ['event', e.id], icon: e.type === 'complication' || e.type === 'deterioration' ? <AlertTriangle size={13} /> : e.type === 'culture_sent' ? <FlaskConical size={13} /> : <Stethoscope size={13} />,
       tone: e.type === 'complication' || e.type === 'deterioration' ? 'text-warn-ink' : 'text-ink-2', text: <><b>{e.label}</b>{e.note && <span className="text-ink-3"> · {e.note}</span>}</> }));
@@ -258,6 +273,9 @@ function Timeline({ d, canEdit, onDelete }: { d: Detail; canEdit: boolean; onDel
                     <span className={cx('grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-panel-2', i.tone)}>{i.icon}</span>
                     <span className="min-w-0 flex-1 truncate text-ink-2">{i.text}</span>
                     <span className="tnum shrink-0 text-[11.5px] text-ink-3">{i.at.slice(11, 16)}</span>
+                    {canEdit && i.ep && (
+                      <button onClick={() => onEdit(i.ep!)} className="shrink-0 text-ink-3 opacity-0 transition group-hover:opacity-100 hover:text-ink" aria-label="Edit times" title="Edit times"><Pencil size={13} /></button>
+                    )}
                     {canEdit && i.del && (
                       <button onClick={() => confirm('Remove this entry? It is kept in the audit log.') && onDelete(i.del![0], i.del![1])}
                         className="shrink-0 text-ink-3 opacity-0 transition group-hover:opacity-100 hover:text-crit-ink" aria-label="Remove"><Trash2 size={13} /></button>

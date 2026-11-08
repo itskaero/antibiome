@@ -34,18 +34,28 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        # Electron's binary comes from GitHub release downloads, which sometimes answer 504 for a
+        # few minutes. Retry with a growing pause instead of failing the whole release.
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            npm ci && exit 0
+            echo "npm ci failed (attempt $i), retrying in $((i * 45)) s"; sleep $((i * 45))
+          done
+          exit 1
 
       - name: Test
         run: npm test
 
       - name: Build Windows 10/11 edition
-        run: npm run dist:win
+        shell: bash
+        run: for i in 1 2 3; do npm run dist:win && exit 0; echo "retrying in $((i * 45)) s"; sleep $((i * 45)); done; exit 1
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - name: Build Windows 7 edition
-        run: npm run dist:win7
+        shell: bash
+        run: for i in 1 2 3; do npm run dist:win7 && exit 0; echo "retrying in $((i * 45)) s"; sleep $((i * 45)); done; exit 1
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 

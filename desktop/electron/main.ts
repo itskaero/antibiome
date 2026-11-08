@@ -253,6 +253,8 @@ app.whenReady().then(() => {
   createWindow();
   if (getSetting(db, 'mobileEnabled') === '1') startMobile();
   if (getSetting(db, 'monitorEnabled') === '1') monitorService.start().catch(e => console.error('[monitor]', e));
+  // Monitor readings proposed for the chart; tell the window so the pending banner appears.
+  setInterval(() => { try { if (monitorService.captureTick() > 0) win?.webContents.send('changed'); } catch (e) { console.error('[monitor capture]', e); } }, 60_000);
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 app.on('window-all-closed', async () => { await stopMobile(); await monitor.dispose(); db.close(); app.quit(); });

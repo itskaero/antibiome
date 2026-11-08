@@ -13,6 +13,7 @@ import { Pim3Card } from '@/components/Pim3Form';
 import { VitalsCard } from '@/components/VitalsEntry';
 import { LabsCard } from '@/components/Labs';
 import { FluidsCard } from '@/components/Fluids';
+import { PendingReadings } from '@/components/PendingReadings';
 import { TherapyChart } from '@/components/TherapyChart';
 import { EpisodeEditModal } from '@/components/EpisodeEdit';
 import { VITALS, type VitalCode, type VitalSet } from '@shared/vitals';
@@ -132,6 +133,7 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
             </div>
           </div>
 
+          <PendingReadings admissionId={id} editable={editable} />
           <VitalsCard admissionId={id} canEdit={canEdit} editable={editable} />
           <LabsCard admissionId={id} ageMonths={d.admission.ageMonths ?? null} editable={editable} />
           <FluidsCard admissionId={id} editable={editable} />

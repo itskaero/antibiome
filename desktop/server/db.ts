@@ -287,6 +287,22 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_fluid_adm ON fluid_entries(admission_id, at);
   `,
+  // v7 — readings proposed from a bedside monitor, waiting for a clinician to confirm or dismiss.
+  `
+  CREATE TABLE pending_vitals (
+    id TEXT PRIMARY KEY,
+    admission_id TEXT NOT NULL REFERENCES admissions(id),
+    at TEXT NOT NULL,
+    values_json TEXT NOT NULL,
+    source TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    decided_at TEXT,
+    decision TEXT CHECK (decision IN ('confirmed','dismissed')),
+    decided_by INTEGER REFERENCES users(id),
+    vital_set_id TEXT
+  );
+  CREATE INDEX idx_pending_adm ON pending_vitals(admission_id, decided_at);
+  `,
 ];
 
 export function openDatabase(file: string): DB {

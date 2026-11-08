@@ -17,7 +17,7 @@ import { censusBedFor } from '@shared/monitor/beds';
 import type { CensusRow } from './types';
 
 type DriverInfo = { id: string; label: string; description: string; defaultPorts: PortPlan; bedInData: boolean };
-type Status = MonitorStatus & { enabled: boolean; recordDir: string; drivers: DriverInfo[]; config: ReceiverConfig[]; bedMap: Record<string, string> };
+type Status = MonitorStatus & { enabled: boolean; recordDir: string; drivers: DriverInfo[]; config: ReceiverConfig[]; bedMap: Record<string, string>; captureMinutes: number };
 type NV = NonNullable<BedSnapshot['values'][Param]>;
 
 const val = (v?: NV | null) => (v?.value ?? null);
@@ -186,6 +186,12 @@ function ReceiversModal({ s, onClose }: { s: Status; onClose: () => void }) {
           );
         })}
         <Button variant="subtle" onClick={add}><Plus size={15} />Add receiver</Button>
+        <div className="inset flex flex-wrap items-center justify-between gap-3 p-3.5 text-[12.5px]">
+          <span><span className="block font-medium">Propose readings for the chart</span><span className="text-ink-3">For beds linked to a census patient. A clinician confirms each one on the patient page.</span></span>
+          <select id="capture-every" className="field h-9 w-auto" defaultValue={String(s.captureMinutes)} onChange={async e => { try { await call('desktop.monitorCapture', { minutes: Number(e.target.value) }); toast('Saved'); } catch (x: any) { toast(x.message, 'crit'); } }}>
+            <option value="0">Off</option><option value="15">Every 15 min</option><option value="30">Every 30 min</option><option value="60">Every hour</option><option value="120">Every 2 h</option><option value="240">Every 4 h</option>
+          </select>
+        </div>
         <div className="inset flex flex-col gap-2 p-3.5 text-[12.5px]">
           <span className="font-medium">Protocol verification</span>
           <span className="text-ink-3">Saves the raw stream from each port to the data folder so new fields can be confirmed. The files contain patient names — keep them on this PC.</span>

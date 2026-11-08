@@ -48,7 +48,7 @@ export const MOBILE_METHODS = new Set([
   'admission.create', 'admission.get', 'admission.update', 'admission.discharge',
   'resp.set', 'drug.toggle', 'episode.update', 'episode.delete', 'event.add', 'event.delete',
   'values.forAdmission', 'values.set', 'modules.list', 'pim3.save',
-  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'fluids.add', 'fluids.delete', 'fluids.forAdmission', 'culture.save', 'culture.list', 'dashboard.get',
+  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'fluids.add', 'fluids.delete', 'fluids.forAdmission', 'vitals.pending', 'vitals.resolvePending', 'culture.save', 'culture.list', 'dashboard.get',
 ]);
 
 /** Secrets live outside the database in clear text: the desktop app encrypts them with the OS keychain (safeStorage). */
@@ -463,6 +463,28 @@ export const routes: Record<string, Route> = {
     audit(db, session, 'delete', 'vitals', v.admission_id, `${admissionLabel(db, v.admission_id)}: removed vitals from ${v.at}`);
     return true;
   } },
+  // Monitor readings proposed for the chart (see server/monitorService.ts) — a clinician confirms each.
+  'vitals.pending': { roles: NON_RESEARCH, fn: (p, { db }) => {
+    getAdmissionRow(db, p.admissionId);
+    return (db.prepare('SELECT * FROM pending_vitals WHERE admission_id = ? AND decided_at IS NULL ORDER BY at DESC').all(p.admissionId) as any[])
+      .map(r => ({ id: r.id, at: r.at, source: r.source, values: JSON.parse(r.values_json) }));
+  } },
+  'vitals.resolvePending': { roles: CLINICAL, fn: (p, { db, session, now }) => tx(db, () => {
+    const ids: string[] = Array.isArray(p.ids) ? p.ids.map(String) : [];
+    if (!ids.length) fail('Nothing selected');
+    if (p.decision !== 'confirmed' && p.decision !== 'dismissed') fail('Confirm or dismiss');
+    let n = 0;
+    for (const id of ids) {
+      const r = db.prepare('SELECT * FROM pending_vitals WHERE id = ? AND decided_at IS NULL').get(id) as any;
+      if (!r) continue;
+      let setId: string | null = null;
+      if (p.decision === 'confirmed') setId = saveVitalSet(db, session, r.admission_id, r.at, 'routine', JSON.parse(r.values_json), now()).id;
+      db.prepare('UPDATE pending_vitals SET decided_at = ?, decision = ?, decided_by = ?, vital_set_id = ? WHERE id = ?').run(nowLocal(), p.decision, session.user?.id ?? null, setId, id);
+      audit(db, session, p.decision === 'confirmed' ? 'confirm' : 'dismiss', 'vitals', r.admission_id, `${admissionLabel(db, r.admission_id)}: ${p.decision} monitor reading from ${r.source} at ${r.at.replace('T', ' ')}`);
+      n++;
+    }
+    return n;
+  }) },
   // Fluid balance
   'fluids.add': { roles: CLINICAL, fn: (p, { db, session, now }) => {
     const a = getAdmissionRow(db, p.admissionId);

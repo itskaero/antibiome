@@ -8,6 +8,7 @@ import { go, useApi } from '@/lib/hooks';
 import { cx, losLabel } from '@/lib/format';
 import { Button, Chip, Empty, PageHeader, RespChip } from '@/components/ui';
 import { MiniTrend } from '@/components/Labs';
+import { DueChip, HandoverList, PewsChip } from '@/components/Bedside';
 import { dxLabel } from '@shared/reference';
 import { VITALS, type VitalCode } from '@shared/vitals';
 import { fmtAge, nowLocal } from '@shared/time';
@@ -30,7 +31,8 @@ const readLast = () => { try { return localStorage.getItem(LAST_ROUND); } catch 
 const fmtV = (c: VitalCode, v: number) => v.toFixed(VITALS[c].decimals);
 const ago = (at: string) => { const h = (Date.now() - new Date(at).getTime()) / 3_600_000; return h < 1 ? `${Math.round(h * 60)} min ago` : h < 48 ? `${Math.round(h)} h ago` : `${Math.round(h / 24)} d ago`; };
 
-export function Rounds() {
+export function Rounds({ canWrite = false }: { canWrite?: boolean }) {
+  const [tab, setTab] = useState<'rounds' | 'handover'>('rounds');
   const [since, setSince] = useState<string | null>(readLast);
   const { data } = useApi<RoundRow[]>('rounds.list', since ? { since } : {});
   const markDone = () => { const t = nowLocal(); try { localStorage.setItem(LAST_ROUND, t); } catch { /* per-device convenience only */ } setSince(t); };
@@ -47,12 +49,17 @@ export function Rounds() {
         </>}
         actions={<>
           <Button size="sm" variant="ghost" onClick={() => call('desktop.print')}><Printer size={15} />Print</Button>
-          <Button size="sm" variant="primary" onClick={markDone}><CheckCheck size={15} />Mark round done</Button>
+          {tab === 'rounds' && <Button size="sm" variant="primary" onClick={markDone}><CheckCheck size={15} />Mark round done</Button>}
         </>} />
-      {!data.length && <Empty title="No patients in the unit" />}
-      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-        {data.map((r, i) => <RoundCard key={r.admission.id} r={r} i={i} showChanges={!!since} />)}
+      <div className="no-print flex w-fit rounded-xl bg-panel-2 p-0.5 text-[13px]" role="tablist">
+        {(['rounds', 'handover'] as const).map(x => <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={cx('rounded-lg px-4 py-1.5', tab === x ? 'bg-panel font-semibold shadow-sm' : 'text-ink-3')}>{x === 'rounds' ? 'Rounds' : 'Handover (SBAR)'}</button>)}
       </div>
+      {!data.length && <Empty title="No patients in the unit" />}
+      {tab === 'handover' ? <HandoverList canWrite={canWrite} /> : (
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+          {data.map((r, i) => <RoundCard key={r.admission.id} r={r} i={i} showChanges={!!since} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -74,7 +81,9 @@ function RoundCard({ r, i, showChanges }: { r: RoundRow; i: number; showChanges:
         </button>
         <div className="flex flex-wrap gap-1.5">
           <RespChip level={r.resp.level} />
+          <PewsChip p={r.pews} />
           {r.vaso.map(v => <Chip key={v.id} tone="crit">{v.agent}</Chip>)}
+          {r.abx.filter(x => x.due?.overdueMin).map(x => <DueChip key={x.id} due={x.due} />)}
           {r.issues > 0 && <Chip tone="warn"><TriangleAlert size={11} />{r.issues} data issue{r.issues > 1 ? 's' : ''}</Chip>}
         </div>
       </header>

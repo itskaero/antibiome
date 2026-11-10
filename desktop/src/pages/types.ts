@@ -1,3 +1,5 @@
+import type { DoseDue } from '@shared/doses';
+import type { PewsStatus } from '@shared/pews';
 import type { Admission } from '@shared/types';
 import type { RespLevel } from '@shared/reference';
 
@@ -9,7 +11,8 @@ export interface CensusRow {
   losDays: number;
   resp: { level: RespLevel; since: string | null; id: string | null };
   vaso: { id: string; agent: string; since: string }[];
-  abx: { id: string; drug: string; intent: string | null; since: string }[];
+  abx: { id: string; drug: string; intent: string | null; since: string; intervalHours?: number | null; dose?: string | null; due?: DoseDue }[];
+  pews?: PewsStatus;
   issues: number;
   culturesSent: number;
   culturesResulted: number;

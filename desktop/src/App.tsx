@@ -198,7 +198,7 @@ function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: ()
   const page = (() => {
     switch (route) {
       case 'patients': return <Patients />;
-      case 'rounds': return <Rounds />;
+      case 'rounds': return <Rounds canWrite={clinical || user.role === 'nurse'} />;
       case 'monitor': return <LiveMonitor key={args[0] ?? 'all'} args={args} isAdmin={user.role === 'admin'} canChart={clinical || user.role === 'nurse'} />;
       case 'census': return <Census onAdmit={() => setAdmitOpen(true)} canEdit={clinical} />;
       case 'patient': return <PatientPage id={args[0]} canEdit={clinical} canChart={clinical || user.role === 'nurse'} isAdmin={user.role === 'admin'} />;

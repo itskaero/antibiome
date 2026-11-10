@@ -16,6 +16,9 @@ import { FluidsCard } from '@/components/Fluids';
 import { PendingReadings } from '@/components/PendingReadings';
 import { TherapyChart } from '@/components/TherapyChart';
 import { EpisodeEditModal } from '@/components/EpisodeEdit';
+import { DrugsCard, DueChip, GivenButton, PewsChip, QuickPews } from '@/components/Bedside';
+import type { PewsStatus } from '@shared/pews';
+import { defaultInterval, type DoseDue } from '@shared/doses';
 import { VITALS, type VitalCode, type VitalSet } from '@shared/vitals';
 import type { Pim3Input } from '@shared/pim3';
 import type { ModuleDef, ParamValue, StoredValue } from '@shared/modules';
@@ -31,6 +34,7 @@ interface Detail {
   pim3: { inputs: Pim3Input; risk: number; updatedAt: string } | null; pim3Suggestion: Partial<Pim3Input>;
   vitals: VitalSet[];
   issues: { id: string; message: string; severity: string }[]; previousAdmissions: { id: string; admit_at: string; discharge_at: string | null; disposition: string | null; dx: string }[];
+  pews: PewsStatus; doseDue: Record<string, DoseDue>;
 }
 
 /** canEdit: clinicians (admit, antibiotics, support). canChart: also nurses (vitals, labs, intake/output, notes). */
@@ -69,6 +73,7 @@ export function PatientPage({ id, canEdit, canChart = canEdit, isAdmin }: { id: 
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Chip tone={active ? 'accent' : a.disposition === 'Died' ? 'crit' : 'good'} dot>{active ? 'In PICU' : `Discharged → ${a.disposition}`}</Chip>
+              {active && <PewsChip p={d.pews} />}
               <Chip><Clock size={12} />{losLabel(d.losDays)} stay</Chip>
               <Chip><LogIn size={12} />{a.source} · {a.admissionType}</Chip>
               {a.secondaryDx.map(c => <Chip key={c}>{dxLabel(c)}</Chip>)}
@@ -130,11 +135,14 @@ export function PatientPage({ id, canEdit, canChart = canEdit, isAdmin }: { id: 
                       }} />
                   : <span className="text-[13px] text-ink-2">{open.filter(e => e.kind === 'vaso').map(e => e.detail).join(', ') || 'None'}</span>}
               </Field>
-              <Antimicrobials episodes={d.episodes.filter(e => e.kind === 'abx')} editable={editable} onStart={(drug, intent) => act('drug.toggle', { admissionId: id, kind: 'abx', drug, on: true, intent }, `Started ${drug}`)}
+              <Antimicrobials episodes={d.episodes.filter(e => e.kind === 'abx')} editable={editable} chartable={chartable} due={d.doseDue}
+                onStart={(drug, intent, intervalHours, dose) => act('drug.toggle', { admissionId: id, kind: 'abx', drug, on: true, intent, intervalHours, dose }, `Started ${drug}`)}
                 onStop={drug => act('drug.toggle', { admissionId: id, kind: 'abx', drug, on: false }, `Stopped ${drug}`)} onEdit={setEditEp} />
             </div>
           </div>
 
+          {chartable && <QuickPews admissionId={id} ageMonths={a.ageMonths} latest={latestVitals(d.vitals)} />}
+          {active && <DrugsCard weightKg={a.weightKg} ageMonths={a.ageMonths} running={open.filter(e => e.kind === 'vaso').map(e => e.detail)} />}
           <PendingReadings admissionId={id} editable={chartable} />
           <VitalsCard admissionId={id} canEdit={canChart} editable={chartable} />
           <LabsCard admissionId={id} ageMonths={d.admission.ageMonths ?? null} editable={chartable} />
@@ -187,9 +195,19 @@ export function PatientPage({ id, canEdit, canChart = canEdit, isAdmin }: { id: 
   );
 }
 
-function Antimicrobials({ episodes, editable, onStart, onStop, onEdit }: { episodes: Episode[]; editable: boolean; onStart: (d: string, intent: string) => void; onStop: (d: string) => void; onEdit: (e: Episode) => void }) {
+/** Most recent value of each vital in the last 6 h (for PEWS pre-fill). */
+const latestVitals = (sets: VitalSet[]) => {
+  const out: Record<string, number> = {};
+  const cutoff = Date.now() - 6 * 3_600_000;
+  [...sets].filter(s => ms(s.at) >= cutoff).sort((x, y) => x.at.localeCompare(y.at)).forEach(s => Object.assign(out, s.values));
+  return out;
+};
+
+function Antimicrobials({ episodes, editable, chartable, due, onStart, onStop, onEdit }: { episodes: Episode[]; editable: boolean; chartable: boolean; due: Record<string, DoseDue>; onStart: (d: string, intent: string, intervalHours: number | null, dose: string | null) => void; onStop: (d: string) => void; onEdit: (e: Episode) => void }) {
   const [drug, setDrug] = useState('');
   const [intent, setIntent] = useState<string>('empiric');
+  const [every, setEvery] = useState('');
+  const [dose, setDose] = useState('');
   const open = episodes.filter(e => !e.endAt);
   const stopped = episodes.filter(e => e.endAt).sort((a, b) => b.endAt!.localeCompare(a.endAt!)).slice(0, 4);
   const days = (e: Episode) => Math.floor((Date.now() - ms(e.startAt)) / DAY_MS) + 1;
@@ -198,9 +216,14 @@ function Antimicrobials({ episodes, editable, onStart, onStop, onEdit }: { episo
       <div className="flex flex-col gap-1.5">
         {open.map(e => (
           <div key={e.id} className="flex items-center justify-between rounded-xl bg-panel-2 px-3 py-2">
-            <span className="flex items-center gap-2 text-[13px]"><Pill size={14} className="text-ink-3" />{e.detail}
-              <span className="text-[11.5px] text-ink-3">day {days(e)} · {e.intent ?? 'empiric'} · {awareGroup(e.detail)}</span></span>
-            {editable && <span className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => onEdit(e)} title="Correct start time or intent"><Pencil size={13} /></Button><Button size="sm" variant="ghost" onClick={() => onStop(e.detail)}>Stop</Button></span>}
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]"><Pill size={14} className="text-ink-3" />{e.detail}{e.dose && <span className="text-ink-2">{e.dose}</span>}
+              <span className="text-[11.5px] text-ink-3">day {days(e)} · {e.intent ?? 'empiric'}{e.intervalHours ? ` · every ${e.intervalHours} h` : ''} · {awareGroup(e.detail)}</span>
+              <DueChip due={due[e.id]} />
+              {due[e.id]?.lastGiven && <span className="text-[11px] text-ink-3">last {due[e.id].lastGiven!.slice(11, 16)}</span>}</span>
+            <span className="flex shrink-0 gap-1">
+              {chartable && e.intervalHours != null && <GivenButton episodeId={e.id} drug={e.detail} />}
+              {editable && <><Button size="sm" variant="ghost" onClick={() => onEdit(e)} title="Correct start time, intent or interval"><Pencil size={13} /></Button><Button size="sm" variant="ghost" onClick={() => onStop(e.detail)}>Stop</Button></>}
+            </span>
           </div>
         ))}
         {!open.length && <span className="text-[12.5px] text-ink-3">None running.</span>}
@@ -216,15 +239,17 @@ function Antimicrobials({ episodes, editable, onStart, onStop, onEdit }: { episo
           </div>
         )}
         {editable && (
-          <div className="mt-1 flex items-center gap-2">
-            <select className="field h-8 flex-1 text-[12.5px]" value={drug} onChange={e => setDrug(e.target.value)}>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <select className="field h-8 min-w-[160px] flex-1 text-[12.5px]" value={drug} onChange={e => { setDrug(e.target.value); setEvery(String(defaultInterval(e.target.value) ?? '')); }}>
               <option value="">Start an antimicrobial…</option>
               {PRESCRIBABLE_ANTIMICROBIALS.filter(x => !open.some(e => e.detail === x)).map(x => <option key={x}>{x}</option>)}
             </select>
             <select className="field h-8 w-32 text-[12.5px]" value={intent} onChange={e => setIntent(e.target.value)}>
               {ABX_INTENTS.map(i => <option key={i}>{i}</option>)}
             </select>
-            <Button size="sm" disabled={!drug} onClick={() => { onStart(drug, intent); setDrug(''); }}>Start</Button>
+            <input className="field tnum h-8 w-20 text-[12.5px]" inputMode="decimal" value={every} onChange={e => setEvery(e.target.value)} placeholder="every h" title="Dosing interval (hours)" aria-label="Every … hours" />
+            <input className="field h-8 w-28 text-[12.5px]" value={dose} onChange={e => setDose(e.target.value)} placeholder="dose" title="Dose as prescribed, e.g. 40 mg/kg" aria-label="Dose" />
+            <Button size="sm" disabled={!drug} onClick={() => { onStart(drug, intent, every ? Number(every) : null, dose || null); setDrug(''); setDose(''); setEvery(''); }}>Start</Button>
           </div>
         )}
       </div>

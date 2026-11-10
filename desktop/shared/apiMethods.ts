@@ -4,7 +4,7 @@ export const READ_METHODS = new Set(['auth.status', 'census.list', 'patient.look
   'stewardship.get', 'quality.list', 'activity.list', 'recent.list', 'users.list', 'settings.get', 'desktop.info', 'export.deidentified',
   'modules.list', 'values.forAdmission', 'research.module', 'explorer.fields', 'explorer.run', 'cohorts.list', 'protocols.list', 'protocols.results',
   'ai.status', 'ai.ask', 'vitals.forAdmission', 'fluids.forAdmission', 'vitals.pending', 'rounds.list', 'users.requests', 'invites.list', 'patients.search', 'mobile.devices', 'desktop.mobileStatus',
-  'desktop.tunnelStatus', 'desktop.monitorStatus', 'desktop.monitorSnapshot', 'desktop.monitorTrend', 'desktop.monitorEvents']);
+  'desktop.tunnelStatus', 'dose.forEpisode', 'handover.list', 'drugs.table', 'pews.thresholds', 'desktop.monitorStatus', 'desktop.monitorSnapshot', 'desktop.monitorTrend', 'desktop.monitorEvents']);
 /** Mutations that change no clinical data (no need to refresh other devices). */
 export const QUIET_METHODS = new Set(['auth.login', 'auth.logout', 'auth.unpairDevice', 'auth.changePassword', 'mobile.pairingCode', 'desktop.saveCsv', 'desktop.print', 'desktop.openDataFolder', 'desktop.backupNow',
   'desktop.remoteConfigure', 'desktop.tunnelStart', 'desktop.tunnelStop', 'desktop.tunnelSelfTest', 'desktop.monitorConfigure', 'desktop.monitorSaveReceivers', 'desktop.monitorMapBed', 'desktop.monitorDemo', 'desktop.monitorCapture', 'desktop.monitorRecord', 'desktop.monitorOpenRecordings']);

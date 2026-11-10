@@ -40,3 +40,30 @@ export function summarizeFluids(entries: FluidEntry[], opts: { now: number; admi
   return { hours: Math.round(hours * 10) / 10, in: i, out: o, balance: i - o, urineMl, urineRate, oliguria: urineRate != null && urineRate < 0.5 && hours >= 6,
     byCategory: [...cats.values()].sort((a, b) => b.ml - a.ml), blocks };
 }
+
+// ── Shifts ──
+const hourOf = (at: string) => Number(at.slice(11, 13));
+
+/** Day shift 08:00–20:00, night 20:00–08:00 (local clock of the PICU PC). */
+export function currentShift(now = new Date()) {
+  const h = now.getHours();
+  const start = new Date(now); start.setMinutes(0, 0, 0);
+  if (h >= 8 && h < 20) start.setHours(8); else { if (h < 8) start.setDate(start.getDate() - 1); start.setHours(20); }
+  return { start, label: h >= 8 && h < 20 ? 'Day shift (08–20)' : 'Night shift (20–08)' };
+}
+const localIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+/** Hour-by-hour intake and output since the start of the shift, newest hour first. */
+export function shiftHours(entries: Pick<FluidEntry, 'at' | 'dir' | 'ml'>[], now = new Date()) {
+  const { start } = currentShift(now);
+  const from = localIso(start);
+  const rows: { hour: number; label: string; in: number; out: number }[] = [];
+  for (let t = new Date(start); t <= now; t.setHours(t.getHours() + 1)) rows.push({ hour: t.getHours(), label: `${String(t.getHours()).padStart(2, '0')}:00`, in: 0, out: 0 });
+  for (const e of entries) {
+    if (e.at < from) continue;
+    const r = rows.find(x => x.hour === hourOf(e.at));
+    if (r) r[e.dir] += e.ml;
+  }
+  const total = rows.reduce((s, r) => ({ in: s.in + r.in, out: s.out + r.out }), { in: 0, out: 0 });
+  return { rows: rows.reverse(), total };
+}

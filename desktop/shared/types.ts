@@ -45,6 +45,9 @@ export interface Episode {
   startAt: LocalDateTime;
   endAt: LocalDateTime | null;
   endReason: string | null;
+  /** Antimicrobials: dosing interval in hours and the dose as prescribed (free text, e.g. "40 mg/kg"). */
+  intervalHours?: number | null;
+  dose?: string | null;
 }
 
 export interface ClinicalEvent {

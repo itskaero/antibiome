@@ -5,6 +5,7 @@ import { call } from '@/lib/api';
 import { go, useApi } from '@/lib/hooks';
 import { cx, losLabel } from '@/lib/format';
 import { Button, Chip, Empty, PageHeader, RespChip, RespSegment, useToast } from '@/components/ui';
+import { PewsChip, dueLabel } from '@/components/Bedside';
 import { ContinuousTabs } from '@/vendor/watermelon/continuous-tabs';
 import { dxLabel, RESP_LABEL } from '@shared/reference';
 import { fmtAge } from '@shared/time';
@@ -102,7 +103,7 @@ export function Census({ onAdmit, canEdit }: { onAdmit: () => void; canEdit: boo
                   <td className="tnum px-4 py-3 text-ink-2">{losLabel(r.losDays)}</td>
                   <td className="px-4 py-3"><RespChip level={r.resp.level} /></td>
                   <td className="px-4 py-3 text-ink-2">{r.vaso.map(v => v.agent).join(', ') || '—'}</td>
-                  <td className="px-4 py-3 text-ink-2">{r.abx.map(a => a.drug).join(', ') || '—'}</td>
+                  <td className="px-4 py-3 text-ink-2">{r.abx.map(a => a.drug + (a.due?.overdueMin ? ' (overdue)' : '')).join(', ') || '—'} <PewsChip p={r.pews} compact /></td>
                   <td className="px-4 py-3">{r.issues > 0 && <Chip tone="warn"><AlertTriangle size={11} />{r.issues}</Chip>}</td>
                 </tr>
               ))}
@@ -138,7 +139,8 @@ function BedCard({ r, i, canEdit, onResp, live }: { r: CensusRow; i: number; can
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {r.vaso.map(v => <Chip key={v.id} tone="accent"><HeartPulse size={11} />{v.agent}</Chip>)}
-        {r.abx.slice(0, 3).map(x => <Chip key={x.id}><Pill size={11} />{x.drug}</Chip>)}
+        <PewsChip p={r.pews} />
+        {r.abx.slice(0, 3).map(x => <Chip key={x.id} tone={x.due?.overdueMin ? 'crit' : 'neutral'}><Pill size={11} />{x.drug}{dueLabel(x.due) && <span className="opacity-75">· {dueLabel(x.due)}</span>}</Chip>)}
         {r.abx.length > 3 && <Chip>+{r.abx.length - 3}</Chip>}
       </div>
       <div className="mt-auto flex items-center justify-between pt-3" onClick={e => e.stopPropagation()}>

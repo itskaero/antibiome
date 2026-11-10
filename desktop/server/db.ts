@@ -362,6 +362,20 @@ export const MIGRATIONS: string[] = [
   DROP TABLE invites;
   ALTER TABLE invites_v9 RENAME TO invites;
   `,
+  `
+  -- v10 — antimicrobial dosing interval and doses given (for "next dose due").
+  ALTER TABLE episodes ADD COLUMN interval_hours REAL;
+  ALTER TABLE episodes ADD COLUMN dose TEXT;
+  CREATE TABLE doses_given (
+    id TEXT PRIMARY KEY,
+    episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+    at TEXT NOT NULL,
+    given_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX idx_doses_ep ON doses_given(episode_id, at);
+  `,
 ];
 /** Migrations that rebuild a referenced table must run with foreign-key enforcement off. */
 const REBUILDS = new Set([8]);

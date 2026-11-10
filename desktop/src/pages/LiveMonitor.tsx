@@ -14,6 +14,8 @@ import { ContinuousTabs } from '@/vendor/watermelon/continuous-tabs';
 import { fmtAge, nowLocal } from '@shared/time';
 import { dxLabel } from '@shared/reference';
 import { censusBedFor } from '@shared/monitor/beds';
+import { pewsSuggest } from '@shared/pews';
+import { PewsChip } from '@/components/Bedside';
 import type { CensusRow } from './types';
 
 type DriverInfo = { id: string; label: string; description: string; defaultPorts: PortPlan; bedInData: boolean };
@@ -31,6 +33,13 @@ const sinceLabel = (t: number | null) => {
   return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
 };
 const durLabel = (ms: number) => { const s = Math.round(ms / 1000); return s < 60 ? `${s} s` : s < 3600 ? `${Math.floor(s / 60)} min ${s % 60 ? `${s % 60} s` : ''}`.trim() : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`; };
+/** The live heart / breathing rate alone would score more than the last charted PEWS: prompt a rescore. */
+const rescore = (b: BedSnapshot, adm: CensusRow | null) => {
+  if (!adm || b.stale) return false;
+  const s = pewsSuggest({ hr: val(b.values.pr) ?? val(b.values.hr) ?? undefined, rr: val(b.values.rr) ?? undefined }, adm.admission.ageMonths);
+  const sum = s.cardiovascular + s.respiratory;
+  return sum > 0 && (adm.pews?.score == null || sum > adm.pews.score);
+};
 const anyAlarm = (b: BedSnapshot) => (['spo2', 'pr', 'hr', 't1'] as Param[]).some(p => outside(b.values[p]));
 
 function useMonitorContext() {
@@ -253,6 +262,8 @@ function BedCard({ b, i, adm, multiReceiver }: { b: BedSnapshot; i: number; adm:
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <ConnDot b={b} />
+          {adm?.pews && <PewsChip p={adm.pews} compact />}
+          {rescore(b, adm) && <Chip tone="warn">Rescore PEWS</Chip>}
           {b.recentEvents > 0 && <span className="flex items-center gap-1 text-[11px] text-warn-ink"><BellRing size={11} />{b.recentEvents} in 1 h</span>}
         </div>
       </div>
@@ -580,7 +591,7 @@ function PhoneBedTile({ b, adm }: { b: BedSnapshot; adm: CensusRow | null }) {
           <span className="flex items-center gap-2"><span className="tnum rounded-md bg-panel-3 px-1.5 py-0.5 text-[11px] font-semibold">{bedTitle(b)}</span><span className="truncate text-[14px] font-semibold">{adm ? adm.name ?? adm.label : b.patient?.name ?? (b.source === 'demo' ? 'Synthetic data' : 'Not matched to census')}</span></span>
           {adm && <span className="mt-0.5 block truncate text-[11.5px] text-ink-3">{dxLabel(adm.admission.primaryDx)}</span>}
         </span>
-        <span className="flex shrink-0 flex-col items-end gap-1"><ConnDot b={b} />{b.recentEvents > 0 && <span className="flex items-center gap-1 text-[11px] text-warn-ink"><BellRing size={11} />{b.recentEvents} in 1 h</span>}</span>
+        <span className="flex shrink-0 flex-col items-end gap-1"><ConnDot b={b} />{adm?.pews && <PewsChip p={adm.pews} compact />}{b.recentEvents > 0 && <span className="flex items-center gap-1 text-[11px] text-warn-ink"><BellRing size={11} />{b.recentEvents} in 1 h</span>}</span>
       </div>
       <div className="grid grid-cols-3 gap-1.5">
         {cell('SpO₂', v.spo2, '%')}{cell('Pulse', v.pr, 'bpm')}{cell('HR', v.hr, 'bpm')}
@@ -588,6 +599,7 @@ function PhoneBedTile({ b, adm }: { b: BedSnapshot; adm: CensusRow | null }) {
         <div className="rounded-xl bg-panel-2 px-2 py-1.5"><div className="text-[10.5px] text-ink-3">NIBP</div><div className="tnum text-[17px] leading-tight font-semibold">{bp}</div></div>
       </div>
       {(b.probeOff || b.leadsOff) && <span className="text-[11.5px] text-warn-ink">{[b.probeOff && 'SpO₂ probe off', b.leadsOff && 'ECG leads off'].filter(Boolean).join(' · ')}</span>}
+      {rescore(b, adm) && <span className="flex items-center gap-1.5 text-[12px] font-medium text-warn-ink"><CircleAlert size={13} />Rescore PEWS — the live rates suggest it has risen</span>}
     </button>
   );
 }

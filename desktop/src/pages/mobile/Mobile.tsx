@@ -12,6 +12,7 @@ import { AdmitModal } from '@/pages/Admit';
 import { PatientPage } from '@/pages/Patient';
 import { LiveMonitor } from '@/pages/LiveMonitor';
 import { MobileChart } from './MobileChart';
+import { PewsChip, dueLabel } from '@/components/Bedside';
 import { dxLabel, RESP_LABEL, type RespLevel } from '@shared/reference';
 import { fmtAge } from '@shared/time';
 import { ROLE_LABEL, type User } from '@shared/types';
@@ -169,10 +170,11 @@ function MobileCensus({ canEdit, onAdmit }: { canEdit: boolean; onAdmit: () => v
               {r.issues > 0 && <AlertTriangle size={15} className="mt-1 shrink-0 text-warn-ink" />}
               {r.culturesSent > r.culturesResulted && <FlaskConical size={15} className="mt-1 shrink-0 text-info-ink" />}
             </button>
-            {(r.vaso.length > 0 || r.abx.length > 0) && (
+            {(r.vaso.length > 0 || r.abx.length > 0 || r.pews) && (
               <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <PewsChip p={r.pews} />
                 {r.vaso.map(v => <Chip key={v.id} tone="accent"><HeartPulse size={11} />{v.agent}</Chip>)}
-                {r.abx.map(x => <Chip key={x.id}><Pill size={11} />{x.drug}</Chip>)}
+                {r.abx.map(x => <Chip key={x.id} tone={x.due?.overdueMin ? 'crit' : 'neutral'}><Pill size={11} />{x.drug}{dueLabel(x.due) && <span className="opacity-75">· {dueLabel(x.due)}</span>}</Chip>)}
               </div>
             )}
             <div className="mt-3">{canEdit ? <RespSegment value={r.resp.level} onChange={l => setResp(r, l)} /> : <RespChip level={r.resp.level} />}</div>

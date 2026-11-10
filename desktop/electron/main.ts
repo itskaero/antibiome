@@ -18,6 +18,7 @@ import { generateCertificate, serverFingerprint } from '../server/tls';
 import { QUIET_METHODS, isRead } from '../shared/apiMethods';
 import { MonitorGateway } from '../server/monitorGateway';
 import { createMonitorService, loadBedMap } from '../server/monitorService';
+import { censusBedFor } from '../shared/monitor/beds';
 import { httpsGet, tunnelSelfTest, TunnelManager, type TunnelMode } from '../server/tunnel';
 
 const dataDir = process.env.ANTIBIOME_DATA_DIR || join(app.getPath('userData'), 'data');
@@ -42,7 +43,19 @@ const secrets: SecretStore = {
     setSetting(db, `secret:${key}`, safeStorage.encryptString(value).toString('base64'));
   },
 };
-const api = createApi(db, Date.now, { secrets });
+const api = createApi(db, Date.now, {
+  secrets,
+  // For the handover: what the monitor linked to a census bed saw recently (the gateway is created below).
+  monitorSummary: (censusBed, since) => {
+    const map = loadBedMap(db);
+    const beds = monitor.snapshot().filter(b => b.source === 'network' && censusBedFor(map, b.id, b.bed, false) === censusBed);
+    if (!beds.length) return null;
+    const evs = beds.flatMap(b => monitor.events(b.id)).filter(e => e.start >= since);
+    const desats = evs.filter(e => e.kind === 'desat');
+    const lows = desats.map(e => e.worst).filter((x): x is number => x != null);
+    return { desats: desats.length, lowestSpo2: lows.length ? Math.min(...lows) : null, disconnects: evs.filter(e => e.kind === 'disconnected').length, outside: evs.filter(e => e.kind === 'high' || e.kind === 'low').length };
+  },
+});
 let win: BrowserWindow | null = null;
 
 /** One automatic snapshot per day (VACUUM INTO is a consistent online copy); keep the last 14. */

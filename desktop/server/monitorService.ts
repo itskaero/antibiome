@@ -15,7 +15,7 @@ export interface MonitorServiceEnv {
   openFolder?: (dir: string) => unknown;
 }
 
-const VIEW: Role[] = ['admin', 'clinician', 'viewer'];
+const VIEW: Role[] = ['admin', 'clinician', 'nurse', 'viewer'];
 
 export function loadReceivers(db: DB): ReceiverConfig[] {
   const raw = getSetting(db, 'monitorReceivers');

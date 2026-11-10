@@ -4,10 +4,10 @@ import {
   Activity, ArrowLeft, BellRing, CheckCircle2, CircleAlert, ClipboardPlus, FolderOpen, HeartPulse, LayoutGrid, Link2, Maximize2, Minimize2,
   PlayCircle, Plus, Radio, Settings2, ShieldAlert, StopCircle, Thermometer, Trash2, Wifi, WifiOff, X,
 } from 'lucide-react';
-import { call } from '@/lib/api';
+import { call, isPhone } from '@/lib/api';
 import { go, useApi } from '@/lib/hooks';
 import { cx } from '@/lib/format';
-import { ageFrom, useMonitorBeds, type BedEvent, type BedSnapshot, type MonitorStatus, type Param, type PortPlan, type ReceiverConfig, type TrendPoint } from '@/lib/monitor';
+import { ageFrom, setMonitorFocus, useMonitorBeds, type BedEvent, type BedSnapshot, type MonitorStatus, type Param, type PortPlan, type ReceiverConfig, type TrendPoint } from '@/lib/monitor';
 import { BodyMap, RangeBars, SENSOR_SPOTS, TickGauge, VitalTile, Waveform, WAVE_COLOR } from '@/components/monitor';
 import { Button, Chip, Empty, Field, Modal, PageHeader, RespChip, Toggle, useToast } from '@/components/ui';
 import { ContinuousTabs } from '@/vendor/watermelon/continuous-tabs';
@@ -56,6 +56,7 @@ export function LiveMonitor({ args, isAdmin, canChart }: { args: string[]; isAdm
 
   const live = beds.filter(b => !b.stale).length;
   const failing = (status.data?.receivers ?? []).filter(r => r.enabled && r.failed.length);
+  if (isPhone()) return <PhoneOverview beds={beds} admFor={ctx.admFor} status={status.data ?? undefined} />;
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon={<HeartPulse className="text-accent-ink" size={22} />} title="Live monitor"
@@ -359,6 +360,8 @@ const PARAM_LABEL: Partial<Record<Param, string>> = { spo2: 'SpO₂', pr: 'Pulse
 function BedFocus({ b, adm, census, mapped, canChart }: { b: BedSnapshot; adm: CensusRow | null; census: CensusRow[]; mapped: string | null; canChart: boolean }) {
   const toast = useToast();
   const v = b.values;
+  useEffect(() => { setMonitorFocus(b.id); return () => setMonitorFocus(null); }, [b.id]);
+  const phone = isPhone();
   const trend = useApi<Partial<Record<Param, TrendPoint[]>>>('desktop.monitorTrend', { id: b.id });
   const events = useApi<BedEvent[]>('desktop.monitorEvents', { id: b.id });
   useEffect(() => { const t = setInterval(() => { trend.reload(); events.reload(); }, 30_000); return () => clearInterval(t); }, [trend.reload, events.reload]);
@@ -390,7 +393,7 @@ function BedFocus({ b, adm, census, mapped, canChart }: { b: BedSnapshot; adm: C
           <div className="min-w-0">
             <button onClick={() => go('monitor')} className="mb-2 flex items-center gap-1 text-[12.5px] text-ink-3 hover:text-ink"><ArrowLeft size={14} />All monitors</button>
             <p className="text-[13px] text-ink-3">{greeting},</p>
-            <h1 className="truncate text-[30px] leading-tight font-semibold tracking-tight">{b.patient?.name ?? 'Unnamed patient'}</h1>
+            <h1 className={cx('truncate leading-tight font-semibold tracking-tight', phone ? 'text-[24px]' : 'text-[30px]')}>{b.patient?.name ?? (adm ? adm.name ?? adm.label : 'Unnamed patient')}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Chip tone="accent">{bedTitle(b)}</Chip>
               <ConnDot b={b} />
@@ -421,7 +424,7 @@ function BedFocus({ b, adm, census, mapped, canChart }: { b: BedSnapshot; adm: C
         </div>
 
         <div className="overflow-hidden rounded-[20px] border border-line bg-[#0b1214] p-3">
-          <div className="mb-1 flex items-center justify-between px-1 text-[11.5px] text-white/60"><span className="flex items-center gap-1.5"><Activity size={13} />Live waveforms</span><span>{b.stale ? 'Paused — no data' : '≈ 0.5 s behind the monitor'}</span></div>
+          <div className="mb-1 flex items-center justify-between px-1 text-[11.5px] text-white/60"><span className="flex items-center gap-1.5"><Activity size={13} />Live waveforms</span><span>{b.stale ? 'Paused — no data' : phone ? '≈ 1–2 s behind the monitor' : '≈ 0.5 s behind the monitor'}</span></div>
           {b.leadsOff ? <Flat label="ECG II · leads off" color={WAVE_COLOR.ecg} /> : <Waveform bed={b.id} kind="ecg" height={96} speed={140} label="ECG II" />}
           {b.probeOff ? <Flat label="Pleth · probe off" color={WAVE_COLOR.pleth} /> : <Waveform bed={b.id} kind="pleth" height={80} speed={110} label="Pleth" />}
           <Waveform bed={b.id} kind="resp" height={56} speed={45} label="Resp" />
@@ -462,7 +465,7 @@ function BedFocus({ b, adm, census, mapped, canChart }: { b: BedSnapshot; adm: C
         <div className="card flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between gap-2">
             <h3 className="flex items-center gap-1.5 text-[13.5px] font-semibold"><Link2 size={14} className="text-ink-3" />Census patient</h3>
-            {b.source === 'network' && canChart && (
+            {b.source === 'network' && canChart && !phone && (
               <select id="map-bed" className="field h-8 w-auto py-0 text-[12.5px]" value={mapped ?? ''} onChange={e => mapTo(e.target.value || null)} title="Which census bed this monitor belongs to">
                 <option value="">Bed {b.bed} (same number)</option>
                 {beds.filter(x => x !== String(b.bed)).map(x => <option key={x} value={x}>Census bed {x}</option>)}
@@ -477,7 +480,7 @@ function BedFocus({ b, adm, census, mapped, canChart }: { b: BedSnapshot; adm: C
             </button>
           ) : <p className="text-[12.5px] text-ink-3">{b.source === 'demo' ? 'Demo beds are not linked to patients.' : `No patient in census bed ${mapped ?? b.bed}. Pick the right bed above.`}</p>}
         </div>
-        <div className="xl:h-[540px]"><BodyMap sensors={sensors}>
+        {!phone && <div className="xl:h-[540px]"><BodyMap sensors={sensors}>
           <div className="absolute top-4 right-4 left-4 flex items-center justify-between text-[12px] text-ink-3"><span>Sensors</span><span>{sensors.filter(s => s.on).length} of {sensors.length} live</span></div>
           <div className="card absolute right-4 bottom-14 w-[140px] p-3">
             <div className="text-[12.5px] font-semibold">Oxygen level</div>
@@ -487,7 +490,7 @@ function BedFocus({ b, adm, census, mapped, canChart }: { b: BedSnapshot; adm: C
           <div className="absolute bottom-4 left-4 flex flex-wrap gap-1.5">
             {sensors.map(s => <Chip key={s.id} tone={s.on ? 'good' : 'neutral'} dot>{s.label}</Chip>)}
           </div>
-        </BodyMap></div>
+        </BodyMap></div>}
       </div>
 
       {chartOpen && adm && <RecordModal b={b} adm={adm} onClose={() => setChartOpen(false)} />}
@@ -537,5 +540,54 @@ function RecordModal({ b, adm, onClose }: { b: BedSnapshot; adm: CensusRow; onCl
       )}
       <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-ink-3"><Thermometer size={12} />Saved as a routine set at the current time; the usual range checks apply.</p>
     </Modal>
+  );
+}
+
+// ── Phone: a list of beds, alarms first; tap for waveforms ───
+
+function PhoneOverview({ beds, admFor, status }: { beds: BedSnapshot[]; admFor: (b: BedSnapshot) => CensusRow | null; status?: Status }) {
+  const sorted = [...beds].sort((a, b) => Number(anyAlarm(b)) - Number(anyAlarm(a)) || Number(a.stale) - Number(b.stale));
+  const alarms = beds.filter(anyAlarm).length;
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <h1 className="text-[20px] font-semibold tracking-tight">Live monitor</h1>
+        <p className="text-[12px] text-ink-3">{beds.filter(b => !b.stale).length} live of {beds.length} monitors{alarms ? ` · ${alarms} outside limits` : ''}. A second screen, not an alarm system.</p>
+      </div>
+      {!beds.length && (
+        <Empty icon={<WifiOff size={18} />} title={status?.running ? 'Waiting for monitors' : 'Receiving is off'}>
+          <p className="text-[12.5px] text-ink-3">{status?.running ? 'The PICU PC is listening; no monitor has sent data yet.' : 'Turn on receiving on the PICU PC (Live monitor → Start receiving).'}</p>
+        </Empty>
+      )}
+      {sorted.map(b => <PhoneBedTile key={b.id} b={b} adm={admFor(b)} />)}
+    </div>
+  );
+}
+
+function PhoneBedTile({ b, adm }: { b: BedSnapshot; adm: CensusRow | null }) {
+  const v = b.values, alarm = anyAlarm(b);
+  const cell = (label: string, x: NV | undefined, unit: string, digits = 0) => (
+    <div className={cx('rounded-xl px-2 py-1.5', outside(x) ? 'bg-crit-soft text-crit-ink' : 'bg-panel-2')}>
+      <div className="text-[10.5px] text-ink-3">{label}</div>
+      <div className="tnum text-[20px] leading-tight font-semibold">{show(val(x), digits)}<span className="ml-0.5 text-[10px] font-normal opacity-70">{unit}</span></div>
+    </div>
+  );
+  const bp = val(v.sys) == null ? '--/--' : `${val(v.sys)}/${show(val(v.dia))}`;
+  return (
+    <button onClick={() => go(href(b))} className={cx('card flex flex-col gap-2.5 p-3.5 text-left', alarm && 'border-crit/60 ring-1 ring-crit/25', b.stale && 'opacity-70')}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="min-w-0">
+          <span className="flex items-center gap-2"><span className="tnum rounded-md bg-panel-3 px-1.5 py-0.5 text-[11px] font-semibold">{bedTitle(b)}</span><span className="truncate text-[14px] font-semibold">{adm ? adm.name ?? adm.label : b.patient?.name ?? (b.source === 'demo' ? 'Synthetic data' : 'Not matched to census')}</span></span>
+          {adm && <span className="mt-0.5 block truncate text-[11.5px] text-ink-3">{dxLabel(adm.admission.primaryDx)}</span>}
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-1"><ConnDot b={b} />{b.recentEvents > 0 && <span className="flex items-center gap-1 text-[11px] text-warn-ink"><BellRing size={11} />{b.recentEvents} in 1 h</span>}</span>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {cell('SpO₂', v.spo2, '%')}{cell('Pulse', v.pr, 'bpm')}{cell('HR', v.hr, 'bpm')}
+        {cell('RR', v.rr, '/min')}{cell('Temp', v.t1, '°C', 1)}
+        <div className="rounded-xl bg-panel-2 px-2 py-1.5"><div className="text-[10.5px] text-ink-3">NIBP</div><div className="tnum text-[17px] leading-tight font-semibold">{bp}</div></div>
+      </div>
+      {(b.probeOff || b.leadsOff) && <span className="text-[11.5px] text-warn-ink">{[b.probeOff && 'SpO₂ probe off', b.leadsOff && 'ECG leads off'].filter(Boolean).join(' · ')}</span>}
+    </button>
   );
 }

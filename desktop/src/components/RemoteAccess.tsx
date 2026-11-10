@@ -3,7 +3,7 @@
 // Access (email code) should guard the address before anyone reaches the sign-in page.
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Copy, Globe, Link2, Play, ShieldCheck, Square, TerminalSquare } from 'lucide-react';
+import { CheckCircle2, CircleAlert, Copy, Globe, Link2, Play, Radar, ShieldCheck, Square, TerminalSquare } from 'lucide-react';
 import { call } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { cx } from '@/lib/format';
@@ -27,11 +27,18 @@ export function RemoteAccessCard() {
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
+  const [test, setTest] = useState<{ ok: boolean; message: string } | 'running' | null>(null);
+  const [pubQr, setPubQr] = useState<string | null>(null);
   const r = st.data?.remote, t = tun.data;
   useEffect(() => { if (r) { setHost(r.publicHostname ?? ''); setLp(r.loopbackPort ? String(r.loopbackPort) : ''); setConn(r.connectorIp ?? ''); } }, [r?.publicHostname, r?.loopbackPort, r?.connectorIp]);
   useEffect(() => { const i = setInterval(tun.reload, 3000); return () => clearInterval(i); }, [tun.reload]);
   useEffect(() => { if (t?.mode === 'quick' && t.url) QRCode.toDataURL(t.url, { margin: 1, width: 180 }).then(setQr); else setQr(null); }, [t?.mode, t?.url]);
+  useEffect(() => { if (r?.publicHostname) QRCode.toDataURL(`https://${r.publicHostname}`, { margin: 1, width: 180 }).then(setPubQr); else setPubQr(null); }, [r?.publicHostname]);
   if (!st.data || !r || !t) return null;
+  const selfTest = async () => {
+    setTest('running');
+    try { setTest(await call('desktop.tunnelSelfTest', {})); } catch (e: any) { setTest({ ok: false, message: e.message }); }
+  };
   const run = async (fn: () => Promise<unknown>, msg: string) => {
     setBusy(true);
     try { await fn(); toast(msg); setToken(''); } catch (e: any) { toast(e.message, 'crit'); } finally { setBusy(false); tun.reload(); st.reload(); }
@@ -79,6 +86,17 @@ export function RemoteAccessCard() {
               </div>
             )}
           </div>
+          <div className="flex flex-col gap-2 lg:col-span-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" disabled={test === 'running' || (!r.publicHostname && !(t.mode === 'quick' && t.url))} onClick={selfTest}><Radar size={14} />{test === 'running' ? 'Testing…' : 'Test from the internet'}</Button>
+              <span className="text-[12px] text-ink-3">Checks this PC's internet, the address on Cloudflare, and that it reaches this app — what a phone on mobile data would see.</span>
+            </div>
+            {test && test !== 'running' && (
+              <p className={cx('flex items-start gap-2 rounded-xl border px-3 py-2 text-[12.5px]', test.ok ? 'border-good/30 bg-good-soft text-good-ink' : 'border-warn/30 bg-warn-soft text-warn-ink')}>
+                {test.ok ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <CircleAlert size={14} className="mt-0.5 shrink-0" />}{test.message}
+              </p>
+            )}
+          </div>
           {(t.error || t.log.length > 0) && (
             <div className="flex flex-col gap-2 lg:col-span-2">
               {t.error && <p className="rounded-xl border border-crit/30 bg-crit-soft px-3 py-2 text-[12.5px] text-crit-ink">{t.error}</p>}
@@ -99,6 +117,12 @@ export function RemoteAccessCard() {
             <Field label="Connector on another PC" hint="Only if cloudflared runs elsewhere"><input id="remote-conn" className="field tnum" value={conn} onChange={e => setConn(e.target.value)} placeholder="192.168.0.20" /></Field>
           </div>
           <Button className="self-start" onClick={save} disabled={busy}>Save address</Button>
+          {pubQr && r.publicHostname && (
+            <div className="flex items-center gap-3">
+              <img src={pubQr} alt="Public address QR code" className="h-[96px] w-[96px] rounded-lg bg-white p-1" />
+              <span className="text-[12px] text-ink-3">Scan to open <span className="font-mono">https://{r.publicHostname}</span> on a phone. A phone paired on the ward Wi-Fi pairs once more here — send it an invite from <b>Invite staff</b>.</span>
+            </div>
+          )}
           <p className="flex gap-2 text-[12px] text-ink-2"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-good-ink" />Three locks: Cloudflare Access (email code) → phone invite or pairing → each person's password and role. Everything is in the audit trail.</p>
         </div>
         <ol className="flex list-decimal flex-col gap-2 pl-5 text-[12.5px] text-ink-2">

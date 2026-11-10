@@ -13,6 +13,7 @@
 import { EventEmitter } from 'node:events';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { request as httpsRequest } from 'node:https';
 
 export type TunnelMode = 'quick' | 'token';
 export type TunnelState = 'off' | 'starting' | 'connected' | 'reconnecting' | 'error';
@@ -114,4 +115,50 @@ export class TunnelManager extends EventEmitter {
     this.wanted = null;
     this.emit('change', this.status());
   }
+}
+
+// ── "Test from the internet" ─────────────────────────────────
+// Looks up the public (or quick-link) name and fetches /healthz through Cloudflare, so an administrator
+// learns *why* phones can't open the address instead of just "it never loads".
+export type SelfTestCode = 'ok' | 'access' | 'no-internet' | 'no-dns' | 'no-origin' | 'not-running' | 'other';
+export interface SelfTestResult { code: SelfTestCode; ok: boolean; message: string; host: string | null; status?: number }
+export interface SelfTestDeps {
+  lookup: (host: string) => Promise<unknown>;
+  fetch: (url: string) => Promise<{ status: number; headers: { get(name: string): string | null }; text(): Promise<string> }>;
+}
+
+export async function tunnelSelfTest(host: string | null, tunnelState: TunnelState, deps: SelfTestDeps): Promise<SelfTestResult> {
+  const r = (code: SelfTestCode, message: string, status?: number): SelfTestResult => ({ code, ok: code === 'ok' || code === 'access', message, host, status });
+  if (!host) return r('other', 'Enter the public address first, or start a quick test link.');
+  // Is this PC online at all? (Cloudflare's own name always exists.)
+  try { await deps.lookup('cloudflare.com'); } catch { return r('no-internet', 'This PC has no internet connection, so the tunnel cannot reach Cloudflare. Connect it (phone USB tethering or Wi-Fi) and try again.'); }
+  if (tunnelState !== 'connected') return r('not-running', 'The connector is not connected yet — start it above and wait for "Connected".');
+  try { await deps.lookup(host); } catch {
+    return r('no-dns', `The name ${host} does not exist on the internet yet. In Cloudflare: check the domain's nameservers are Cloudflare's, and that the tunnel has a public hostname for ${host}.`);
+  }
+  let res;
+  try { res = await deps.fetch(`https://${host}/healthz`); } catch (e: any) { return r('other', `Could not open https://${host}: ${e?.message ?? e}. Phones on mobile data may see the same.`); }
+  const body = await res.text().catch(() => '');
+  if (res.status === 200 && body.includes('antibiome')) return r('ok', `Working: https://${host} reaches this PC from the internet. Phones must pair once on this address (scan an invite QR).`, 200);
+  // Cloudflare Access answers first with its sign-in page (a redirect or 401/403 from cloudflareaccess.com).
+  const loc = res.headers.get('location') ?? '';
+  if ((res.status >= 300 && res.status < 400 && /cloudflareaccess\.com/.test(loc)) || /cloudflareaccess|cf-access/i.test(body.slice(0, 4000)) || res.headers.get('cf-access-domain'))
+    return r('access', `Working, with Cloudflare Access in front: https://${host} asks for the email code first, as it should.`, res.status);
+  if (res.status === 502 || res.status === 530 || res.status === 503 || /error code: 10(16|33)|Bad gateway/i.test(body))
+    return r('no-origin', `Cloudflare reached the tunnel but not the app (HTTP ${res.status}). In the tunnel's public hostname, set the service to http://localhost:8790 (http, not https).`, res.status);
+  return r('other', `https://${host} answered HTTP ${res.status} — it may point to a different service.`, res.status);
+}
+
+/** A plain HTTPS GET with no redirects (works on Electron 22 / Node 16, which has no global fetch). */
+export function httpsGet(url: string, timeoutMs = 15_000): ReturnType<SelfTestDeps['fetch']> {
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(url, { method: 'GET', headers: { 'User-Agent': 'antibiome-selftest' } }, res => {
+      let body = ''; res.setEncoding('utf8');
+      res.on('data', (c: string) => { if (body.length < 20_000) body += c; });
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: { get: (n: string) => { const v = res.headers[n.toLowerCase()]; return v == null ? null : String(v); } }, text: async () => body }));
+    });
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('timed out')));
+    req.on('error', reject);
+    req.end();
+  });
 }

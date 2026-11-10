@@ -32,7 +32,7 @@ export function AccountRequests({ compact }: { compact?: boolean }) {
               <span className="block text-[11.5px] text-ink-3">Requested {r.requestedAt.replace('T', ' ')}{r.device ? ` from "${r.device}"` : ''}</span>
             </span>
             <select id={`req-role-${r.id}`} className="field h-8 w-auto py-0 text-[12.5px]" value={roles[r.id] ?? r.role} onChange={e => setRoles({ ...roles, [r.id]: e.target.value as Role })}>
-              {(['clinician', 'viewer', 'researcher'] as Role[]).map(x => <option key={x} value={x}>{ROLE_LABEL[x]}</option>)}
+              {(['clinician', 'nurse', 'viewer', 'researcher'] as Role[]).map(x => <option key={x} value={x}>{ROLE_LABEL[x]}</option>)}
             </select>
             <Button size="sm" variant="primary" onClick={() => decide(r, true)}><Check size={14} />Approve</Button>
             <Button size="sm" variant="ghost" onClick={() => decide(r, false)}><X size={14} />Decline</Button>
@@ -66,7 +66,7 @@ export function InviteModal({ open, onClose, urls }: { open: boolean; onClose: (
       <div className="flex flex-col gap-4">
         {!code ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="Role"><select id="inv-role" className="field" value={role} onChange={e => setRole(e.target.value as Role)}>{(['clinician', 'viewer', 'researcher'] as Role[]).map(x => <option key={x} value={x}>{ROLE_LABEL[x]}</option>)}</select></Field>
+            <Field label="Role"><select id="inv-role" className="field" value={role} onChange={e => setRole(e.target.value as Role)}>{(['clinician', 'nurse', 'viewer', 'researcher'] as Role[]).map(x => <option key={x} value={x}>{ROLE_LABEL[x]}</option>)}</select></Field>
             <Field label="Valid for"><select id="inv-days" className="field" value={days} onChange={e => setDays(e.target.value)}><option value="1">1 day</option><option value="7">7 days</option><option value="30">30 days</option></select></Field>
             <Field label="People"><select id="inv-uses" className="field" value={uses} onChange={e => setUses(e.target.value)}><option value="1">1</option><option value="5">Up to 5</option><option value="10">Up to 10</option><option value="30">Up to 30</option></select></Field>
             <Button variant="primary" className="sm:col-span-3" onClick={create}><UserPlus size={15} />Create invite</Button>

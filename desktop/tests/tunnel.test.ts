@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { TunnelManager, type TunnelStatus } from '../server/tunnel';
+import { TunnelManager, tunnelSelfTest, type SelfTestDeps, type TunnelStatus } from '../server/tunnel';
 
 // A stand-in for cloudflared: prints the given lines (as cloudflared does, on stderr), then waits or exits.
 const fake = (lines: string[], exitAfterMs?: number) => (args: string[]) => spawn(process.execPath, ['-e', `
@@ -57,5 +57,25 @@ describe('built-in Cloudflare connector', () => {
     t = new TunnelManager({ binary: null });
     expect(t.available).toBe(false);
     expect(() => t!.start('quick', 8790)).toThrow('not included');
+  });
+});
+
+describe('test from the internet', () => {
+  const res = (status: number, body = '', headers: Record<string, string> = {}) => async () => ({ status, headers: { get: (n: string) => headers[n] ?? null }, text: async () => body });
+  const deps = (o: Partial<{ online: boolean; dns: boolean; fetch: SelfTestDeps['fetch'] }>): SelfTestDeps => ({
+    lookup: async h => { if (h === 'cloudflare.com' ? o.online === false : o.dns === false) throw new Error('ENOTFOUND'); return {}; },
+    fetch: o.fetch ?? res(200, '{"ok":true,"app":"antibiome"}'),
+  });
+  it('names the problem in plain words', async () => {
+    const host = 'picu.example.org';
+    expect((await tunnelSelfTest(host, 'connected', deps({}))).code).toBe('ok');
+    expect((await tunnelSelfTest(host, 'connected', deps({ online: false }))).message).toMatch(/no internet/);
+    expect((await tunnelSelfTest(host, 'reconnecting', deps({}))).code).toBe('not-running');
+    expect((await tunnelSelfTest(host, 'connected', deps({ dns: false }))).message).toMatch(/nameservers/);
+    expect((await tunnelSelfTest(host, 'connected', deps({ fetch: res(502, 'Bad gateway') }))).message).toMatch(/http:\/\/localhost:8790/);
+    expect((await tunnelSelfTest(host, 'connected', deps({ fetch: res(530, 'error code: 1033') }))).code).toBe('no-origin');
+    const access = await tunnelSelfTest(host, 'connected', deps({ fetch: res(302, '', { location: 'https://unit.cloudflareaccess.com/cdn-cgi/access/login' }) }));
+    expect(access).toMatchObject({ code: 'access', ok: true });
+    expect((await tunnelSelfTest(null, 'off', deps({}))).ok).toBe(false);
   });
 });

@@ -69,11 +69,11 @@ export function revokeDevice(db: DB, deviceId: string): Device {
 
 // ── Staff invites: one QR / link an admin shares; each person requests an account from their phone ──
 
-export const INVITE_ROLES = ['clinician', 'viewer', 'researcher'] as const;
+export const INVITE_ROLES = ['clinician', 'nurse', 'viewer', 'researcher'] as const;
 export interface Invite { id: string; role: string; createdAt: string; expiresAt: number; maxUses: number; uses: number; revokedAt: string | null; by: string | null }
 
 export function createInvite(db: DB, userId: number, opts: { role: string; days: number; maxUses: number }, now: number): { id: string; code: string; expiresAt: number } {
-  if (!(INVITE_ROLES as readonly string[]).includes(opts.role)) throw new Error('Invites can be for clinicians, viewers or researchers. Make administrators from Settings.');
+  if (!(INVITE_ROLES as readonly string[]).includes(opts.role)) throw new Error('Invites can be for clinicians, nurses, viewers or researchers. Make administrators from Settings.');
   const days = Number(opts.days), maxUses = Number(opts.maxUses);
   if (!(days >= 1 && days <= 30)) throw new Error('An invite lasts 1–30 days');
   if (!(maxUses >= 1 && maxUses <= 100)) throw new Error('An invite can be used 1–100 times');

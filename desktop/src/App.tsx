@@ -136,13 +136,13 @@ function Login({ unitName, idleMinutes, onDone }: { unitName: string; idleMinute
 
 // `bedside` pages make up the short sidebar clinicians see by default; the rest sit under "More pages".
 const NAV = [
-  { id: 'home', label: 'Command centre', icon: LayoutDashboard, roles: ['admin', 'clinician', 'viewer', 'researcher'], bedside: true },
-  { id: 'census', label: 'Census board', icon: BedDouble, roles: ['admin', 'clinician', 'viewer'], key: 'B', bedside: true },
-  { id: 'monitor', label: 'Live monitor', icon: HeartPulse, roles: ['admin', 'clinician', 'viewer'], bedside: true },
-  { id: 'rounds', label: 'Rounds & handover', icon: ScrollText, roles: ['admin', 'clinician', 'viewer'], bedside: true },
-  { id: 'patients', label: 'Patients', icon: Users, roles: ['admin', 'clinician', 'viewer'], bedside: true },
+  { id: 'home', label: 'Command centre', icon: LayoutDashboard, roles: ['admin', 'clinician', 'nurse', 'viewer', 'researcher'], bedside: true },
+  { id: 'census', label: 'Census board', icon: BedDouble, roles: ['admin', 'clinician', 'nurse', 'viewer'], key: 'B', bedside: true },
+  { id: 'monitor', label: 'Live monitor', icon: HeartPulse, roles: ['admin', 'clinician', 'nurse', 'viewer'], bedside: true },
+  { id: 'rounds', label: 'Rounds & handover', icon: ScrollText, roles: ['admin', 'clinician', 'nurse', 'viewer'], bedside: true },
+  { id: 'patients', label: 'Patients', icon: Users, roles: ['admin', 'clinician', 'nurse', 'viewer'], bedside: true },
   { id: 'reconcile', label: 'Daily reconcile', icon: ListChecks, roles: ['admin', 'clinician'], key: 'R', bedside: true },
-  { id: 'micro', label: 'Microbiology', icon: FlaskConical, roles: ['admin', 'clinician', 'viewer', 'researcher'], bedside: true },
+  { id: 'micro', label: 'Microbiology', icon: FlaskConical, roles: ['admin', 'clinician', 'nurse', 'viewer', 'researcher'], bedside: true },
   { id: 'stewardship', label: 'Stewardship', icon: Pill, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'report', label: 'Monthly report', icon: FileBarChart2, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'research', label: 'Research', icon: FlaskRound, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
@@ -199,9 +199,9 @@ function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: ()
     switch (route) {
       case 'patients': return <Patients />;
       case 'rounds': return <Rounds />;
-      case 'monitor': return <LiveMonitor key={args[0] ?? 'all'} args={args} isAdmin={user.role === 'admin'} canChart={clinical} />;
+      case 'monitor': return <LiveMonitor key={args[0] ?? 'all'} args={args} isAdmin={user.role === 'admin'} canChart={clinical || user.role === 'nurse'} />;
       case 'census': return <Census onAdmit={() => setAdmitOpen(true)} canEdit={clinical} />;
-      case 'patient': return <PatientPage id={args[0]} canEdit={clinical} isAdmin={user.role === 'admin'} />;
+      case 'patient': return <PatientPage id={args[0]} canEdit={clinical} canChart={clinical || user.role === 'nurse'} isAdmin={user.role === 'admin'} />;
       case 'reconcile': return <Reconcile canEdit={clinical} />;
       case 'micro': return <Microbiology canEdit={clinical} openNew={args[0] === 'new'} />;
       case 'stewardship': return <Stewardship />;

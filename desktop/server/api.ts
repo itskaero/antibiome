@@ -61,11 +61,17 @@ const memorySecrets = (): SecretStore => { const m = new Map<string, string>(); 
 type Handler = (p: any, ctx: { db: DB; session: Session; now: () => number; env: ApiEnv; endDeviceSessions: (deviceId: string) => void }) => unknown;
 interface Route { roles: Role[] | 'public'; fn: Handler }
 
-const ALL: Role[] = ['admin', 'clinician', 'viewer', 'researcher'];
+const ALL: Role[] = ['admin', 'clinician', 'nurse', 'viewer', 'researcher'];
 const CLINICAL: Role[] = ['admin', 'clinician'];
-const NON_RESEARCH: Role[] = ['admin', 'clinician', 'viewer'];
+/** Bedside charting (vitals, intake/output, nursing notes): clinicians and nurses. */
+const CHARTING: Role[] = ['admin', 'clinician', 'nurse'];
+const NON_RESEARCH: Role[] = ['admin', 'clinician', 'nurse', 'viewer'];
+/** Nurses may remove only what they recorded themselves. */
+const ownOrClinical = (s: Session, createdBy: number | null) => {
+  if (s.user?.role === 'nurse' && createdBy !== s.user.id) fail('Only the person who recorded this, or a clinician, can remove it');
+};
 /** Names/MRNs: clinical roles only, and on phones only when the unit has switched it on. */
-const canSeeIdentifiers = (s: Session, db: DB) => !!s.user && CLINICAL.includes(s.user.role) && (s.channel === 'desktop' || getSetting(db, 'mobileShowNames', '0') === '1');
+const canSeeIdentifiers = (s: Session, db: DB) => !!s.user && CHARTING.includes(s.user.role) && (s.channel === 'desktop' || getSetting(db, 'mobileShowNames', '0') === '1');
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -455,15 +461,16 @@ export const routes: Record<string, Route> = {
 
   // Episodes & events
   'pim3.save': { roles: CLINICAL, fn: (p, { db, session }) => { getAdmissionRow(db, p.admissionId); return tx(db, () => savePim3(db, session, p.admissionId, p.inputs)); } },
-  'vitals.add': { roles: CLINICAL, fn: (p, { db, session, now }) => {
+  'vitals.add': { roles: CHARTING, fn: (p, { db, session, now }) => {
     const a = getAdmissionRow(db, p.admissionId);
     const at = reqDT(p.at ?? nowLocal(), 'Time');
     if (ms(at) < ms(a.admit_at) - 2 * 3_600_000) fail('Vitals are more than 2 h before admission');
     if (a.discharge_at && ms(at) > ms(a.discharge_at) + 3_600_000) fail('Vitals are after discharge');
     return tx(db, () => saveVitalSet(db, session, p.admissionId, at, p.context ?? 'routine', p.values, now()));
   } },
-  'vitals.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
+  'vitals.delete': { roles: CHARTING, fn: (p, { db, session }) => {
     const v = db.prepare('SELECT * FROM vital_sets WHERE id = ?').get(p.id) as any ?? fail('Vitals not found');
+    ownOrClinical(session, v.created_by);
     db.prepare('UPDATE vital_sets SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
     audit(db, session, 'delete', 'vitals', v.admission_id, `${admissionLabel(db, v.admission_id)}: removed vitals from ${v.at}`);
     return true;
@@ -519,7 +526,7 @@ export const routes: Record<string, Route> = {
     return (db.prepare('SELECT * FROM pending_vitals WHERE admission_id = ? AND decided_at IS NULL ORDER BY at DESC').all(p.admissionId) as any[])
       .map(r => ({ id: r.id, at: r.at, source: r.source, values: JSON.parse(r.values_json) }));
   } },
-  'vitals.resolvePending': { roles: CLINICAL, fn: (p, { db, session, now }) => tx(db, () => {
+  'vitals.resolvePending': { roles: CHARTING, fn: (p, { db, session, now }) => tx(db, () => {
     const ids: string[] = Array.isArray(p.ids) ? p.ids.map(String) : [];
     if (!ids.length) fail('Nothing selected');
     if (p.decision !== 'confirmed' && p.decision !== 'dismissed') fail('Confirm or dismiss');
@@ -536,7 +543,7 @@ export const routes: Record<string, Route> = {
     return n;
   }) },
   // Fluid balance
-  'fluids.add': { roles: CLINICAL, fn: (p, { db, session, now }) => {
+  'fluids.add': { roles: CHARTING, fn: (p, { db, session, now }) => {
     const a = getAdmissionRow(db, p.admissionId);
     const at = reqDT(p.at ?? nowLocal(), 'Time');
     if (ms(at) > now() + 10 * 60_000) fail('Time is in the future');
@@ -553,8 +560,9 @@ export const routes: Record<string, Route> = {
     audit(db, session, 'add', 'fluids', p.admissionId, `${admissionLabel(db, p.admissionId)}: ${p.dir === 'in' ? 'intake' : 'output'} ${p.category} ${ml} mL at ${at.replace('T', ' ')}`);
     return id;
   } },
-  'fluids.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
+  'fluids.delete': { roles: CHARTING, fn: (p, { db, session }) => {
     const f = db.prepare('SELECT * FROM fluid_entries WHERE id = ? AND deleted_at IS NULL').get(p.id) as any ?? fail('Entry not found');
+    ownOrClinical(session, f.created_by);
     db.prepare('UPDATE fluid_entries SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
     audit(db, session, 'delete', 'fluids', f.admission_id, `${admissionLabel(db, f.admission_id)}: removed ${f.category} ${f.ml} mL from ${f.at}`);
     return true;
@@ -635,9 +643,10 @@ export const routes: Record<string, Route> = {
     audit(db, session, 'delete', 'episode', p.id, `${admissionLabel(db, ep.admission_id)}: removed ${ep.detail} entry`);
     return true;
   } },
-  'event.add': { roles: CLINICAL, fn: (p, { db, session }) => {
+  'event.add': { roles: CHARTING, fn: (p, { db, session }) => {
     getAdmissionRow(db, p.admissionId);
     if (!['procedure', 'complication', 'culture_sent', 'note', 'deterioration'].includes(p.type)) fail('Unknown event type');
+    if (session.user?.role === 'nurse' && !['note', 'deterioration'].includes(p.type)) fail('Nurses can add notes and deterioration events');
     if (!p.label) fail('Event label is required');
     const id = randomUUID();
     db.prepare('INSERT INTO clinical_events(id, admission_id, type, label, at, note, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)')
@@ -645,8 +654,9 @@ export const routes: Record<string, Route> = {
     audit(db, session, 'add', p.type, p.admissionId, `${admissionLabel(db, p.admissionId)}: ${p.label}`);
     return { id };
   } },
-  'event.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
+  'event.delete': { roles: CHARTING, fn: (p, { db, session }) => {
     const ev = db.prepare('SELECT * FROM clinical_events WHERE id = ?').get(p.id) as any ?? fail('Event not found');
+    ownOrClinical(session, ev.created_by);
     db.prepare('UPDATE clinical_events SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
     audit(db, session, 'delete', ev.type, ev.admission_id, `${admissionLabel(db, ev.admission_id)}: removed "${ev.label}"`);
     return true;
@@ -1095,7 +1105,7 @@ export const routes: Record<string, Route> = {
       .map(r => ({ id: r.id, username: r.username, displayName: r.display_name, role: r.role, active: !!r.active, createdAt: r.created_at })) },
   'users.create': { roles: ['admin'], fn: (p, { db, session }) => {
     if (!p.username || !p.displayName) fail('Name and username are required');
-    if (!['admin', 'clinician', 'viewer', 'researcher'].includes(p.role)) fail('Choose a role');
+    if (!['admin', 'clinician', 'nurse', 'viewer', 'researcher'].includes(p.role)) fail('Choose a role');
     if (!p.password || p.password.length < PASSWORD_MIN) fail(`Password must be at least ${PASSWORD_MIN} characters`);
     if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(p.username.trim())) fail('That username is taken');
     const { hash, salt } = hashPassword(p.password);
@@ -1139,7 +1149,7 @@ export const routes: Record<string, Route> = {
       return false;
     }
     const role = p.role ?? r.role;
-    if (!['clinician', 'viewer', 'researcher'].includes(role)) fail('Choose clinician, viewer or researcher');
+    if (!['clinician', 'nurse', 'viewer', 'researcher'].includes(role)) fail('Choose clinician, nurse, viewer or researcher');
     if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(r.username)) fail('That username is now taken — decline the request and send a new invite');
     db.prepare('INSERT INTO users(username, display_name, role, pw_hash, pw_salt, created_at) VALUES (?,?,?,?,?,?)').run(r.username, r.display_name, role, r.pw_hash, r.pw_salt, nowLocal());
     db.prepare("UPDATE account_requests SET status = 'approved', decided_by = ?, decided_at = ? WHERE id = ?").run(session.user!.id, nowLocal(), r.id);

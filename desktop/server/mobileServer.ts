@@ -20,7 +20,9 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import type { DB } from './db';
-import { ApiError, type createApi } from './api';
+import { ApiError, MOBILE_IDLE_MS, type createApi } from './api';
+import type { BedSnapshot, BedEvent, MonitorUpdate, TrendPoint } from './monitorGateway';
+import type { Role } from '../shared/types';
 import { joinWithInvite, redeemPairingCode, touchDevice, verifyDevice } from './mobile';
 import { QUIET_METHODS, isRead } from '../shared/apiMethods';
 
@@ -36,7 +38,28 @@ export interface MobileServerOptions {
   loopbackPort?: number;
   /** Addresses of a tunnel connector running on another machine (e.g. when this PC is Windows 7); their forwarded headers are trusted too. */
   trustedProxies?: () => string[];
+  /** Live bedside monitors for phones (numbers for every bed, waveforms for the one bed a phone is looking at). */
+  monitor?: MobileMonitorSource;
 }
+export interface MobileMonitorSource {
+  snapshot(): BedSnapshot[];
+  trend(id: string): Record<string, TrendPoint[]>;
+  events(id: string): BedEvent[];
+  status(): { running: boolean; demo: boolean; enabled: boolean; bedMap: Record<string, string> };
+  subscribe(fn: (u: MonitorUpdate) => void): () => void;
+  /** Whether patient names may be shown on phones (unit setting). */
+  showNames(): boolean;
+}
+
+const MONITOR_ROLES: Role[] = ['admin', 'clinician', 'nurse', 'viewer'];
+const NAME_ROLES: Role[] = ['admin', 'clinician', 'nurse'];
+/** Phone waveform rates: half the ECG, a quarter of pleth and resp (≈ 1 KB/s of JSON for one bed). */
+export const PHONE_WAVE_STEP = { ecg: 2, pleth: 4, resp: 4 } as const;
+const decimate = (a: number[] | undefined, step: number, phase: number) => {
+  const out: number[] = [];
+  if (a) for (let i = (step - phase % step) % step; i < a.length; i += step) out.push(a[i]);
+  return out;
+};
 export interface MobileServer { port: number; loopbackPort: number | null; close(): Promise<void>; broadcast(): void; clients(): number; lastTunnelAt(): number | null }
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
@@ -104,6 +127,61 @@ export function startMobileServer(o: MobileServerOptions): Promise<MobileServer>
   };
   const broadcast = () => { for (const s of streams) s.write('data: changed\n\n'); };
 
+  // ── Live monitors ──
+  // Reading the monitor does not count as activity, so a phone left on this screen still locks.
+  const MONITOR_METHODS = new Set(['desktop.monitorStatus', 'desktop.monitorTrend', 'desktop.monitorEvents']);
+  const monitorViewer = (token: string) => {
+    const s = o.api.sessionFor(token);
+    if (!s?.user || s.channel !== 'mobile' || now() - s.lastActivity > MOBILE_IDLE_MS) throw new ApiError('SESSION_EXPIRED');
+    if (!MONITOR_ROLES.includes(s.user.role)) throw new ApiError('Your role does not allow this action');
+    if (!o.monitor) throw new ApiError('Live monitors are not available');
+    return { names: NAME_ROLES.includes(s.user.role) && o.monitor.showNames() };
+  };
+  const redact = (beds: BedSnapshot[], names: boolean) => names ? beds
+    : beds.map(b => ({ ...b, patient: b.patient ? { ...b.patient, name: null, patientId: null } : null }));
+  function monitorCall(method: string, p: any, token: string) {
+    monitorViewer(token);
+    const m = o.monitor!;
+    if (method === 'desktop.monitorStatus') { const st = m.status(); return { running: st.running, demo: st.demo, enabled: st.enabled, bedMap: st.bedMap, receivers: [], addresses: [], recording: false, config: [], drivers: [], recordDir: '', captureMinutes: 0 }; }
+    if (method === 'desktop.monitorTrend') return m.trend(String(p?.id ?? ''));
+    return m.events(String(p?.id ?? ''));
+  }
+  function handleMonitor(req: IncomingMessage, res: ServerResponse, url: URL) {
+    const tk = tickets.get(url.searchParams.get('t') ?? '');
+    if (tk) tickets.delete(url.searchParams.get('t')!);
+    const token = tk && tk.exp >= now() ? tk.token : '';
+    let names: boolean;
+    try { names = monitorViewer(token).names; } catch (e: any) { return send(res, 401, { ok: false, error: e.message }); }
+    const bed = url.searchParams.get('bed') || null;
+    res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    res.write('retry: 3000\n\n');
+    let lastNumbers = 0, phase = { ecg: 0, pleth: 0, resp: 0 };
+    const rates = { ecg: 256 / PHONE_WAVE_STEP.ecg, pleth: 256 / PHONE_WAVE_STEP.pleth, resp: 128 / PHONE_WAVE_STEP.resp };
+    const unsubscribe = o.monitor!.subscribe(u => {
+      const t = now();
+      const s = o.api.sessionFor(token);
+      if (!s?.user || t - s.lastActivity > MOBILE_IDLE_MS) { res.end(); return; }
+      const msg: Record<string, unknown> = { at: u.at, rates };
+      if (t - lastNumbers >= 1000) { msg.beds = redact(u.beds, names); lastNumbers = t; }
+      const w = bed ? u.waves[bed] : undefined;
+      if (w) {
+        const out: Record<string, number[]> = {};
+        for (const k of ['ecg', 'pleth', 'resp'] as const) {
+          const src = w[k]; if (!src?.length) continue;
+          out[k] = decimate(src, PHONE_WAVE_STEP[k], phase[k]);
+          phase = { ...phase, [k]: (phase[k] + src.length) % PHONE_WAVE_STEP[k] };
+        }
+        msg.waves = { [bed!]: out };
+      }
+      if (msg.beds || msg.waves) res.write(`data: ${JSON.stringify(msg)}\n\n`);
+    });
+    const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
+    const close = () => { clearInterval(ping); unsubscribe(); monitorStreams.delete(res); };
+    monitorStreams.add(res);
+    req.on('close', close); res.on('close', close);
+  }
+  const monitorStreams = new Set<ServerResponse>();
+
   async function handleApi(req: IncomingMessage, res: ServerResponse, ip: string) {
     const device = deviceOf(req);
     if (!device) return send(res, 401, { ok: false, error: 'DEVICE_NOT_PAIRED' });
@@ -116,6 +194,11 @@ export function startMobileServer(o: MobileServerOptions): Promise<MobileServer>
     if (lastTouch.get(device.id) == null || t - lastTouch.get(device.id)! > 60_000) { touchDevice(o.db, device.id, null); lastTouch.set(device.id, t); }
     if (method === 'auth.login' && (loginFails.blocked(`ip:${ip}`, t) || loginFails.blocked(`dev:${device.id}`, t)))
       return send(res, 429, { ok: false, error: 'Too many sign-in attempts. Wait 10 minutes.', session: token });
+    if (MONITOR_METHODS.has(method)) {
+      try { send(res, 200, { ok: true, data: monitorCall(method, body?.params, token), session: token }); }
+      catch (e: any) { send(res, 200, { ok: false, error: e instanceof ApiError ? e.message : 'Something went wrong', session: token }); }
+      return;
+    }
     try {
       const data = await o.api.call(method, body?.params, token);
       if (method === 'auth.login') { loginFails.clear(`ip:${ip}`); loginFails.clear(`dev:${device.id}`); }
@@ -199,6 +282,8 @@ export function startMobileServer(o: MobileServerOptions): Promise<MobileServer>
     if (route === 'POST /join') return done(handleJoin(req, res, ip));
     if (route === 'POST /events-ticket') return handleTicket(req, res);
     if (route === 'GET /events') return handleEvents(req, res, url);
+    if (route === 'GET /monitor') return handleMonitor(req, res, url);
+    if (route === 'GET /healthz') { res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'application/json' }); return res.end('{"ok":true,"app":"antibiome"}'); }
     if (req.method === 'GET' || req.method === 'HEAD') return done(handleStatic(req, res, url));
     send(res, 405, { ok: false });
   };
@@ -220,6 +305,7 @@ export function startMobileServer(o: MobileServerOptions): Promise<MobileServer>
       lastTunnelAt: () => lastTunnel,
       close: () => new Promise<void>(r => {
         for (const s of streams) s.end(); streams.clear();
+        for (const s of monitorStreams) s.end(); monitorStreams.clear();
         let n = plain ? 2 : 1; const one = () => { if (--n === 0) r(); };
         server.close(one); server.closeAllConnections?.();
         if (plain) { plain.close(one); plain.closeAllConnections?.(); }

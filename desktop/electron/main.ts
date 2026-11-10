@@ -3,6 +3,7 @@
 //  (no Node, context isolation) and can only reach the whitelisted API.
 // ═══════════════════════════════════════════════════════════
 import './compat';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import { app, BrowserWindow, dialog, ipcMain, Menu, powerSaveBlocker, safeStorage, shell } from 'electron';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,12 +13,12 @@ import type { Role } from '../shared/types';
 import { seedDemo } from '../server/demo';
 import { importLegacy, parseLegacy } from '../server/legacy';
 import { nowLocal, toDateStr } from '../shared/time';
-import { lanAddresses, startMobileServer, type MobileServer } from '../server/mobileServer';
+import { lanAddresses, startMobileServer, type MobileMonitorSource, type MobileServer } from '../server/mobileServer';
 import { generateCertificate, serverFingerprint } from '../server/tls';
 import { QUIET_METHODS, isRead } from '../shared/apiMethods';
 import { MonitorGateway } from '../server/monitorGateway';
-import { createMonitorService } from '../server/monitorService';
-import { TunnelManager, type TunnelMode } from '../server/tunnel';
+import { createMonitorService, loadBedMap } from '../server/monitorService';
+import { httpsGet, tunnelSelfTest, TunnelManager, type TunnelMode } from '../server/tunnel';
 
 const dataDir = process.env.ANTIBIOME_DATA_DIR || join(app.getPath('userData'), 'data');
 mkdirSync(dataDir, { recursive: true });
@@ -85,7 +86,7 @@ async function startMobile() {
   try {
     const port = Number(getSetting(db, 'mobilePort', String(DEFAULT_PORT)));
     const loopbackPort = Number(getSetting(db, 'remoteLoopbackPort', '0')) || undefined;
-    mobile = await startMobileServer({ api, db, distDir: join(__dirname, '../dist'), tls: await tlsOptions(), port, loopbackPort, allowedHosts, trustedProxies, onPhoneMutation: () => win?.webContents.send('changed') });
+    mobile = await startMobileServer({ api, db, distDir: join(__dirname, '../dist'), tls: await tlsOptions(), port, loopbackPort, allowedHosts, trustedProxies, monitor: phoneMonitor, onPhoneMutation: () => win?.webContents.send('changed') });
     mobileFingerprint = await serverFingerprint(mobile.port);
     if (blocker == null) blocker = powerSaveBlocker.start('prevent-app-suspension');
   } catch (e: any) {
@@ -131,6 +132,15 @@ function mobileStatus() {
 // The gateway takes the central station's place on the monitor network; see server/monitorGateway.ts.
 const monitor = new MonitorGateway();
 monitor.on('update', u => { if (win && !win.isDestroyed()) win.webContents.send('monitor', u); });
+/** What phones see of the live monitors (mobileServer redacts names unless the unit allows them). */
+const phoneMonitor: MobileMonitorSource = {
+  snapshot: () => monitor.snapshot(),
+  trend: id => monitor.trend(id),
+  events: id => monitor.events(id),
+  status: () => { const st = monitor.status(); return { running: st.running, demo: st.demo, enabled: getSetting(db, 'monitorEnabled') === '1', bedMap: loadBedMap(db) }; },
+  subscribe: fn => { monitor.on('update', fn); return () => { monitor.off('update', fn); }; },
+  showNames: () => getSetting(db, 'mobileShowNames', '0') === '1',
+};
 const monitorService = createMonitorService(db, monitor, {
   requireRole: (...roles) => requireRole(...roles),
   audit: summary => auditDesktop('update', 'settings', summary),
@@ -141,7 +151,7 @@ const monitorService = createMonitorService(db, monitor, {
 // Desktop-only operations that need native dialogs.
 const desktopRoutes: Record<string, (p: any) => unknown> = {
   'desktop.info': () => {
-    requireRole('admin', 'clinician', 'viewer', 'researcher');
+    requireRole('admin', 'clinician', 'nurse', 'viewer', 'researcher');
     return { dataDir, dbFile, version: app.getVersion(), demo: getSetting(db, 'demoData') === '1' };
   },
   'desktop.backupNow': async () => {
@@ -222,6 +232,15 @@ const desktopRoutes: Record<string, (p: any) => unknown> = {
     auditDesktop('update', 'settings', p.mode === 'quick' ? 'Started a temporary Cloudflare test link' : 'Cloudflare tunnel connected from this PC');
     return { ...tunnel.status(), available: tunnel.available, hasToken: !!secrets.load('tunnel-token'), autostart: getSetting(db, 'tunnelEnabled') === '1' };
   },
+  'desktop.tunnelSelfTest': async () => {
+    requireRole('admin');
+    const st = tunnel.status();
+    const host = st.mode === 'quick' && st.url ? new URL(st.url).hostname : publicHostname();
+    return tunnelSelfTest(host, st.state, {
+      lookup: h => dnsLookup(h),
+      fetch: url => httpsGet(url),
+    });
+  },
   'desktop.tunnelStop': (p: { forget?: boolean }) => {
     requireRole('admin');
     tunnel.stop();
@@ -253,7 +272,7 @@ const desktopRoutes: Record<string, (p: any) => unknown> = {
     return mobileStatus();
   },
   ...monitorService.routes,
-  'desktop.print': () => { requireRole('admin', 'clinician', 'viewer', 'researcher'); win?.webContents.print({ printBackground: true }); return true; },
+  'desktop.print': () => { requireRole('admin', 'clinician', 'nurse', 'viewer', 'researcher'); win?.webContents.print({ printBackground: true }); return true; },
 };
 
 ipcMain.handle('api', async (_e, method: string, params: unknown) => {

@@ -33,7 +33,8 @@ interface Detail {
   issues: { id: string; message: string; severity: string }[]; previousAdmissions: { id: string; admit_at: string; discharge_at: string | null; disposition: string | null; dx: string }[];
 }
 
-export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boolean; isAdmin: boolean }) {
+/** canEdit: clinicians (admit, antibiotics, support). canChart: also nurses (vitals, labs, intake/output, notes). */
+export function PatientPage({ id, canEdit, canChart = canEdit, isAdmin }: { id: string; canEdit: boolean; canChart?: boolean; isAdmin: boolean }) {
   const { data: d, error } = useApi<Detail>('admission.get', { id });
   const [discharge, setDischarge] = useState(false);
   const [edit, setEdit] = useState(false);
@@ -45,6 +46,7 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
   const a = d.admission;
   const active = !a.dischargeAt;
   const editable = canEdit && active;
+  const chartable = canChart && active;
   const open = d.episodes.filter(e => !e.endAt);
   const resp = (open.find(e => e.kind === 'resp')?.detail ?? 'RA') as RespLevel;
 
@@ -133,10 +135,11 @@ export function PatientPage({ id, canEdit, isAdmin }: { id: string; canEdit: boo
             </div>
           </div>
 
-          <PendingReadings admissionId={id} editable={editable} />
-          <VitalsCard admissionId={id} canEdit={canEdit} editable={editable} />
-          <LabsCard admissionId={id} ageMonths={d.admission.ageMonths ?? null} editable={editable} />
-          <FluidsCard admissionId={id} editable={editable} />
+          <PendingReadings admissionId={id} editable={chartable} />
+          <VitalsCard admissionId={id} canEdit={canChart} editable={chartable} />
+          <LabsCard admissionId={id} ageMonths={d.admission.ageMonths ?? null} editable={chartable} />
+          <FluidsCard admissionId={id} editable={chartable} />
+          {chartable && !editable && <NursingNote admissionId={id} />}
           <Pim3Card admissionId={id} saved={d.pim3} suggestion={d.pim3Suggestion} canEdit={canEdit} />
           <ModulesPanel admissionId={id} canEdit={canEdit} />
 
@@ -359,5 +362,29 @@ function EditModal({ open, onClose, a }: { open: boolean; onClose: () => void; a
       </div>
       <div className="mt-3"><ErrorNote text={err} /></div>
     </Modal>
+  );
+}
+
+/** Nurses: a free-text note or a deterioration flag, timed now. Clinicians use "Record an event". */
+export function NursingNote({ admissionId }: { admissionId: string }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const add = async (type: 'note' | 'deterioration') => {
+    setBusy(true);
+    try {
+      await call('event.add', { admissionId, type, label: type === 'note' ? (text.trim().split('\n')[0].slice(0, 80) || 'Nursing note') : 'Clinical deterioration', note: text.trim() || null });
+      toast(type === 'note' ? 'Note saved' : 'Deterioration recorded'); setText('');
+    } catch (e: any) { toast(e.message, 'crit'); } finally { setBusy(false); }
+  };
+  return (
+    <div className="card p-5">
+      <CardHeader title="Nursing note" />
+      <textarea id="nursing-note" className="field min-h-[88px] py-2 text-[15px]" value={text} onChange={e => setText(e.target.value)} placeholder="e.g. Febrile 38.6, informed Dr on call; feeds held" maxLength={1000} />
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant="primary" disabled={busy || !text.trim()} onClick={() => add('note')}>Save note</Button>
+        <Button disabled={busy} onClick={() => add('deterioration')}><AlertTriangle size={14} />Deterioration</Button>
+      </div>
+    </div>
   );
 }

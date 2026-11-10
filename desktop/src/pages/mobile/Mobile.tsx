@@ -2,7 +2,7 @@
 // configuration stay on the PICU PC (the server enforces this too).
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { AlertTriangle, BedDouble, FlaskConical, HeartPulse, LayoutDashboard, LogOut, Moon, Pill, Plus, ShieldCheck, Smartphone, Sun, UserRound } from 'lucide-react';
+import { AlertTriangle, BedDouble, Droplets, FlaskConical, HeartPulse, LayoutDashboard, LogOut, Moon, Pill, Plus, ShieldCheck, Smartphone, Sun, UserRound } from 'lucide-react';
 import { call, forgetDevice, getDevice, joinWithInvite, openEvents, pairDevice } from '@/lib/api';
 import { AccountRequests } from '@/components/StaffAccess';
 import { go, useApi, useRoute } from '@/lib/hooks';
@@ -10,6 +10,8 @@ import { cx, fmt1, fmtPct, losLabel } from '@/lib/format';
 import { Button, Chip, Empty, ErrorNote, Field, RespChip, RespSegment, useToast } from '@/components/ui';
 import { AdmitModal } from '@/pages/Admit';
 import { PatientPage } from '@/pages/Patient';
+import { LiveMonitor } from '@/pages/LiveMonitor';
+import { MobileChart } from './MobileChart';
 import { dxLabel, RESP_LABEL, type RespLevel } from '@shared/reference';
 import { fmtAge } from '@shared/time';
 import { ROLE_LABEL, type User } from '@shared/types';
@@ -85,21 +87,28 @@ export function JoinScreen({ onDone, Frame }: { onDone: () => void; Frame: React
 
 // ── Shell ────────────────────────────────────────────────────
 
-const TABS = [
+type Tab = { id: string; label: string; icon: typeof BedDouble; show?: (r: User['role']) => boolean };
+const TABS: Tab[] = [
   { id: 'census', label: 'Census', icon: BedDouble },
-  { id: 'admit', label: 'Admit', icon: Plus, clinical: true },
-  { id: 'summary', label: 'Summary', icon: LayoutDashboard },
+  { id: 'monitor', label: 'Monitor', icon: HeartPulse, show: r => r !== 'researcher' },
+  { id: 'chart', label: 'Chart', icon: Droplets, show: r => r === 'admin' || r === 'clinician' || r === 'nurse' },
+  { id: 'admit', label: 'Admit', icon: Plus, show: r => r === 'admin' || r === 'clinician' },
+  { id: 'summary', label: 'Summary', icon: LayoutDashboard, show: r => r === 'viewer' },
   { id: 'me', label: 'Me', icon: UserRound },
-] as const;
+];
 
 export function MobileShell({ user, unitName, theme, setTheme, onSignOut }: { user: User; unitName: string; theme: string; setTheme: (t: 'dark' | 'light') => void; onSignOut: () => void }) {
   const [route, args] = useRoute();
   const [admitOpen, setAdmitOpen] = useState(false);
   const clinical = user.role === 'admin' || user.role === 'clinician';
+  const charting = clinical || user.role === 'nurse';
   useEffect(() => { openEvents(); }, []);
-  const active = route === 'patient' ? 'census' : TABS.some(t => t.id === route) ? route : 'census';
+  const tabs = TABS.filter(t => !t.show || t.show(user.role));
+  const active = route === 'patient' ? 'census' : tabs.some(t => t.id === route) ? route : 'census';
 
-  const page = route === 'patient' ? <PatientPage id={args[0]} canEdit={clinical} isAdmin={false} />
+  const page = route === 'patient' ? <PatientPage id={args[0]} canEdit={clinical} canChart={charting} isAdmin={false} />
+    : route === 'monitor' ? <LiveMonitor key={args[0] ?? 'all'} args={args} isAdmin={false} canChart={charting} />
+    : route === 'chart' && charting ? <MobileChart />
     : route === 'summary' ? <MobileSummary />
     : route === 'me' ? <MeTab user={user} theme={theme} setTheme={setTheme} onSignOut={onSignOut} />
     : <MobileCensus canEdit={clinical} onAdmit={() => setAdmitOpen(true)} />;
@@ -111,10 +120,11 @@ export function MobileShell({ user, unitName, theme, setTheme, onSignOut }: { us
         <span className="flex items-center gap-1.5 text-[11.5px] text-ink-3"><span className="h-1.5 w-1.5 rounded-full bg-good" />Connected to PICU PC</span>
       </header>
       <main className="scroll-thin min-h-0 flex-1 overflow-y-auto px-3.5 pt-4 pb-6">{page}</main>
-      <nav className="grid shrink-0 grid-cols-4 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]" aria-label="Main">
-        {TABS.filter(t => !('clinical' in t) || clinical).map(t => (
+      <nav className="grid shrink-0 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }} aria-label="Main">
+        {tabs.map(t => (
           <button key={t.id} onClick={() => (t.id === 'admit' ? setAdmitOpen(true) : go(t.id))}
-            className={cx('flex flex-col items-center gap-0.5 py-2.5 text-[11px]', active === t.id ? 'text-accent-ink' : 'text-ink-3')}>
+            aria-current={active === t.id ? 'page' : undefined}
+            className={cx('flex min-h-[52px] flex-col items-center justify-center gap-0.5 py-2 text-[11px]', active === t.id ? 'text-accent-ink' : 'text-ink-3')}>
             <t.icon size={20} />{t.label}
           </button>
         ))}
@@ -229,6 +239,7 @@ function MeTab({ user, theme, setTheme, onSignOut }: { user: User; theme: string
         <p className="text-[12px] text-ink-3">Locks after 5 minutes without activity. Closing the tab signs you out. Nothing about patients is stored on the phone.</p>
       </div>
       {user.role === 'admin' && <AccountRequests compact />}
+      {user.role !== 'viewer' && <button className="card flex items-center gap-2 p-4 text-left text-[13.5px]" onClick={() => go('summary')}><LayoutDashboard size={16} className="text-ink-3" />Unit summary</button>}
       <Button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}{theme === 'dark' ? 'Light theme' : 'Dark theme'}</Button>
       <Button variant="primary" onClick={signOut}><LogOut size={15} />Sign out</Button>
       <button className="mt-2 text-[12px] text-ink-3 underline" onClick={() => { if (confirm('Unpair this phone? You will need a new code from the PC to use it again.')) { call('auth.unpairDevice').catch(() => {}).finally(() => { forgetDevice(); location.reload(); }); } }}>Unpair this phone</button>

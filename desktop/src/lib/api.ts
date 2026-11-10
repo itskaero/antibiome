@@ -30,6 +30,11 @@ export const getDevice = (): PairedDevice | null => { try { return JSON.parse(lo
 export const forgetDevice = () => { try { localStorage.removeItem(DEVICE_KEY); } catch { /* ignore */ } sessionToken = null; closeEvents(); };
 
 let sessionToken: string | null = null;
+/** Headers that identify this phone and its signed-in session (null when not signed in). */
+export const sessionHeaders = (): Record<string, string> | null => {
+  const dev = getDevice();
+  return dev && sessionToken ? { 'X-Device-Id': dev.deviceId, 'X-Device-Secret': dev.secret, 'X-Session': sessionToken } : null;
+};
 let lastLocalChange = 0;
 let events: EventSource | null = null;
 const closeEvents = () => { events?.close(); events = null; };

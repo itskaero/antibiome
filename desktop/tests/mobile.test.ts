@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { request } from 'node:https';
+import { request as httpRequest } from 'node:http';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -129,9 +130,11 @@ describe('HTTPS phone server', () => {
     expect(census.data.rows).toHaveLength(1);
     expect((await callApi('ai.status', {}, login.session)).error).toContain('PC only');
 
-    // Live updates: an SSE client receives "changed" after a phone mutation.
+    // Live updates: a one-time ticket (no session token in the URL), then "changed" after a phone mutation.
+    const ticket = JSON.parse((await req('/events-ticket', { method: 'POST', headers: { ...dev, 'X-Session': login.session } })).body).data as string;
+    expect((await req('/events-ticket', { method: 'POST', headers: { 'X-Session': login.session } })).status).toBe(401);
     const got = new Promise<string>((resolve, reject) => {
-      const r = request({ host: '127.0.0.1', port: srv.port, path: `/events?s=${login.session}`, rejectUnauthorized: false }, res => {
+      const r = request({ host: '127.0.0.1', port: srv.port, path: `/events?t=${ticket}`, rejectUnauthorized: false }, res => {
         res.on('data', (c: Buffer) => { if (c.toString().includes('changed')) { resolve(c.toString()); r.destroy(); } });
       });
       r.on('error', e => { if (!String(e).includes('socket hang up')) reject(e); });
@@ -143,7 +146,34 @@ describe('HTTPS phone server', () => {
     await callApi('resp.set', { admissionId: ctx.admissionId, level: 'HFNC' }, login.session);
     expect(await got).toContain('data: changed');
     expect(changed).toBe(before + 1);
-    expect((await req('/events?s=bogus')).status).toBe(401);
+    expect((await req(`/events?t=${ticket}`)).status).toBe(401); // single use
+    expect((await req(`/events?s=${login.session}`)).status).toBe(401); // tokens in URLs are no longer accepted
+  });
+
+  it('invite → phone request (pairs the phone) → pending sign-in → admin approves → sign in', async () => {
+    const { code } = await ctx.api.call('invites.create', { role: 'clinician', days: 7, maxUses: 2 }) as { code: string };
+    const join = (body: object) => req('/join', { method: 'POST', body }).then(r => JSON.parse(r.body));
+    expect((await join({ code: 'WRONG-CODE1', displayName: 'Dr X', username: 'drx', password: 'password1' })).error).toMatch(/invalid/);
+    expect((await join({ code, displayName: 'Dr Sana', username: 'nurse', password: 'password1' })).error).toMatch(/taken/);
+    const ok = await join({ code, displayName: 'Dr Sana Malik', username: 'sana', password: 'password1', deviceName: 'Sana phone' });
+    expect(ok.ok).toBe(true);
+    expect(ok.data.request).toMatchObject({ status: 'pending', role: 'clinician' });
+    const dev = { 'X-Device-Id': ok.data.device.deviceId, 'X-Device-Secret': ok.data.device.secret };
+    const callApi = async (method: string, params?: unknown, session?: string) =>
+      JSON.parse((await req('/api', { method: 'POST', body: { method, params }, headers: { ...dev, ...(session ? { 'X-Session': session } : {}) } })).body);
+    expect((await callApi('auth.login', { username: 'sana', password: 'password1' })).error).toMatch(/waiting for an administrator/);
+    expect((await callApi('auth.login', { username: 'sana', password: 'wrong-one' })).error).toBe('Incorrect username or password');
+    const pending = await ctx.api.call('users.requests') as any[];
+    expect(pending.map(p => p.username)).toEqual(['sana']);
+    expect(await ctx.api.call('users.decideRequest', { id: pending[0].id, approve: true })).toBe(true);
+    const login = await callApi('auth.login', { username: 'sana', password: 'password1' });
+    expect(login.data).toMatchObject({ displayName: 'Dr Sana Malik', role: 'clinician' });
+    // A second use, then the invite is used up.
+    await join({ code, displayName: 'Dr B', username: 'drb', password: 'password1' });
+    expect((await join({ code, displayName: 'Dr C', username: 'drc', password: 'password1' })).error).toMatch(/used up/);
+    // Declining unpairs that phone.
+    const [b] = await ctx.api.call('users.requests') as any[];
+    expect(await ctx.api.call('users.decideRequest', { id: b.id, approve: false })).toBe(false);
   });
 
   it('rate-limits repeated failed sign-ins', async () => {
@@ -153,5 +183,33 @@ describe('HTTPS phone server', () => {
     let last = 0;
     for (let i = 0; i < 6; i++) last = (await req('/api', { method: 'POST', body: { method: 'auth.login', params: { username: 'nurse', password: 'x' } }, headers: h })).status;
     expect(last).toBe(429);
+  });
+});
+
+describe('remote access hardening', () => {
+  it('takes the visitor address from tunnel headers only on loopback connections', async () => {
+    const { clientIp, hostOf } = await import('../server/mobileServer');
+    const fake = (remote: string, headers: Record<string, string>) => ({ socket: { remoteAddress: remote }, headers }) as any;
+    expect(clientIp(fake('127.0.0.1', { 'cf-connecting-ip': '203.0.113.9' }))).toEqual({ ip: '203.0.113.9', viaTunnel: true });
+    expect(clientIp(fake('192.168.0.50', { 'cf-connecting-ip': '203.0.113.9' }))).toEqual({ ip: '192.168.0.50', viaTunnel: false }); // spoofing from the LAN is ignored
+    expect(clientIp(fake('::1', { 'x-forwarded-for': '198.51.100.7, 10.0.0.1' }))).toEqual({ ip: '198.51.100.7', viaTunnel: true });
+    expect(clientIp(fake('192.168.0.20', { 'cf-connecting-ip': '203.0.113.9' }), ['192.168.0.20'])).toEqual({ ip: '203.0.113.9', viaTunnel: true }); // a connector on another PC
+    expect(hostOf(fake('x', { host: 'PICU.example.org:443' }))).toBe('picu.example.org');
+  });
+
+  it('refuses unknown hosts and serves the loopback listener only on 127.0.0.1', async () => {
+    const db = openDatabase(':memory:'); const api = createApi(db);
+    await api.call('auth.setup', { username: 'admin', displayName: 'A', password: 'correct horse', unitName: 'PICU', beds: 4 });
+    const dist = mkdtempSync(join(tmpdir(), 'ab-dist-')); writeFileSync(join(dist, 'index.html'), '<!doctype html>');
+    const tls = await generateCertificate(['127.0.0.1']);
+    const srv = await startMobileServer({ api, db, distDir: dist, tls, port: 0, host: '127.0.0.1', loopbackPort: 43910, allowedHosts: () => ['127.0.0.1', 'picu.example.org'] });
+    const get = (host: string) => new Promise<number>((resolve, reject) => {
+      const r = httpRequest({ host: '127.0.0.1', port: srv.loopbackPort!, path: '/', headers: { Host: host, 'CF-Connecting-IP': '203.0.113.9' } }, res => { res.resume(); resolve(res.statusCode!); });
+      r.on('error', reject); r.end();
+    });
+    expect(await get('picu.example.org')).toBe(200);
+    expect(await get('evil.example.com')).toBe(421);
+    expect(srv.lastTunnelAt()).not.toBeNull();
+    await srv.close();
   });
 });

@@ -2,13 +2,17 @@
 // configuration stay on the PICU PC (the server enforces this too).
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { AlertTriangle, BedDouble, FlaskConical, HeartPulse, LayoutDashboard, LogOut, Moon, Pill, Plus, ShieldCheck, Smartphone, Sun, UserRound } from 'lucide-react';
-import { call, forgetDevice, getDevice, openEvents, pairDevice } from '@/lib/api';
+import { AlertTriangle, BedDouble, Droplets, FlaskConical, HeartPulse, LayoutDashboard, LogOut, Moon, Pill, Plus, ShieldCheck, Smartphone, Sun, UserRound } from 'lucide-react';
+import { call, forgetDevice, getDevice, joinWithInvite, openEvents, pairDevice } from '@/lib/api';
+import { AccountRequests } from '@/components/StaffAccess';
 import { go, useApi, useRoute } from '@/lib/hooks';
 import { cx, fmt1, fmtPct, losLabel } from '@/lib/format';
 import { Button, Chip, Empty, ErrorNote, Field, RespChip, RespSegment, useToast } from '@/components/ui';
 import { AdmitModal } from '@/pages/Admit';
 import { PatientPage } from '@/pages/Patient';
+import { LiveMonitor } from '@/pages/LiveMonitor';
+import { MobileChart } from './MobileChart';
+import { PewsChip, dueLabel } from '@/components/Bedside';
 import { dxLabel, RESP_LABEL, type RespLevel } from '@shared/reference';
 import { fmtAge } from '@shared/time';
 import { ROLE_LABEL, type User } from '@shared/types';
@@ -43,23 +47,69 @@ export function PairScreen({ onDone, Frame }: { onDone: () => void; Frame: React
   );
 }
 
+/** Opened from a staff invite link: pairs this phone and asks an administrator for an account, in one step. */
+export function JoinScreen({ onDone, Frame }: { onDone: () => void; Frame: React.FC<{ title: string; subtitle: string; children: React.ReactNode }> }) {
+  const code = window.location.hash.match(/^#\/join\/([A-Za-z0-9-]+)/)?.[1] ?? '';
+  const [f, setF] = useState({ displayName: '', username: '', password: '', deviceName: '' });
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setErr(null); setBusy(true);
+    try { const r = await joinWithInvite({ code, ...f, deviceName: f.deviceName || `${f.displayName}'s phone` }); setSent(r.role); }
+    catch (x: any) { setErr(x.message); } finally { setBusy(false); }
+  };
+  if (sent) return (
+    <Frame title="Request sent" subtitle={`An administrator will approve your ${sent} account. This phone is now paired.`}>
+      <div className="flex flex-col gap-4">
+        <p className="rounded-xl bg-panel-2 px-4 py-3 text-[13px] text-ink-2">Once approved, sign in with <b>{f.username}</b> and the password you chose. Until then, signing in says the account is waiting.</p>
+        <Button variant="primary" onClick={() => { window.location.hash = '/census'; onDone(); }}>Go to sign in</Button>
+      </div>
+    </Frame>
+  );
+  return (
+    <Frame title="Join the unit" subtitle="Create your account from this phone. An administrator approves it before you can sign in.">
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <Field label="Your name" hint="As colleagues know you, e.g. Dr A. Khan"><input id="join-name" className="field h-11 text-[16px]" value={f.displayName} onChange={set('displayName')} autoFocus autoComplete="name" /></Field>
+        <Field label="Username"><input id="join-user" className="field h-11 text-[16px]" value={f.username} onChange={set('username')} autoCapitalize="none" autoComplete="username" /></Field>
+        <Field label="Password" hint="At least 8 characters."><input id="join-pass" type="password" className="field h-11 text-[16px]" value={f.password} onChange={set('password')} autoComplete="new-password" /></Field>
+        <Field label="Name for this phone" hint="Optional — shown in the audit trail."><input id="join-device" className="field h-11 text-[16px]" value={f.deviceName} onChange={set('deviceName')} placeholder={f.displayName ? `${f.displayName}'s phone` : ''} /></Field>
+        <ErrorNote text={err} />
+        <Button variant="primary" type="submit" disabled={busy || !code || f.displayName.trim().length < 2 || f.username.trim().length < 3 || f.password.length < 8}>Request account</Button>
+      </form>
+      <ul className="mt-5 flex flex-col gap-1.5 text-[12px] text-ink-3">
+        <li>• Nothing about patients is stored on the phone; it locks after 5 minutes.</li>
+        <li>• An administrator can unpair this phone at any time.</li>
+      </ul>
+    </Frame>
+  );
+}
+
 // ── Shell ────────────────────────────────────────────────────
 
-const TABS = [
+type Tab = { id: string; label: string; icon: typeof BedDouble; show?: (r: User['role']) => boolean };
+const TABS: Tab[] = [
   { id: 'census', label: 'Census', icon: BedDouble },
-  { id: 'admit', label: 'Admit', icon: Plus, clinical: true },
-  { id: 'summary', label: 'Summary', icon: LayoutDashboard },
+  { id: 'monitor', label: 'Monitor', icon: HeartPulse, show: r => r !== 'researcher' },
+  { id: 'chart', label: 'Chart', icon: Droplets, show: r => r === 'admin' || r === 'clinician' || r === 'nurse' },
+  { id: 'admit', label: 'Admit', icon: Plus, show: r => r === 'admin' || r === 'clinician' },
+  { id: 'summary', label: 'Summary', icon: LayoutDashboard, show: r => r === 'viewer' },
   { id: 'me', label: 'Me', icon: UserRound },
-] as const;
+];
 
 export function MobileShell({ user, unitName, theme, setTheme, onSignOut }: { user: User; unitName: string; theme: string; setTheme: (t: 'dark' | 'light') => void; onSignOut: () => void }) {
   const [route, args] = useRoute();
   const [admitOpen, setAdmitOpen] = useState(false);
   const clinical = user.role === 'admin' || user.role === 'clinician';
+  const charting = clinical || user.role === 'nurse';
   useEffect(() => { openEvents(); }, []);
-  const active = route === 'patient' ? 'census' : TABS.some(t => t.id === route) ? route : 'census';
+  const tabs = TABS.filter(t => !t.show || t.show(user.role));
+  const active = route === 'patient' ? 'census' : tabs.some(t => t.id === route) ? route : 'census';
 
-  const page = route === 'patient' ? <PatientPage id={args[0]} canEdit={clinical} isAdmin={false} />
+  const page = route === 'patient' ? <PatientPage id={args[0]} canEdit={clinical} canChart={charting} isAdmin={false} />
+    : route === 'monitor' ? <LiveMonitor key={args[0] ?? 'all'} args={args} isAdmin={false} canChart={charting} />
+    : route === 'chart' && charting ? <MobileChart />
     : route === 'summary' ? <MobileSummary />
     : route === 'me' ? <MeTab user={user} theme={theme} setTheme={setTheme} onSignOut={onSignOut} />
     : <MobileCensus canEdit={clinical} onAdmit={() => setAdmitOpen(true)} />;
@@ -71,10 +121,11 @@ export function MobileShell({ user, unitName, theme, setTheme, onSignOut }: { us
         <span className="flex items-center gap-1.5 text-[11.5px] text-ink-3"><span className="h-1.5 w-1.5 rounded-full bg-good" />Connected to PICU PC</span>
       </header>
       <main className="scroll-thin min-h-0 flex-1 overflow-y-auto px-3.5 pt-4 pb-6">{page}</main>
-      <nav className="grid shrink-0 grid-cols-4 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]" aria-label="Main">
-        {TABS.filter(t => !('clinical' in t) || clinical).map(t => (
+      <nav className="grid shrink-0 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }} aria-label="Main">
+        {tabs.map(t => (
           <button key={t.id} onClick={() => (t.id === 'admit' ? setAdmitOpen(true) : go(t.id))}
-            className={cx('flex flex-col items-center gap-0.5 py-2.5 text-[11px]', active === t.id ? 'text-accent-ink' : 'text-ink-3')}>
+            aria-current={active === t.id ? 'page' : undefined}
+            className={cx('flex min-h-[52px] flex-col items-center justify-center gap-0.5 py-2 text-[11px]', active === t.id ? 'text-accent-ink' : 'text-ink-3')}>
             <t.icon size={20} />{t.label}
           </button>
         ))}
@@ -119,10 +170,11 @@ function MobileCensus({ canEdit, onAdmit }: { canEdit: boolean; onAdmit: () => v
               {r.issues > 0 && <AlertTriangle size={15} className="mt-1 shrink-0 text-warn-ink" />}
               {r.culturesSent > r.culturesResulted && <FlaskConical size={15} className="mt-1 shrink-0 text-info-ink" />}
             </button>
-            {(r.vaso.length > 0 || r.abx.length > 0) && (
+            {(r.vaso.length > 0 || r.abx.length > 0 || r.pews) && (
               <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <PewsChip p={r.pews} />
                 {r.vaso.map(v => <Chip key={v.id} tone="accent"><HeartPulse size={11} />{v.agent}</Chip>)}
-                {r.abx.map(x => <Chip key={x.id}><Pill size={11} />{x.drug}</Chip>)}
+                {r.abx.map(x => <Chip key={x.id} tone={x.due?.overdueMin ? 'crit' : 'neutral'}><Pill size={11} />{x.drug}{dueLabel(x.due) && <span className="opacity-75">· {dueLabel(x.due)}</span>}</Chip>)}
               </div>
             )}
             <div className="mt-3">{canEdit ? <RespSegment value={r.resp.level} onChange={l => setResp(r, l)} /> : <RespChip level={r.resp.level} />}</div>
@@ -145,7 +197,7 @@ function MobileSummary() {
     ['Admissions this month', String(c.admissions), `${c.emergency} emergency`],
     ['Mortality', fmtPct(c.mortalityPct, 1), d.smr12 ? `12-month SMR ${d.smr12.smr.toFixed(2)} (95% CI ${d.smr12.lo.toFixed(2)}–${d.smr12.hi.toFixed(2)})` : `${c.deaths} of ${c.discharges} discharges`],
     ['Median stay', c.los ? `${fmt1(c.los.median)} d` : '—', c.los ? `IQR ${fmt1(c.los.q1)}–${fmt1(c.los.q3)} d` : undefined],
-    ['Antimicrobial use', c.dot.per1000 != null ? `${Math.round(c.dot.per1000)}` : '—', 'DOT per 1,000 patient-days'],
+    ['Antimicrobial use', c.dot.per1000 != null ? `${Math.round(c.dot.per1000)}` : '—', 'antibiotic-days per 1,000 patient-days'],
     ['Cultures', `${c.micro.positives} / ${c.micro.cultures}`, `positive · ${c.micro.mdr} MDR`],
     ['Data completeness', `${c.completeness.pct}%`, 'this month'],
   ];
@@ -188,6 +240,8 @@ function MeTab({ user, theme, setTheme, onSignOut }: { user: User; theme: string
         <p className="flex items-center gap-2"><Smartphone size={15} className="text-ink-3" />This phone: <b>{dev?.name}</b></p>
         <p className="text-[12px] text-ink-3">Locks after 5 minutes without activity. Closing the tab signs you out. Nothing about patients is stored on the phone.</p>
       </div>
+      {user.role === 'admin' && <AccountRequests compact />}
+      {user.role !== 'viewer' && <button className="card flex items-center gap-2 p-4 text-left text-[13.5px]" onClick={() => go('summary')}><LayoutDashboard size={16} className="text-ink-3" />Unit summary</button>}
       <Button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}{theme === 'dark' ? 'Light theme' : 'Dark theme'}</Button>
       <Button variant="primary" onClick={signOut}><LogOut size={15} />Sign out</Button>
       <button className="mt-2 text-[12px] text-ink-3 underline" onClick={() => { if (confirm('Unpair this phone? You will need a new code from the PC to use it again.')) { call('auth.unpairDevice').catch(() => {}).finally(() => { forgetDevice(); location.reload(); }); } }}>Unpair this phone</button>

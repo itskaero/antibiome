@@ -1,0 +1,7 @@
+cloudflared — Cloudflare Tunnel client
+Copyright Cloudflare, Inc.
+Licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+Source code: https://github.com/cloudflare/cloudflared
+
+Antibiome PICU ships the unmodified official Windows build (cloudflared-windows-386.exe) and runs it
+only when an administrator turns on "Access from home". The version is recorded in cloudflared.version.

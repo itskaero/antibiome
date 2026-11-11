@@ -25,6 +25,12 @@ See [`../docs/PICU_INTELLIGENCE_PLAN.md`](../docs/PICU_INTELLIGENCE_PLAN.md) for
 | ![Modules & fields](docs/screenshots/modules-admin.png) | ![Research Explorer](docs/screenshots/explorer.png) |
 | ![Protocols & QI](docs/screenshots/protocols.png) | ![Vital signs on a patient](docs/screenshots/patient-vitals.png) |
 
+Live bedside monitors (synthetic demo beds):
+
+| | |
+|---|---|
+| ![Live monitor — all beds](docs/screenshots/monitor-dark.png) | ![Live monitor — one bed](docs/screenshots/monitor-bed-light.png) |
+
 Phones on the hospital Wi-Fi (pair → census → record vitals → patient), and the PC side:
 
 | | | | |
@@ -41,6 +47,7 @@ Phones on the hospital Wi-Fi (pair → census → record vitals → patient), an
 | Screen | What it does |
 |---|---|
 | **Command centre** | KPI tiles (census/occupancy, admissions, ventilated, crude mortality, median LOS); census this month vs last; **“Antibiome noticed”** change cards; disease burden; respiratory & haemodynamic; antimicrobial DOT; MDR trend |
+| **Live monitor** | Streams SpO₂, pulse rate, temperature and waveforms (ECG, pleth, resp) from the bedside monitors on the unit network; per-bed focus view with sensor map and 12-hour trends; copy a reading into the patient's vitals |
 | **Census board** | Bed grid or list; one-tap respiratory support per bed; vasoactive / antimicrobial chips; data-quality and pending-culture flags |
 | **Patient** | Current support & therapy, quick events (procedures, complications, culture sent), linked cultures, day-grouped timeline, discharge, edit |
 | **Daily reconcile** | Whole-unit grid; only edited rows are saved, at a chosen time |
@@ -131,6 +138,53 @@ date, versions) is saved alongside the dataset.
 - **What the monthly report shows:** the month's SMR, flagged when it is imprecise.
 
 PIM3 often under-predicts mortality in low- and middle-income settings, so an SMR above 1 needs local interpretation (or recalibration) before it is used for benchmarking. The coefficients are transcribed from the published equation; verify them against the paper before formal benchmarking.
+
+## Live bedside monitors
+
+The **Live monitor** page receives the network stream that the unit's bedside monitors (Scalis, made
+by the same OEM as the M3100 central station, "DDT") send to their central station, and shows it in the app.
+
+**It is a secondary display, not an alarm system.** Alarms stay on the bedside monitors (and the
+central station, when it runs). The page says so, and readings outside the monitor's own alarm
+limits are highlighted only as a visual cue.
+
+### Setting it up on the central-station PC
+
+1. Give the PC the central-station address **192.168.10.251 / 255.255.255.0** (Network adapter →
+   IPv4 → Advanced → Add). The monitors only ever connect to that address. The PC can keep its
+   other address for the internet. The page checks this for you.
+2. Close the original central station (CMS.exe): both use the same ports.
+3. Open **Live monitor** and press **Start receiver** (administrator). Allow the app through
+   Windows Firewall if asked. Each monitor connects within a few seconds on port **510 + its bed
+   number** (bed 4 → 514). The base port and the highest bed number are configurable.
+
+**Demo** shows the page with four synthetic beds and works without any monitors.
+
+### What is decoded, and how sure we are
+
+The protocol was reverse-engineered from a one-hour capture of three monitors and their central
+station. It is documented in [`docs/MONITOR_PROTOCOL.md`](docs/MONITOR_PROTOCOL.md) and
+implemented in `shared/monitor/protocol.ts`. Every frame in that capture passes its checksums.
+
+| Value | Status |
+|---|---|
+| SpO₂, pulse rate, their alarm limits, pleth waveform | **Verified** — real values seen (SpO₂ 95–100, PR 72–149) |
+| Temperature T1/T2 and limits | **Verified** — real values seen |
+| Patient name, ID, admission date, date of birth | **Verified** |
+| Heart rate from ECG, ECG waveforms | **Unverified** — every ECG in the capture had its leads off |
+| NIBP systolic / diastolic / mean | **Unverified** — no reading was taken during the capture |
+
+Unverified values carry an "Unverified" badge and are unticked by default when copying into the
+chart. To verify them: Receiver → **Record raw data**, attach ECG leads and take an NIBP reading,
+note the values on the monitor screen, and compare. The raw files contain patient names, so they
+stay in the app's data folder.
+
+### Into the chart
+
+On a bed that matches a census bed number, **Record in chart** copies the current SpO₂, pulse rate
+(as heart rate) and temperature into the patient's vital signs as a routine set, after the
+clinician confirms them. The usual range checks and the audit log apply. Values are otherwise held
+in memory only: nothing from the monitors is stored unless someone records it.
 
 ## Vital signs
 

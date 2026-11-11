@@ -9,7 +9,7 @@ import { hashPassword, PASSWORD_MIN, verifyPassword } from './auth';
 import type { Admission, ClinicalEvent, Culture, Dataset, Episode, Role, User } from '../shared/types';
 import {
   ABX_INTENTS, ADMISSION_SOURCES, DISPOSITIONS, DX_BY_CODE, RESP_LEVELS, SPECIMEN_TYPES, VASOACTIVES, dxLabel,
-  type RespLevel,
+  type RespLevel, RESP_LABEL,
 } from '../shared/reference';
 import { detectChanges, losDays, monthSummary, monthlySeries, dailyCensus, presentAt, projectMonth, peakSupport, smrFor } from '../shared/analytics';
 import { runQualityChecks, QUALITY_RULES } from '../shared/quality';
@@ -19,12 +19,18 @@ import { DAY_MS, ms, nowLocal, shiftMonth, toLocal } from '../shared/time';
 import { PIM3_VERSION, pim3Logit, suggestRiskDx, validatePim3 } from '../shared/pim3';
 import { VITALS, VITAL_CONTEXTS, VITAL_FEATURES, vitalFeatures, admissionSet, flags24, sfRatio, shockIndex, validateVitals, vitalFlags, worst24, type VitalCode, type VitalContext, type VitalSet, type VitalValues } from '../shared/vitals';
 import { buildExplorer } from './explorer';
+import { FLUID_IN, FLUID_OUT, shiftHours, summarizeFluids } from '../shared/fluids';
+import { labFlag } from '../shared/labs';
+import { parseThresholds, pewsStatus } from '../shared/pews';
+import { defaultInterval, doseDue } from '../shared/doses';
+import { DEFAULT_DRUG_TABLE, validateDrugTable } from '../shared/drugs';
+import { buildHandover } from '../shared/handover';
 import { infectionSuspected, phoenix24, phoenixPerSet, phoenixSepsis, phoenixSepticShock } from '../shared/scores';
 import { buildProtocolCases, loadProtocols, timePoints } from './protocols';
 import { describeRule, evaluateProtocol, validateProtocol } from '../shared/protocols';
 import { describeCondition, describeSpec, narrate, runCohort, validateSpec } from '../shared/explorer';
 import { AI_PROVIDERS, AiError, TRANSLATORS, containsIdentifier, isProvider, translateQuestion, type AiProvider, type Translator } from './ai';
-import { createPairingCode, listDevices, revokeDevice, touchDevice } from './mobile';
+import { createInvite, createPairingCode, listDevices, listInvites, revokeDevice, revokeInvite, touchDevice } from './mobile';
 import { buildCases, loadModules, loadValues, moduleExportColumns, moduleIssues, saveModule, saveParam, setParamRetired, setValue, valuesByKey } from './modules';
 import { DERIVED, compareGroups, computeDerived, moduleApplies, moduleCompletion, summarizeModule, wasCollected } from '../shared/modules';
 
@@ -47,23 +53,32 @@ export const MOBILE_METHODS = new Set([
   'admission.create', 'admission.get', 'admission.update', 'admission.discharge',
   'resp.set', 'drug.toggle', 'episode.update', 'episode.delete', 'event.add', 'event.delete',
   'values.forAdmission', 'values.set', 'modules.list', 'pim3.save',
-  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'culture.save', 'culture.list', 'dashboard.get',
+  'vitals.add', 'vitals.delete', 'vitals.forAdmission', 'fluids.add', 'fluids.delete', 'fluids.forAdmission', 'vitals.pending', 'vitals.resolvePending', 'rounds.list', 'users.requests', 'users.decideRequest', 'invites.create', 'invites.list', 'culture.save', 'culture.list', 'dashboard.get',
+  'dose.given', 'dose.delete', 'dose.forEpisode', 'handover.list', 'drugs.table', 'pews.thresholds',
 ]);
 
 /** Secrets live outside the database in clear text: the desktop app encrypts them with the OS keychain (safeStorage). */
 export interface SecretStore { available(): boolean; load(key: string): string | null; save(key: string, value: string | null): void }
 /** `translator` overrides every provider (tests, offline builds); otherwise the chosen provider's own is used. */
-export interface ApiEnv { secrets: SecretStore; translator: Translator | null }
+/** What the live monitors saw for a census bed in the last hours (for the handover); set by the desktop app. */
+export interface MonitorSummary { desats: number; lowestSpo2: number | null; disconnects: number; outside: number }
+export interface ApiEnv { secrets: SecretStore; translator: Translator | null; monitorSummary?: (censusBed: string, sinceMs: number) => MonitorSummary | null }
 const memorySecrets = (): SecretStore => { const m = new Map<string, string>(); return { available: () => true, load: k => m.get(k) ?? null, save: (k, v) => { if (v == null) m.delete(k); else m.set(k, v); } }; };
 
 type Handler = (p: any, ctx: { db: DB; session: Session; now: () => number; env: ApiEnv; endDeviceSessions: (deviceId: string) => void }) => unknown;
 interface Route { roles: Role[] | 'public'; fn: Handler }
 
-const ALL: Role[] = ['admin', 'clinician', 'viewer', 'researcher'];
+const ALL: Role[] = ['admin', 'clinician', 'nurse', 'viewer', 'researcher'];
 const CLINICAL: Role[] = ['admin', 'clinician'];
-const NON_RESEARCH: Role[] = ['admin', 'clinician', 'viewer'];
+/** Bedside charting (vitals, intake/output, nursing notes): clinicians and nurses. */
+const CHARTING: Role[] = ['admin', 'clinician', 'nurse'];
+const NON_RESEARCH: Role[] = ['admin', 'clinician', 'nurse', 'viewer'];
+/** Nurses may remove only what they recorded themselves. */
+const ownOrClinical = (s: Session, createdBy: number | null) => {
+  if (s.user?.role === 'nurse' && createdBy !== s.user.id) fail('Only the person who recorded this, or a clinician, can remove it');
+};
 /** Names/MRNs: clinical roles only, and on phones only when the unit has switched it on. */
-const canSeeIdentifiers = (s: Session, db: DB) => !!s.user && CLINICAL.includes(s.user.role) && (s.channel === 'desktop' || getSetting(db, 'mobileShowNames', '0') === '1');
+const canSeeIdentifiers = (s: Session, db: DB) => !!s.user && CHARTING.includes(s.user.role) && (s.channel === 'desktop' || getSetting(db, 'mobileShowNames', '0') === '1');
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -77,6 +92,7 @@ function audit(db: DB, s: Session, action: string, entity: string, entityId: str
 
 const isLocalDT = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(v);
 const reqDT = (v: unknown, name: string) => (isLocalDT(v) ? (v as string) : fail(`${name} must be a date/time`));
+const validInterval = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n >= 1 && n <= 72 ? n : fail('Dosing interval must be 1–72 hours'); };
 const pseudo = (patientId: string) => `P-${patientId.replace(/-/g, '').slice(0, 5).toUpperCase()}`;
 
 function rowToAdmission(r: any, dx: { code: string; role: string }[]): Admission {
@@ -93,6 +109,7 @@ function rowToAdmission(r: any, dx: { code: string; role: string }[]): Admission
 const rowToEpisode = (r: any): Episode => ({
   id: r.id, admissionId: r.admission_id, kind: r.kind, detail: r.detail, intent: r.intent,
   startAt: r.start_at, endAt: r.end_at, endReason: r.end_reason,
+  intervalHours: r.interval_hours ?? null, dose: r.dose ?? null,
 });
 const rowToEvent = (r: any): ClinicalEvent => ({ id: r.id, admissionId: r.admission_id, type: r.type, label: r.label, at: r.at, note: r.note });
 
@@ -217,9 +234,21 @@ function savePim3(db: DB, s: Session, admissionId: string, raw: unknown) {
   return { risk };
 }
 
+/** Doses recorded as given, per episode (oldest first). */
+function dosesByEpisode(db: DB): Map<string, { id: string; at: string; givenBy: number | null }[]> {
+  const m = new Map<string, { id: string; at: string; givenBy: number | null }[]>();
+  for (const r of db.prepare('SELECT id, episode_id, at, given_by FROM doses_given WHERE deleted_at IS NULL ORDER BY at').all() as any[]) {
+    const l = m.get(r.episode_id) ?? []; l.push({ id: r.id, at: r.at, givenBy: r.given_by }); m.set(r.episode_id, l);
+  }
+  return m;
+}
+const pewsThresholds = (db: DB) => parseThresholds(getSetting(db, 'pewsThresholds'));
+
 function censusRows(db: DB, s: Session, now: number) {
   const ds = loadDataset(db);
   const issues = runQualityChecks(ds, now);
+  const doses = dosesByEpisode(db);
+  const thresholds = pewsThresholds(db);
   const ids = canSeeIdentifiers(s, db)
     ? Object.fromEntries((db.prepare('SELECT * FROM patient_identifiers').all() as any[]).map(r => [r.patient_id, r]))
     : {};
@@ -235,7 +264,9 @@ function censusRows(db: DB, s: Session, now: number) {
       losDays: losDays(a, now),
       resp: resp ? { level: resp.detail as RespLevel, since: resp.startAt, id: resp.id } : { level: 'RA' as RespLevel, since: null, id: null },
       vaso: eps.filter(e => e.kind === 'vaso').map(e => ({ id: e.id, agent: e.detail, since: e.startAt })),
-      abx: eps.filter(e => e.kind === 'abx').map(e => ({ id: e.id, drug: e.detail, intent: e.intent, since: e.startAt })),
+      abx: eps.filter(e => e.kind === 'abx').map(e => ({ id: e.id, drug: e.detail, intent: e.intent, since: e.startAt, intervalHours: e.intervalHours ?? null, dose: e.dose ?? null,
+        due: doseDue(e, (doses.get(e.id) ?? []).map(d => d.at), now) })),
+      pews: pewsStatus((ds.vitals ?? []).filter(v => v.admissionId === a.id), now, thresholds),
       issues: issues.filter(i => i.admissionId === a.id).length,
       culturesSent: sentEvents.length,
       culturesResulted: ds.cultures.filter(c => c.admissionId === a.id).length,
@@ -287,6 +318,10 @@ export const routes: Record<string, Route> = {
     const r = db.prepare('SELECT * FROM users WHERE username = ?').get(String(p.username ?? '').trim()) as any;
     if (!r || !r.active || !verifyPassword(String(p.password ?? ''), r.pw_hash, r.pw_salt)) {
       audit(db, { ...session, user: null }, 'login-failed', 'user', null, `Failed sign-in for "${String(p.username ?? '').slice(0, 40)}"`);
+      // A request from a phone that is still waiting: say so (only to someone who knows its password).
+      const req = !r ? db.prepare("SELECT * FROM account_requests WHERE username = ? AND status != 'approved' ORDER BY requested_at DESC").get(String(p.username ?? '').trim()) as any : null;
+      if (req && verifyPassword(String(p.password ?? ''), req.pw_hash, req.pw_salt))
+        fail(req.status === 'pending' ? 'Your account is waiting for an administrator to approve it.' : 'Your account request was not approved. Ask an administrator.');
       fail('Incorrect username or password');
     }
     if (session.channel === 'mobile' && r.role === 'researcher') fail('Research accounts work on the PICU PC only');
@@ -391,6 +426,8 @@ export const routes: Record<string, Route> = {
         mvFirstHour: episodes.some(e => e.kind === 'resp' && e.detail === 'MV' && ms(e.startAt) <= ms(admission.admitAt) + 3_600_000) },
       issues: [...runQualityChecks(ds, now()), ...moduleIssues(loadModules(db), ds, loadValues(db, p.id))].filter(i => i.admissionId === p.id),
       previousAdmissions: previous,
+      pews: pewsStatus(vitals, now(), pewsThresholds(db)),
+      doseDue: (() => { const g = dosesByEpisode(db); return Object.fromEntries(episodes.filter(e => e.kind === 'abx').map(e => [e.id, doseDue(e, (g.get(e.id) ?? []).map(x => x.at), now())])); })(),
     };
   } },
   'admission.update': { roles: CLINICAL, fn: (p, { db, session }) => {
@@ -449,18 +486,158 @@ export const routes: Record<string, Route> = {
 
   // Episodes & events
   'pim3.save': { roles: CLINICAL, fn: (p, { db, session }) => { getAdmissionRow(db, p.admissionId); return tx(db, () => savePim3(db, session, p.admissionId, p.inputs)); } },
-  'vitals.add': { roles: CLINICAL, fn: (p, { db, session, now }) => {
+  'vitals.add': { roles: CHARTING, fn: (p, { db, session, now }) => {
     const a = getAdmissionRow(db, p.admissionId);
     const at = reqDT(p.at ?? nowLocal(), 'Time');
     if (ms(at) < ms(a.admit_at) - 2 * 3_600_000) fail('Vitals are more than 2 h before admission');
     if (a.discharge_at && ms(at) > ms(a.discharge_at) + 3_600_000) fail('Vitals are after discharge');
     return tx(db, () => saveVitalSet(db, session, p.admissionId, at, p.context ?? 'routine', p.values, now()));
   } },
-  'vitals.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
+  'vitals.delete': { roles: CHARTING, fn: (p, { db, session }) => {
     const v = db.prepare('SELECT * FROM vital_sets WHERE id = ?').get(p.id) as any ?? fail('Vitals not found');
+    ownOrClinical(session, v.created_by);
     db.prepare('UPDATE vital_sets SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
     audit(db, session, 'delete', 'vitals', v.admission_id, `${admissionLabel(db, v.admission_id)}: removed vitals from ${v.at}`);
     return true;
+  } },
+  /** Rounds & handover: one bundle per occupied bed, and what changed since `since` (local date-time). */
+  'rounds.list': { roles: NON_RESEARCH, fn: (p, { db, session, now }) => {
+    const t = now(), day = t - DAY_MS;
+    const since = p.since ? ms(reqDT(p.since, 'Since')) : null;
+    const ds = loadDataset(db);
+    const ROUND_VITALS: VitalCode[] = ['hr', 'rr', 'spo2', 'sbp', 'temp'];
+    const KEY_LABS: VitalCode[] = ['hb', 'wbc', 'platelets', 'crp', 'na', 'k', 'creat', 'lactate'];
+    return censusRows(db, session, t).map(r => {
+      const a = r.admission;
+      const sets = (ds.vitals ?? []).filter(v => v.admissionId === a.id).sort((x, y) => x.at.localeCompare(y.at));
+      const recent = sets.filter(v => ms(v.at) >= day);
+      const vitals = ROUND_VITALS.map(c => {
+        const xs = recent.filter(v => v.values[c] != null).map(v => v.values[c]!);
+        return xs.length ? { code: c, min: Math.min(...xs), max: Math.max(...xs), last: xs[xs.length - 1], series: xs.slice(-12) } : null;
+      }).filter(Boolean);
+      const latestLab = new Map<VitalCode, { value: number; at: string }>();
+      sets.filter(v => ms(v.at) >= t - 3 * DAY_MS).forEach(v => Object.entries(v.values).forEach(([c, x]) => { if (VITALS[c as VitalCode]?.group === 'lab' && x != null) latestLab.set(c as VitalCode, { value: x, at: v.at }); }));
+      const labs = [...latestLab].map(([code, x]) => ({ code, ...x, flag: labFlag(code, x.value, a.ageMonths) }))
+        .filter(l => l.flag || KEY_LABS.includes(l.code));
+      const fluidRows = (db.prepare('SELECT * FROM fluid_entries WHERE admission_id = ? AND deleted_at IS NULL').all(a.id) as any[])
+        .map(f => ({ id: f.id, admissionId: f.admission_id, at: f.at, dir: f.dir, category: f.category, ml: f.ml, note: f.note }));
+      const fluids = fluidRows.length ? summarizeFluids(fluidRows, { now: t, admitAt: a.admitAt, weightKg: a.weightKg ?? null }) : null;
+      const events = ds.events.filter(e => e.admissionId === a.id && ms(e.at) >= day).map(e => ({ at: e.at, label: e.label, type: e.type, note: e.note ?? null }));
+      const pendingReadings = (db.prepare('SELECT COUNT(*) n FROM pending_vitals WHERE admission_id = ? AND decided_at IS NULL').get(a.id) as any).n as number;
+      const changes: string[] = [];
+      if (since != null) {
+        ds.episodes.filter(e => e.admissionId === a.id).forEach(e => {
+          const name = e.kind === 'resp' ? RESP_LABEL[e.detail as RespLevel] ?? e.detail : e.detail;
+          if (ms(e.startAt) >= since) changes.push(e.kind === 'resp' ? `Support → ${name}` : `Started ${name}`);
+          if (e.endAt && ms(e.endAt) >= since && e.kind !== 'resp') changes.push(`Stopped ${name}`);
+        });
+        ds.events.filter(e => e.admissionId === a.id && ms(e.at) >= since).forEach(e => changes.push(e.label));
+        ds.cultures.filter(c => c.admissionId === a.id && ms(c.collectedAt.length === 10 ? `${c.collectedAt}T00:00` : c.collectedAt) >= since)
+          .forEach(c => changes.push(`${c.specimen} culture: ${c.organism ?? 'no growth'}${isMDR(c as any) ? ' (MDR)' : ''}`));
+        sets.filter(v => ms(v.at) >= since).forEach(v => Object.entries(v.values).forEach(([c, x]) => {
+          const f = VITALS[c as VitalCode]?.group === 'lab' ? labFlag(c as VitalCode, x, a.ageMonths) : null;
+          if (f) changes.push(`${VITALS[c as VitalCode].short} ${x} ${f}`);
+        }));
+        const flags = sets.filter(v => ms(v.at) >= since).flatMap(v => vitalFlags(v.values, a.ageMonths));
+        [...new Set(flags)].forEach(f => changes.push(`Vitals: ${f.replace(/_/g, ' ')}`));
+      }
+      const shift = shiftHours(fluidRows, new Date(t)).total;
+      return { ...r, vitals, labs, fluids, shiftFluids: shift, events, pendingReadings, changes,
+        abxDays: r.abx.map(x => ({ drug: x.drug, day: Math.floor((t - ms(x.since)) / DAY_MS) + 1, intent: x.intent })) };
+    });
+  } },
+  /** SBAR handover for every occupied bed (or one): plain text never carries a name or MRN. */
+  'handover.list': { roles: NON_RESEARCH, fn: (p, ctx) => {
+    const rows = routes['rounds.list'].fn({}, ctx) as any[];
+    const t = ctx.now();
+    return rows.filter(r => !p.admissionId || r.admission.id === p.admissionId).map(r => ({
+      ...buildHandover({ ...r, monitor: r.admission.bed ? ctx.env.monitorSummary?.(String(r.admission.bed), t - 12 * 3_600_000) ?? null : null }, t),
+      name: r.name, label: r.label, pews: r.pews, abx: r.abx,
+    }));
+  } },
+  /** Unit drug table (defaults until an administrator edits it) and whether it has been reviewed. */
+  'drugs.table': { roles: ALL, fn: (_p, { db }) => {
+    let table = DEFAULT_DRUG_TABLE, custom = false;
+    const raw = getSetting(db, 'drugTable');
+    if (raw) { try { table = validateDrugTable(JSON.parse(raw)); custom = true; } catch { /* fall back to defaults */ } }
+    const reviewed = getSetting(db, 'drugTableReviewed');
+    return { table, custom, reviewed: reviewed ? JSON.parse(reviewed) as { by: string; at: string } : null };
+  } },
+  'drugs.saveTable': { roles: ['admin'], fn: (p, { db, session }) => {
+    if (p.reset) { setSetting(db, 'drugTable', ''); setSetting(db, 'drugTableReviewed', ''); audit(db, session, 'update', 'settings', null, 'Drug table reset to defaults (needs review)'); return true; }
+    const t = (() => { try { return validateDrugTable(typeof p.table === 'string' ? JSON.parse(p.table) : p.table); } catch (e: any) { return fail(e.message); } })();
+    setSetting(db, 'drugTable', JSON.stringify(t));
+    setSetting(db, 'drugTableReviewed', '');
+    audit(db, session, 'update', 'settings', null, 'Drug table edited (needs review)');
+    return true;
+  } },
+  'drugs.markReviewed': { roles: ['admin'], fn: (_p, { db, session }) => {
+    const r = { by: session.user!.displayName, at: nowLocal() };
+    setSetting(db, 'drugTableReviewed', JSON.stringify(r));
+    audit(db, session, 'update', 'settings', null, `Drug table marked reviewed by ${r.by}`);
+    return r;
+  } },
+  'pews.thresholds': { roles: ALL, fn: (_p, { db }) => pewsThresholds(db) },
+  'pews.saveThresholds': { roles: ['admin'], fn: (p, { db, session }) => {
+    const raw = JSON.stringify({ senior: Number(p.senior), doctor: Number(p.doctor), urgent: Number(p.urgent), overdueHours: Number(p.overdueHours) });
+    if (JSON.stringify(parseThresholds(raw)) !== raw) fail('Thresholds must rise: senior ≤ doctor ≤ urgent (1–13), overdue 1–24 h');
+    setSetting(db, 'pewsThresholds', raw);
+    audit(db, session, 'update', 'settings', null, `PEWS thresholds: senior ${p.senior}, doctor ${p.doctor}, urgent ${p.urgent}, due every ${p.overdueHours} h`);
+    return true;
+  } },
+  // Monitor readings proposed for the chart (see server/monitorService.ts) — a clinician confirms each.
+  'vitals.pending': { roles: NON_RESEARCH, fn: (p, { db }) => {
+    getAdmissionRow(db, p.admissionId);
+    return (db.prepare('SELECT * FROM pending_vitals WHERE admission_id = ? AND decided_at IS NULL ORDER BY at DESC').all(p.admissionId) as any[])
+      .map(r => ({ id: r.id, at: r.at, source: r.source, values: JSON.parse(r.values_json) }));
+  } },
+  'vitals.resolvePending': { roles: CHARTING, fn: (p, { db, session, now }) => tx(db, () => {
+    const ids: string[] = Array.isArray(p.ids) ? p.ids.map(String) : [];
+    if (!ids.length) fail('Nothing selected');
+    if (p.decision !== 'confirmed' && p.decision !== 'dismissed') fail('Confirm or dismiss');
+    let n = 0;
+    for (const id of ids) {
+      const r = db.prepare('SELECT * FROM pending_vitals WHERE id = ? AND decided_at IS NULL').get(id) as any;
+      if (!r) continue;
+      let setId: string | null = null;
+      if (p.decision === 'confirmed') setId = saveVitalSet(db, session, r.admission_id, r.at, 'routine', JSON.parse(r.values_json), now()).id;
+      db.prepare('UPDATE pending_vitals SET decided_at = ?, decision = ?, decided_by = ?, vital_set_id = ? WHERE id = ?').run(nowLocal(), p.decision, session.user?.id ?? null, setId, id);
+      audit(db, session, p.decision === 'confirmed' ? 'confirm' : 'dismiss', 'vitals', r.admission_id, `${admissionLabel(db, r.admission_id)}: ${p.decision} monitor reading from ${r.source} at ${r.at.replace('T', ' ')}`);
+      n++;
+    }
+    return n;
+  }) },
+  // Fluid balance
+  'fluids.add': { roles: CHARTING, fn: (p, { db, session, now }) => {
+    const a = getAdmissionRow(db, p.admissionId);
+    const at = reqDT(p.at ?? nowLocal(), 'Time');
+    if (ms(at) > now() + 10 * 60_000) fail('Time is in the future');
+    if (ms(at) < ms(a.admit_at) - 2 * 3_600_000) fail('Time is before admission');
+    if (a.discharge_at && ms(at) > ms(a.discharge_at) + 3_600_000) fail('Time is after discharge');
+    if (p.dir !== 'in' && p.dir !== 'out') fail('Choose intake or output');
+    const cats: readonly string[] = p.dir === 'in' ? FLUID_IN : FLUID_OUT;
+    if (!cats.includes(p.category)) fail('Unknown fluid type');
+    const ml = Number(p.ml);
+    if (!Number.isFinite(ml) || ml <= 0 || ml > 5000) fail('Volume must be between 1 and 5000 mL');
+    const id = randomUUID();
+    db.prepare('INSERT INTO fluid_entries(id, admission_id, at, dir, category, ml, note, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(id, p.admissionId, at, p.dir, p.category, Math.round(ml * 10) / 10, p.note ? String(p.note).slice(0, 200) : null, session.user?.id ?? null, nowLocal());
+    audit(db, session, 'add', 'fluids', p.admissionId, `${admissionLabel(db, p.admissionId)}: ${p.dir === 'in' ? 'intake' : 'output'} ${p.category} ${ml} mL at ${at.replace('T', ' ')}`);
+    return id;
+  } },
+  'fluids.delete': { roles: CHARTING, fn: (p, { db, session }) => {
+    const f = db.prepare('SELECT * FROM fluid_entries WHERE id = ? AND deleted_at IS NULL').get(p.id) as any ?? fail('Entry not found');
+    ownOrClinical(session, f.created_by);
+    db.prepare('UPDATE fluid_entries SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
+    audit(db, session, 'delete', 'fluids', f.admission_id, `${admissionLabel(db, f.admission_id)}: removed ${f.category} ${f.ml} mL from ${f.at}`);
+    return true;
+  } },
+  'fluids.forAdmission': { roles: NON_RESEARCH, fn: (p, { db, now }) => {
+    const a = getAdmissionRow(db, p.admissionId);
+    const entries = (db.prepare('SELECT * FROM fluid_entries WHERE admission_id = ? AND deleted_at IS NULL ORDER BY at DESC').all(p.admissionId) as any[])
+      .map(r => ({ id: r.id, admissionId: r.admission_id, at: r.at, dir: r.dir, category: r.category, ml: r.ml, note: r.note }));
+    const end = a.discharge_at ? Math.min(now(), ms(a.discharge_at)) : now();
+    return { entries, weightKg: a.weight_kg, summary: summarizeFluids(entries, { now: end, admitAt: a.admit_at, weightKg: a.weight_kg, windowHours: Number(p.hours) || 24 }) };
   } },
   'vitals.forAdmission': { roles: NON_RESEARCH, fn: (p, { db }) => {
     const a = getAdmissionRow(db, p.admissionId);
@@ -484,27 +661,92 @@ export const routes: Record<string, Route> = {
     if (p.kind === 'vaso' && !VASOACTIVES.includes(p.drug)) fail('Unknown vasoactive');
     if (p.intent && !ABX_INTENTS.includes(p.intent)) fail('Unknown intent');
     getAdmissionRow(db, p.admissionId);
-    return tx(db, () => toggleDrug(db, session, p.admissionId, p.kind, String(p.drug), !!p.on, reqDT(p.at ?? nowLocal(), 'Time'), p.intent ?? null));
+    const interval = p.intervalHours == null || p.intervalHours === '' ? (p.kind === 'abx' ? defaultInterval(String(p.drug)) : null) : validInterval(p.intervalHours);
+    return tx(db, () => {
+      const changed = toggleDrug(db, session, p.admissionId, p.kind, String(p.drug), !!p.on, reqDT(p.at ?? nowLocal(), 'Time'), p.intent ?? null);
+      if (changed && p.on && p.kind === 'abx')
+        db.prepare("UPDATE episodes SET interval_hours = ?, dose = ? WHERE admission_id = ? AND kind = 'abx' AND detail = ? AND end_at IS NULL AND deleted_at IS NULL")
+          .run(interval, p.dose ? String(p.dose).slice(0, 60) : null, p.admissionId, String(p.drug));
+      return changed;
+    });
   } },
-  'episode.update': { roles: CLINICAL, fn: (p, { db, session }) => {
-    const ep = db.prepare('SELECT * FROM episodes WHERE id = ? AND deleted_at IS NULL').get(p.id) as any ?? fail('Episode not found');
-    const start = p.startAt ? reqDT(p.startAt, 'Start') : ep.start_at;
-    const end = p.endAt === null ? null : p.endAt ? reqDT(p.endAt, 'End') : ep.end_at;
-    if (end && ms(end) < ms(start)) fail('End is before start');
-    const intent = p.intent && ABX_INTENTS.includes(p.intent) ? p.intent : ep.intent;
-    db.prepare('UPDATE episodes SET start_at = ?, end_at = ?, intent = ? WHERE id = ?').run(start, end, intent, p.id);
-    audit(db, session, 'update', 'episode', p.id, `${admissionLabel(db, ep.admission_id)}: corrected ${ep.detail} times`);
+  /** A dose of a running antimicrobial was given (nurses and clinicians). */
+  'dose.given': { roles: CHARTING, fn: (p, { db, session, now }) => {
+    const ep = db.prepare("SELECT * FROM episodes WHERE id = ? AND kind = 'abx' AND deleted_at IS NULL").get(p.episodeId) as any ?? fail('Antimicrobial not found');
+    if (ep.end_at) fail(`${ep.detail} has been stopped`);
+    const at = reqDT(p.at ?? nowLocal(), 'Time');
+    if (ms(at) > now() + 10 * 60_000) fail('Time is in the future');
+    if (ms(at) < ms(ep.start_at) - 60 * 60_000) fail('Time is before the drug was started');
+    const last = db.prepare('SELECT at FROM doses_given WHERE episode_id = ? AND deleted_at IS NULL ORDER BY at DESC LIMIT 1').get(ep.id) as any;
+    if (last && Math.abs(ms(last.at) - ms(at)) < 30 * 60_000) fail(`A dose of ${ep.detail} was already recorded at ${last.at.slice(11, 16)}`);
+    const id = randomUUID();
+    db.prepare('INSERT INTO doses_given(id, episode_id, at, given_by, created_at) VALUES (?,?,?,?,?)').run(id, ep.id, at, session.user?.id ?? null, nowLocal());
+    audit(db, session, 'add', 'dose', ep.admission_id, `${admissionLabel(db, ep.admission_id)}: ${ep.detail} given at ${at.replace('T', ' ')}`);
+    return id;
+  } },
+  'dose.delete': { roles: CHARTING, fn: (p, { db, session }) => {
+    const d = db.prepare('SELECT d.*, e.detail, e.admission_id FROM doses_given d JOIN episodes e ON e.id = d.episode_id WHERE d.id = ? AND d.deleted_at IS NULL').get(p.id) as any ?? fail('Dose not found');
+    ownOrClinical(session, d.given_by);
+    db.prepare('UPDATE doses_given SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
+    audit(db, session, 'delete', 'dose', d.admission_id, `${admissionLabel(db, d.admission_id)}: removed ${d.detail} dose at ${d.at.replace('T', ' ')}`);
     return true;
   } },
+  'dose.forEpisode': { roles: NON_RESEARCH, fn: (p, { db }) =>
+    (db.prepare('SELECT d.id, d.at, u.display_name AS by FROM doses_given d LEFT JOIN users u ON u.id = d.given_by WHERE d.episode_id = ? AND d.deleted_at IS NULL ORDER BY d.at DESC LIMIT 20').all(p.episodeId) as any[]) },
+  /** Correct an episode's start, stop (null = still running) or intent — e.g. an antimicrobial charted late. */
+  'episode.update': { roles: CLINICAL, fn: (p, { db, session, now }) => tx(db, () => {
+    const ep = db.prepare('SELECT * FROM episodes WHERE id = ? AND deleted_at IS NULL').get(p.id) as any ?? fail('Episode not found');
+    const adm = getAdmissionRow(db, ep.admission_id);
+    const start = p.startAt ? reqDT(p.startAt, 'Start') : ep.start_at;
+    const end = p.endAt === null ? null : p.endAt ? reqDT(p.endAt, 'Stop') : ep.end_at;
+    const soon = now() + 10 * 60_000;
+    if (ms(start) > soon) fail('Start is in the future');
+    if (end && ms(end) > soon) fail('Stop is in the future');
+    if (end && ms(end) < ms(start)) fail('Stop is before start');
+    if (ms(start) < ms(adm.admit_at) - 6 * 3_600_000) fail('Start is more than 6 h before admission');
+    if (adm.discharge_at) {
+      if (!end) fail('The patient has been discharged — give a stop time');
+      if (ms(end) > ms(adm.discharge_at) + 3_600_000) fail('Stop is after discharge');
+    }
+    let intent = ep.intent;
+    if (p.intent !== undefined && p.intent !== ep.intent) {
+      if (ep.kind !== 'abx') fail('Only antimicrobials have an intent');
+      if (!ABX_INTENTS.includes(p.intent)) fail('Unknown intent');
+      intent = p.intent;
+    }
+    const overlapping = (db.prepare('SELECT * FROM episodes WHERE admission_id = ? AND kind = ? AND id != ? AND deleted_at IS NULL').all(ep.admission_id, ep.kind, ep.id) as any[])
+      .filter(o => ep.kind === 'resp' || o.detail === ep.detail)
+      .filter(o => ms(start) < (o.end_at ? ms(o.end_at) : Infinity) && ms(o.start_at) < (end ? ms(end) : Infinity));
+    if (overlapping.length) {
+      const o = overlapping[0];
+      fail(ep.kind === 'resp' ? `Overlaps the ${o.detail} period from ${o.start_at.replace('T', ' ')} — respiratory support periods cannot overlap` : `Overlaps another ${ep.detail} course from ${o.start_at.replace('T', ' ')}`);
+    }
+    const interval = p.intervalHours === undefined ? ep.interval_hours : p.intervalHours === null || p.intervalHours === '' ? null : validInterval(p.intervalHours);
+    const dose = p.dose === undefined ? ep.dose : p.dose ? String(p.dose).slice(0, 60) : null;
+    if ((interval !== ep.interval_hours || dose !== ep.dose) && ep.kind !== 'abx') fail('Only antimicrobials have a dosing interval');
+    const changes: string[] = [];
+    const show = (v: string | null) => (v ? v.replace('T', ' ') : 'running');
+    if (start !== ep.start_at) changes.push(`start ${show(ep.start_at)} → ${show(start)}`);
+    if (end !== ep.end_at) changes.push(`stop ${show(ep.end_at)} → ${show(end)}`);
+    if (intent !== ep.intent) changes.push(`intent ${ep.intent ?? '—'} → ${intent}`);
+    if (interval !== ep.interval_hours) changes.push(`every ${ep.interval_hours ?? '—'} h → ${interval ?? '—'} h`);
+    if (dose !== ep.dose) changes.push(`dose ${ep.dose ?? '—'} → ${dose ?? '—'}`);
+    if (!changes.length) return false;
+    db.prepare('UPDATE episodes SET start_at = ?, end_at = ?, end_reason = ?, intent = ?, interval_hours = ?, dose = ? WHERE id = ?')
+      .run(start, end, end ? (ep.end_reason ?? 'stopped') : null, intent, interval, dose, p.id);
+    audit(db, session, 'update', 'episode', p.id, `${admissionLabel(db, ep.admission_id)}: ${ep.detail} — ${changes.join('; ')}`);
+    return true;
+  }) },
   'episode.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
     const ep = db.prepare('SELECT * FROM episodes WHERE id = ?').get(p.id) as any ?? fail('Episode not found');
     db.prepare('UPDATE episodes SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
     audit(db, session, 'delete', 'episode', p.id, `${admissionLabel(db, ep.admission_id)}: removed ${ep.detail} entry`);
     return true;
   } },
-  'event.add': { roles: CLINICAL, fn: (p, { db, session }) => {
+  'event.add': { roles: CHARTING, fn: (p, { db, session }) => {
     getAdmissionRow(db, p.admissionId);
     if (!['procedure', 'complication', 'culture_sent', 'note', 'deterioration'].includes(p.type)) fail('Unknown event type');
+    if (session.user?.role === 'nurse' && !['note', 'deterioration'].includes(p.type)) fail('Nurses can add notes and deterioration events');
     if (!p.label) fail('Event label is required');
     const id = randomUUID();
     db.prepare('INSERT INTO clinical_events(id, admission_id, type, label, at, note, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)')
@@ -512,8 +754,9 @@ export const routes: Record<string, Route> = {
     audit(db, session, 'add', p.type, p.admissionId, `${admissionLabel(db, p.admissionId)}: ${p.label}`);
     return { id };
   } },
-  'event.delete': { roles: CLINICAL, fn: (p, { db, session }) => {
+  'event.delete': { roles: CHARTING, fn: (p, { db, session }) => {
     const ev = db.prepare('SELECT * FROM clinical_events WHERE id = ?').get(p.id) as any ?? fail('Event not found');
+    ownOrClinical(session, ev.created_by);
     db.prepare('UPDATE clinical_events SET deleted_at = ? WHERE id = ?').run(nowLocal(), p.id);
     audit(db, session, 'delete', ev.type, ev.admission_id, `${admissionLabel(db, ev.admission_id)}: removed "${ev.label}"`);
     return true;
@@ -627,8 +870,24 @@ export const routes: Record<string, Route> = {
     const since = ms(`${shiftMonth(end, -2)}-01`);
     const recent = ds.episodes.filter(e => e.kind === 'abx' && ms(e.startAt) >= since);
     const durations = recent.filter(e => e.endAt).map(e => (ms(e.endAt!) - ms(e.startAt)) / DAY_MS);
+    // Course length per drug, last 12 months. A running course counts up to now (or discharge).
+    const from = ms(`${shiftMonth(end, -11)}-01`);
+    const dischargeOf = new Map(ds.admissions.map(a => [a.id, a.dischargeAt]));
+    const byDrug = new Map<string, { durations: number[]; running: number }>();
+    ds.episodes.filter(e => e.kind === 'abx' && ms(e.startAt) >= from).forEach(e => {
+      const stop = e.endAt ? ms(e.endAt) : Math.min(t, dischargeOf.get(e.admissionId) ? ms(dischargeOf.get(e.admissionId)!) : t);
+      const d = byDrug.get(e.detail) ?? { durations: [], running: 0 };
+      d.durations.push(Math.max(0, (stop - ms(e.startAt)) / DAY_MS));
+      if (!e.endAt && !dischargeOf.get(e.admissionId)) d.running++;
+      byDrug.set(e.detail, d);
+    });
+    const courseLengths = [...byDrug].map(([drug, d]) => {
+      const xs = [...d.durations].sort((a, b) => a - b), r1 = (x: number) => Math.round(x * 10) / 10;
+      return { drug, courses: xs.length, running: d.running, medianDays: r1(xs[Math.floor(xs.length / 2)]), minDays: r1(xs[0]), maxDays: r1(xs[xs.length - 1]),
+        totalDays: r1(xs.reduce((a, b) => a + b, 0)), over7: xs.filter(x => x > 7).length };
+    }).sort((a, b) => b.courses - a.courses || b.totalDays - a.totalDays);
     return {
-      months,
+      months, courseLengths,
       intents: { empiric: recent.filter(e => e.intent === 'empiric').length, targeted: recent.filter(e => e.intent === 'targeted').length, prophylaxis: recent.filter(e => e.intent === 'prophylaxis').length },
       medianCourseDays: durations.length ? durations.sort((a, b) => a - b)[Math.floor(durations.length / 2)] : null,
       courses: recent.length,
@@ -946,7 +1205,7 @@ export const routes: Record<string, Route> = {
       .map(r => ({ id: r.id, username: r.username, displayName: r.display_name, role: r.role, active: !!r.active, createdAt: r.created_at })) },
   'users.create': { roles: ['admin'], fn: (p, { db, session }) => {
     if (!p.username || !p.displayName) fail('Name and username are required');
-    if (!['admin', 'clinician', 'viewer', 'researcher'].includes(p.role)) fail('Choose a role');
+    if (!['admin', 'clinician', 'nurse', 'viewer', 'researcher'].includes(p.role)) fail('Choose a role');
     if (!p.password || p.password.length < PASSWORD_MIN) fail(`Password must be at least ${PASSWORD_MIN} characters`);
     if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(p.username.trim())) fail('That username is taken');
     const { hash, salt } = hashPassword(p.password);
@@ -970,6 +1229,33 @@ export const routes: Record<string, Route> = {
   } },
   // Phone access (configured on the PC by an admin; never reachable from a phone)
   'mobile.devices': { roles: ['admin'], fn: (_p, { db }) => ({ devices: listDevices(db), showNames: getSetting(db, 'mobileShowNames', '0') === '1' }) },
+  // Staff invites & account requests from phones
+  'invites.create': { roles: ['admin'], fn: (p, { db, session, now }) => {
+    const r = (() => { try { return createInvite(db, session.user!.id, { role: p.role, days: p.days, maxUses: p.maxUses }, now()); } catch (e: any) { return fail(e.message); } })();
+    audit(db, session, 'add', 'invite', r.id, `Created a staff invite (${p.role}, ${p.maxUses} use${Number(p.maxUses) > 1 ? 's' : ''}, ${p.days} day${Number(p.days) > 1 ? 's' : ''})`);
+    return r;
+  } },
+  'invites.list': { roles: ['admin'], fn: (_p, { db, now }) => listInvites(db, now()) },
+  'invites.revoke': { roles: ['admin'], fn: (p, { db, session }) => { revokeInvite(db, String(p.id)); audit(db, session, 'delete', 'invite', String(p.id), 'Revoked a staff invite'); return true; } },
+  'users.requests': { roles: ['admin'], fn: (_p, { db }) => (db.prepare(`SELECT r.id, r.username, r.display_name, r.role, r.requested_at, d.name AS device FROM account_requests r
+      LEFT JOIN devices d ON d.id = r.device_id WHERE r.status = 'pending' ORDER BY r.requested_at`).all() as any[])
+    .map(r => ({ id: r.id, username: r.username, displayName: r.display_name, role: r.role, requestedAt: r.requested_at, device: r.device })) },
+  'users.decideRequest': { roles: ['admin'], fn: (p, { db, session }) => tx(db, () => {
+    const r = db.prepare("SELECT * FROM account_requests WHERE id = ? AND status = 'pending'").get(String(p.id)) as any ?? fail('Request not found or already decided');
+    if (!p.approve) {
+      db.prepare("UPDATE account_requests SET status = 'rejected', decided_by = ?, decided_at = ? WHERE id = ?").run(session.user!.id, nowLocal(), r.id);
+      if (r.device_id) revokeDevice(db, r.device_id);
+      audit(db, session, 'delete', 'account-request', r.id, `Declined account request from ${r.display_name} (${r.username}); their phone was unpaired`);
+      return false;
+    }
+    const role = p.role ?? r.role;
+    if (!['clinician', 'nurse', 'viewer', 'researcher'].includes(role)) fail('Choose clinician, nurse, viewer or researcher');
+    if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(r.username)) fail('That username is now taken — decline the request and send a new invite');
+    db.prepare('INSERT INTO users(username, display_name, role, pw_hash, pw_salt, created_at) VALUES (?,?,?,?,?,?)').run(r.username, r.display_name, role, r.pw_hash, r.pw_salt, nowLocal());
+    db.prepare("UPDATE account_requests SET status = 'approved', decided_by = ?, decided_at = ? WHERE id = ?").run(session.user!.id, nowLocal(), r.id);
+    audit(db, session, 'add', 'user', r.username, `Approved ${r.display_name} (${r.username}) as ${role} — requested from a phone`);
+    return true;
+  }) },
   'mobile.pairingCode': { roles: ['admin'], fn: (_p, { db, session, now }) => {
     const r = createPairingCode(db, session.user!.id, now());
     audit(db, session, 'add', 'device', null, 'Created a phone pairing code (valid 10 min, single use)');
@@ -996,7 +1282,7 @@ export const routes: Record<string, Route> = {
 };
 
 export function createApi(db: DB, nowFn: () => number = Date.now, envIn: Partial<ApiEnv> = {}) {
-  const env: ApiEnv = { secrets: envIn.secrets ?? memorySecrets(), translator: envIn.translator ?? null };
+  const env: ApiEnv = { secrets: envIn.secrets ?? memorySecrets(), translator: envIn.translator ?? null, monitorSummary: envIn.monitorSummary };
   const local = newSession('desktop');
   const sessions = new Map<string, Session>([['local', local]]);
   const endDeviceSessions = (deviceId: string) => { for (const [k, s] of sessions) if (s.deviceId === deviceId) sessions.delete(k); };

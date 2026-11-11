@@ -9,6 +9,7 @@ declare global {
     antibiome?: {
       call: (method: string, params?: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
       onChanged?: (fn: () => void) => () => void;
+      onMonitor?: (fn: (update: any) => void) => () => void;
     };
   }
 }
@@ -29,16 +30,42 @@ export const getDevice = (): PairedDevice | null => { try { return JSON.parse(lo
 export const forgetDevice = () => { try { localStorage.removeItem(DEVICE_KEY); } catch { /* ignore */ } sessionToken = null; closeEvents(); };
 
 let sessionToken: string | null = null;
+/** Headers that identify this phone and its signed-in session (null when not signed in). */
+export const sessionHeaders = (): Record<string, string> | null => {
+  const dev = getDevice();
+  return dev && sessionToken ? { 'X-Device-Id': dev.deviceId, 'X-Device-Secret': dev.secret, 'X-Session': sessionToken } : null;
+};
 let lastLocalChange = 0;
 let events: EventSource | null = null;
 const closeEvents = () => { events?.close(); events = null; };
-/** Live updates from the PC: opened once signed in, reconnects automatically. */
-export function openEvents() {
+let reopen: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Live updates from the PC: opened once signed in. The stream is opened with a one-time ticket, so
+ * the session token never appears in a URL (or a tunnel's logs); after any drop a fresh ticket is fetched.
+ */
+export async function openEvents() {
   if (!isPhone() || !sessionToken || events) return;
-  events = new EventSource(`/events?s=${encodeURIComponent(sessionToken)}`);
+  const dev = getDevice();
+  if (!dev) return;
+  const r = await fetch('/events-ticket', { method: 'POST', cache: 'no-store', credentials: 'omit',
+    headers: { 'X-Device-Id': dev.deviceId, 'X-Device-Secret': dev.secret, 'X-Session': sessionToken } }).then(x => x.json()).catch(() => null);
+  if (!r?.ok || events) return;
+  events = new EventSource(`/events?t=${encodeURIComponent(r.data)}`);
   // The PC echoes this phone's own changes back; those already triggered a reload here.
   events.onmessage = () => { if (Date.now() - lastLocalChange > 1500) notifyDataChanged(); };
-  events.onerror = () => { if (events?.readyState === EventSource.CLOSED) closeEvents(); };
+  events.onerror = () => {
+    closeEvents();
+    if (!reopen) reopen = setTimeout(() => { reopen = null; openEvents(); }, 5000);
+  };
+}
+
+/** Redeem a staff invite: pairs this phone and asks an administrator for an account. */
+export async function joinWithInvite(p: { code: string; displayName: string; username: string; password: string; deviceName: string }): Promise<{ role: string }> {
+  const res = await fetch('/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p), cache: 'no-store', credentials: 'omit' });
+  const j = await res.json().catch(() => ({ ok: false, error: `The PC answered ${res.status}` }));
+  if (!j.ok) throw new Error(j.error ?? 'Could not send the request');
+  try { localStorage.setItem(DEVICE_KEY, JSON.stringify(j.data.device)); } catch { throw new Error('This browser blocks storage (private mode?) — use a normal tab.'); }
+  return { role: j.data.request.role };
 }
 
 export async function pairDevice(code: string, name: string): Promise<PairedDevice> {

@@ -5,6 +5,8 @@ import { useApi } from '@/lib/hooks';
 import { Button, CardHeader, ChoiceChips, Chip, ErrorNote, Field, Modal, PageHeader, Toggle, useToast } from '@/components/ui';
 import { ROLE_LABEL, type Role, type User } from '@shared/types';
 import { MobileAccessCard } from './MobileAccess';
+import { AccountRequests } from '@/components/StaffAccess';
+import { RemoteAccessCard } from '@/components/RemoteAccess';
 
 export function SettingsPage({ user }: { user: User }) {
   const isAdmin = user.role === 'admin';
@@ -23,6 +25,7 @@ export function SettingsPage({ user }: { user: User }) {
       <PageHeader icon={<Settings className="text-accent-ink" size={22} />} title="Settings" subtitle="Unit, people and the local database." />
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {isAdmin && settings.data && <UnitCard s={settings.data} />}
+        {isAdmin && <BedsideCard />}
 
         <div className="card p-5">
           <CardHeader title="Local database" info="SQLite file on this computer. A snapshot is taken automatically once a day (last 14 kept)." />
@@ -73,7 +76,9 @@ export function SettingsPage({ user }: { user: User }) {
           </div>
         )}
 
+        {isAdmin && <AccountRequests />}
         {isAdmin && <MobileAccessCard />}
+        {isAdmin && <RemoteAccessCard />}
         {isAdmin && <AiCard />}
 
         <div className="card p-5">
@@ -181,6 +186,49 @@ function AiCard() {
       <div className="mt-3 flex flex-wrap gap-2">
         {st.enabled && st.configured ? <Chip tone="good" dot>Ready · {st.providerLabel} · {st.model}</Chip> : <Chip>{st.configured ? 'Key stored · switched off' : `No ${cur.label} key`}</Chip>}
         {st.providers.filter(p => p.id !== st.provider && p.configured).map(p => <Chip key={p.id}>{p.label} key also stored</Chip>)}
+      </div>
+    </div>
+  );
+}
+
+/** PEWS escalation thresholds and the drug table's review status (administrators). */
+function BedsideCard() {
+  const th = useApi<{ senior: number; doctor: number; urgent: number; overdueHours: number }>('pews.thresholds');
+  const drugs = useApi<{ table: unknown; custom: boolean; reviewed: { by: string; at: string } | null }>('drugs.table');
+  const toast = useToast();
+  const [f, setF] = useState<Record<string, string> | null>(null);
+  const [json, setJson] = useState<string | null>(null);
+  const v = f ?? (th.data ? Object.fromEntries(Object.entries(th.data).map(([k, x]) => [k, String(x)])) : null);
+  if (!v || !drugs.data) return null;
+  const run = async (fn: () => Promise<unknown>, msg: string) => { try { await fn(); toast(msg); setF(null); setJson(null); th.reload(); drugs.reload(); } catch (e: any) { toast(e.message, 'crit'); } };
+  const field = (k: string, label: string) => (
+    <Field label={label}><input id={`pews-${k}`} className="field tnum" inputMode="numeric" value={v[k]} onChange={e => setF({ ...v, [k]: e.target.value })} /></Field>
+  );
+  return (
+    <div className="card p-5 xl:col-span-2">
+      <CardHeader title="Bedside safety" info="PEWS escalation levels used on the census, monitor and phones, and the emergency drug table." />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="flex flex-col gap-3">
+          <span className="text-[13px] font-semibold">PEWS escalation (Brighton, 0–13)</span>
+          <div className="grid grid-cols-4 gap-2">{field('senior', 'Senior nurse ≥')}{field('doctor', 'Doctor ≥')}{field('urgent', 'Urgent ≥')}{field('overdueHours', 'Due every (h)')}</div>
+          <p className="text-[12px] text-ink-3">Any single item scoring 3 is always urgent.</p>
+          <Button className="self-start" disabled={!f} onClick={() => run(() => call('pews.saveThresholds', Object.fromEntries(Object.entries(v).map(([k, x]) => [k, Number(x)]))), 'PEWS levels saved')}>Save PEWS levels</Button>
+        </div>
+        <div className="flex flex-col gap-3">
+          <span className="text-[13px] font-semibold">Emergency drugs & infusions</span>
+          {drugs.data.reviewed
+            ? <p className="rounded-xl bg-good-soft px-3 py-2 text-[12.5px] text-good-ink">Reviewed by {drugs.data.reviewed.by} on {drugs.data.reviewed.at.replace('T', ' ')}{drugs.data.custom ? ' (unit table)' : ' (APLS / PALS defaults)'}.</p>
+            : <p className="rounded-xl bg-warn-soft px-3 py-2 text-[12.5px] text-warn-ink">Not yet reviewed — every drug sheet says so until a consultant checks the doses, concentrations and maximums against your protocol.</p>}
+          <div className="flex flex-wrap gap-2">
+            {!drugs.data.reviewed && <Button variant="primary" onClick={() => { if (confirm('Confirm the drug table has been checked against the unit protocol?')) run(() => call('drugs.markReviewed'), 'Marked reviewed'); }}>Mark reviewed</Button>}
+            <Button variant="ghost" onClick={() => setJson(json == null ? JSON.stringify(drugs.data!.table, null, 2) : null)}>{json == null ? 'Edit table' : 'Close editor'}</Button>
+            {drugs.data.custom && <Button variant="ghost" onClick={() => { if (confirm('Go back to the APLS / PALS defaults?')) run(() => call('drugs.saveTable', { reset: true }), 'Defaults restored'); }}>Reset to defaults</Button>}
+          </div>
+          {json != null && <>
+            <textarea id="drug-json" className="field scroll-thin min-h-[260px] font-mono text-[11.5px]" value={json} onChange={e => setJson(e.target.value)} spellCheck={false} />
+            <Button className="self-start" onClick={() => run(() => call('drugs.saveTable', { table: json }), 'Drug table saved — review it again')}>Save table</Button>
+          </>}
+        </div>
       </div>
     </div>
   );

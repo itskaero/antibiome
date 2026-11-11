@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Activity, BedDouble, Biohazard, ClipboardCheck, ClipboardList, FlaskRound, Layers, FileBarChart2, FlaskConical, Gauge, LayoutDashboard,
-  ChevronDown, ChevronUp, ListChecks, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Users, Wind,
+  ChevronDown, ChevronUp, HeartPulse, ListChecks, ScrollText, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Pill, Plus, Settings, ShieldCheck, Sun, UserRound, Users, Wind,
 } from 'lucide-react';
 import { call, getDevice, isPhone } from '@/lib/api';
 import { go, useApi, useHotkey, useRoute } from '@/lib/hooks';
@@ -26,8 +26,10 @@ import { Research } from '@/pages/Research';
 import { ModulesAdmin } from '@/pages/ModulesAdmin';
 import { Protocols } from '@/pages/Protocols';
 import { Patients } from '@/pages/Patients';
+import { LiveMonitor } from '@/pages/LiveMonitor';
+import { Rounds } from '@/pages/Rounds';
 import type { CensusRow } from '@/pages/types';
-import { MobileShell, PairScreen } from '@/pages/mobile/Mobile';
+import { JoinScreen, MobileShell, PairScreen } from '@/pages/mobile/Mobile';
 
 export const Logo = ({ size = 22 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
@@ -59,6 +61,8 @@ export default function App() {
     return () => { window.removeEventListener('antibiome:locked', h); window.removeEventListener('antibiome:unpaired', u); };
   }, [refresh]);
 
+  const [joining, setJoining] = useState(() => phone && /^#\/join\//.test(window.location.hash));
+  if (joining) return <ToastProvider><JoinScreen Frame={AuthFrame} onDone={() => { setJoining(false); setPaired(true); }} /></ToastProvider>;
   if (phone && !paired) return <ToastProvider><PairScreen Frame={AuthFrame} onDone={() => setPaired(true)} /></ToastProvider>;
   if (error) return <div className="grid h-full place-items-center p-8"><div className="flex flex-col items-center gap-3"><ErrorNote text={error} />{phone && <Button onClick={refresh}>Try again</Button>}</div></div>;
   if (!status) return null;
@@ -132,11 +136,13 @@ function Login({ unitName, idleMinutes, onDone }: { unitName: string; idleMinute
 
 // `bedside` pages make up the short sidebar clinicians see by default; the rest sit under "More pages".
 const NAV = [
-  { id: 'home', label: 'Command centre', icon: LayoutDashboard, roles: ['admin', 'clinician', 'viewer', 'researcher'], bedside: true },
-  { id: 'census', label: 'Census board', icon: BedDouble, roles: ['admin', 'clinician', 'viewer'], key: 'B', bedside: true },
-  { id: 'patients', label: 'Patients', icon: Users, roles: ['admin', 'clinician', 'viewer'], bedside: true },
+  { id: 'home', label: 'Command centre', icon: LayoutDashboard, roles: ['admin', 'clinician', 'nurse', 'viewer', 'researcher'], bedside: true },
+  { id: 'census', label: 'Census board', icon: BedDouble, roles: ['admin', 'clinician', 'nurse', 'viewer'], key: 'B', bedside: true },
+  { id: 'monitor', label: 'Live monitor', icon: HeartPulse, roles: ['admin', 'clinician', 'nurse', 'viewer'], bedside: true },
+  { id: 'rounds', label: 'Rounds & handover', icon: ScrollText, roles: ['admin', 'clinician', 'nurse', 'viewer'], bedside: true },
+  { id: 'patients', label: 'Patients', icon: Users, roles: ['admin', 'clinician', 'nurse', 'viewer'], bedside: true },
   { id: 'reconcile', label: 'Daily reconcile', icon: ListChecks, roles: ['admin', 'clinician'], key: 'R', bedside: true },
-  { id: 'micro', label: 'Microbiology', icon: FlaskConical, roles: ['admin', 'clinician', 'viewer', 'researcher'], bedside: true },
+  { id: 'micro', label: 'Microbiology', icon: FlaskConical, roles: ['admin', 'clinician', 'nurse', 'viewer', 'researcher'], bedside: true },
   { id: 'stewardship', label: 'Stewardship', icon: Pill, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'report', label: 'Monthly report', icon: FileBarChart2, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
   { id: 'research', label: 'Research', icon: FlaskRound, roles: ['admin', 'clinician', 'viewer', 'researcher'] },
@@ -192,8 +198,10 @@ function Shell({ user, onSignOut, theme, setTheme }: { user: User; onSignOut: ()
   const page = (() => {
     switch (route) {
       case 'patients': return <Patients />;
+      case 'rounds': return <Rounds canWrite={clinical || user.role === 'nurse'} />;
+      case 'monitor': return <LiveMonitor key={args[0] ?? 'all'} args={args} isAdmin={user.role === 'admin'} canChart={clinical || user.role === 'nurse'} />;
       case 'census': return <Census onAdmit={() => setAdmitOpen(true)} canEdit={clinical} />;
-      case 'patient': return <PatientPage id={args[0]} canEdit={clinical} isAdmin={user.role === 'admin'} />;
+      case 'patient': return <PatientPage id={args[0]} canEdit={clinical} canChart={clinical || user.role === 'nurse'} isAdmin={user.role === 'admin'} />;
       case 'reconcile': return <Reconcile canEdit={clinical} />;
       case 'micro': return <Microbiology canEdit={clinical} openNew={args[0] === 'new'} />;
       case 'stewardship': return <Stewardship />;

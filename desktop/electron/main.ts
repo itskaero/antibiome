@@ -3,6 +3,7 @@
 //  (no Node, context isolation) and can only reach the whitelisted API.
 // ═══════════════════════════════════════════════════════════
 import './compat';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import { app, BrowserWindow, dialog, ipcMain, Menu, powerSaveBlocker, safeStorage, shell } from 'electron';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,9 +13,13 @@ import type { Role } from '../shared/types';
 import { seedDemo } from '../server/demo';
 import { importLegacy, parseLegacy } from '../server/legacy';
 import { nowLocal, toDateStr } from '../shared/time';
-import { lanAddresses, startMobileServer, type MobileServer } from '../server/mobileServer';
+import { lanAddresses, startMobileServer, type MobileMonitorSource, type MobileServer } from '../server/mobileServer';
 import { generateCertificate, serverFingerprint } from '../server/tls';
 import { QUIET_METHODS, isRead } from '../shared/apiMethods';
+import { MonitorGateway } from '../server/monitorGateway';
+import { createMonitorService, loadBedMap } from '../server/monitorService';
+import { censusBedFor } from '../shared/monitor/beds';
+import { httpsGet, tunnelSelfTest, TunnelManager, type TunnelMode } from '../server/tunnel';
 
 const dataDir = process.env.ANTIBIOME_DATA_DIR || join(app.getPath('userData'), 'data');
 mkdirSync(dataDir, { recursive: true });
@@ -38,7 +43,19 @@ const secrets: SecretStore = {
     setSetting(db, `secret:${key}`, safeStorage.encryptString(value).toString('base64'));
   },
 };
-const api = createApi(db, Date.now, { secrets });
+const api = createApi(db, Date.now, {
+  secrets,
+  // For the handover: what the monitor linked to a census bed saw recently (the gateway is created below).
+  monitorSummary: (censusBed, since) => {
+    const map = loadBedMap(db);
+    const beds = monitor.snapshot().filter(b => b.source === 'network' && censusBedFor(map, b.id, b.bed, false) === censusBed);
+    if (!beds.length) return null;
+    const evs = beds.flatMap(b => monitor.events(b.id)).filter(e => e.start >= since);
+    const desats = evs.filter(e => e.kind === 'desat');
+    const lows = desats.map(e => e.worst).filter((x): x is number => x != null);
+    return { desats: desats.length, lowestSpo2: lows.length ? Math.min(...lows) : null, disconnects: evs.filter(e => e.kind === 'disconnected').length, outside: evs.filter(e => e.kind === 'high' || e.kind === 'low').length };
+  },
+});
 let win: BrowserWindow | null = null;
 
 /** One automatic snapshot per day (VACUUM INTO is a consistent online copy); keep the last 14. */
@@ -81,7 +98,8 @@ async function startMobile() {
   mobileError = null;
   try {
     const port = Number(getSetting(db, 'mobilePort', String(DEFAULT_PORT)));
-    mobile = await startMobileServer({ api, db, distDir: join(__dirname, '../dist'), tls: await tlsOptions(), port, onPhoneMutation: () => win?.webContents.send('changed') });
+    const loopbackPort = Number(getSetting(db, 'remoteLoopbackPort', '0')) || undefined;
+    mobile = await startMobileServer({ api, db, distDir: join(__dirname, '../dist'), tls: await tlsOptions(), port, loopbackPort, allowedHosts, trustedProxies, monitor: phoneMonitor, onPhoneMutation: () => win?.webContents.send('changed') });
     mobileFingerprint = await serverFingerprint(mobile.port);
     if (blocker == null) blocker = powerSaveBlocker.start('prevent-app-suspension');
   } catch (e: any) {
@@ -94,21 +112,59 @@ async function stopMobile() {
   if (mobile) { await mobile.close(); mobile = null; }
   if (blocker != null) { powerSaveBlocker.stop(blocker); blocker = null; }
 }
+// ── Remote access (Cloudflare Tunnel) ─────────────────────────────
+// With a public hostname set, the phone server answers only to that name and this PC's own addresses.
+const publicHostname = () => getSetting(db, 'remotePublicHostname').trim().toLowerCase() || null;
+// Built-in Cloudflare connector (shipped in resources/cloudflared by the Windows installers).
+const cloudflaredDir = app.isPackaged ? join(process.resourcesPath, 'cloudflared') : (process.env.CLOUDFLARED_DIR ?? '');
+const cloudflaredBin = process.env.CLOUDFLARED_PATH || (cloudflaredDir && process.platform === 'win32' ? join(cloudflaredDir, 'cloudflared.exe') : null);
+const cloudflaredVersion = (() => { try { return readFileSync(join(cloudflaredDir, 'cloudflared.version'), 'utf8').split(' ')[0].trim(); } catch { return null; } })();
+const tunnel = new TunnelManager({ binary: cloudflaredBin, version: cloudflaredVersion });
+const TUNNEL_PORT = 8790;
+const allowedHosts = () => {
+  const h = publicHostname();
+  if (!h) return null;
+  const quick = tunnel.status().url;
+  return [h, 'localhost', '127.0.0.1', ...lanAddresses(), ...(quick ? [new URL(quick).hostname] : [])];
+};
+const trustedProxies = () => getSetting(db, 'remoteConnectorIp').split(',').map(x => x.trim()).filter(Boolean);
 function mobileStatus() {
   const port = mobile?.port ?? Number(getSetting(db, 'mobilePort', String(DEFAULT_PORT)));
   const addresses = lanAddresses();
+  const pub = publicHostname();
   return {
     enabled: getSetting(db, 'mobileEnabled') === '1', running: !!mobile, error: mobileError, port, addresses,
-    urls: addresses.map(a => `https://${a}:${port}`), fingerprint: mobile ? mobileFingerprint : null,
+    urls: [...(pub ? [`https://${pub}`] : []), ...addresses.map(a => `https://${a}:${port}`)], fingerprint: mobile ? mobileFingerprint : null,
+    remote: { publicHostname: pub, connectorIp: getSetting(db, 'remoteConnectorIp') || null, loopbackPort: mobile?.loopbackPort ?? (Number(getSetting(db, 'remoteLoopbackPort', '0')) || null), lastTunnelAt: mobile?.lastTunnelAt() ?? null },
     certificate: existsSync(join(tlsDir, 'hospital.pfx')) ? 'hospital' : 'generated', clients: mobile?.clients() ?? 0,
     secureStorage: secrets.available(),
   };
 }
 
+// ── Live bedside monitors (off by default) ─────────────────────────
+// The gateway takes the central station's place on the monitor network; see server/monitorGateway.ts.
+const monitor = new MonitorGateway();
+monitor.on('update', u => { if (win && !win.isDestroyed()) win.webContents.send('monitor', u); });
+/** What phones see of the live monitors (mobileServer redacts names unless the unit allows them). */
+const phoneMonitor: MobileMonitorSource = {
+  snapshot: () => monitor.snapshot(),
+  trend: id => monitor.trend(id),
+  events: id => monitor.events(id),
+  status: () => { const st = monitor.status(); return { running: st.running, demo: st.demo, enabled: getSetting(db, 'monitorEnabled') === '1', bedMap: loadBedMap(db) }; },
+  subscribe: fn => { monitor.on('update', fn); return () => { monitor.off('update', fn); }; },
+  showNames: () => getSetting(db, 'mobileShowNames', '0') === '1',
+};
+const monitorService = createMonitorService(db, monitor, {
+  requireRole: (...roles) => requireRole(...roles),
+  audit: summary => auditDesktop('update', 'settings', summary),
+  recordDir: join(dataDir, 'monitor-recordings'),
+  openFolder: dir => { mkdirSync(dir, { recursive: true }); return shell.openPath(dir); },
+});
+
 // Desktop-only operations that need native dialogs.
 const desktopRoutes: Record<string, (p: any) => unknown> = {
   'desktop.info': () => {
-    requireRole('admin', 'clinician', 'viewer', 'researcher');
+    requireRole('admin', 'clinician', 'nurse', 'viewer', 'researcher');
     return { dataDir, dbFile, version: app.getVersion(), demo: getSetting(db, 'demoData') === '1' };
   },
   'desktop.backupNow': async () => {
@@ -154,6 +210,58 @@ const desktopRoutes: Record<string, (p: any) => unknown> = {
     auditDesktop('update', 'settings', p.on ? `Phone access turned on (port ${mobileStatus().port})${mobileError ? ` — failed: ${mobileError}` : ''}` : 'Phone access turned off');
     return mobileStatus();
   },
+  'desktop.remoteConfigure': async (p: { publicHostname: string | null; loopbackPort: number | null; connectorIp?: string | null }) => {
+    requireRole('admin');
+    const host = String(p.publicHostname ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (host && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host)) throw new ApiError('Enter a host name like picu.example.org');
+    const lp = p.loopbackPort ? Number(p.loopbackPort) : 0;
+    if (lp && (!Number.isInteger(lp) || lp < 1024 || lp > 65535)) throw new ApiError('Local port must be between 1024 and 65535');
+    const conn = String(p.connectorIp ?? '').trim();
+    if (conn && !/^(\d{1,3}\.){3}\d{1,3}$/.test(conn)) throw new ApiError('Connector address must be an IPv4 address on this network, e.g. 192.168.0.20');
+    setSetting(db, 'remotePublicHostname', host);
+    setSetting(db, 'remoteLoopbackPort', String(lp));
+    setSetting(db, 'remoteConnectorIp', conn);
+    if (mobile) await startMobile();
+    auditDesktop('update', 'settings', host ? `Remote access: public address ${host}, tunnel port 127.0.0.1:${lp || 'off'}` : 'Remote access turned off');
+    return mobileStatus();
+  },
+  'desktop.tunnelStatus': () => { requireRole('admin'); return { ...tunnel.status(), available: tunnel.available, hasToken: !!secrets.load('tunnel-token'), autostart: getSetting(db, 'tunnelEnabled') === '1' }; },
+  /** Start the built-in connector. Turns on phone access and the loopback listener it points at, if needed. */
+  'desktop.tunnelStart': async (p: { mode: TunnelMode; token?: string }) => {
+    requireRole('admin');
+    if (p.mode !== 'quick' && p.mode !== 'token') throw new ApiError('Choose a quick test or your own tunnel');
+    let token: string | undefined;
+    if (p.mode === 'token') {
+      token = (p.token ?? '').trim() || secrets.load('tunnel-token') || '';
+      if (!token) throw new ApiError('Paste the tunnel token from the Cloudflare dashboard');
+      if (p.token && !secrets.available()) throw new ApiError('Secure storage is not available on this computer, so the token cannot be stored safely.');
+    }
+    if (!Number(getSetting(db, 'remoteLoopbackPort', '0'))) setSetting(db, 'remoteLoopbackPort', String(TUNNEL_PORT));
+    setSetting(db, 'mobileEnabled', '1');
+    await startMobile();
+    if (!mobile?.loopbackPort) throw new ApiError(mobileError ?? 'Phone access could not start, so the tunnel has nothing to connect to.');
+    try { tunnel.start(p.mode, mobile.loopbackPort, token); } catch (e: any) { throw new ApiError(e.message); }
+    if (p.mode === 'token') { if (p.token) secrets.save('tunnel-token', token!); setSetting(db, 'tunnelEnabled', '1'); }
+    auditDesktop('update', 'settings', p.mode === 'quick' ? 'Started a temporary Cloudflare test link' : 'Cloudflare tunnel connected from this PC');
+    return { ...tunnel.status(), available: tunnel.available, hasToken: !!secrets.load('tunnel-token'), autostart: getSetting(db, 'tunnelEnabled') === '1' };
+  },
+  'desktop.tunnelSelfTest': async () => {
+    requireRole('admin');
+    const st = tunnel.status();
+    const host = st.mode === 'quick' && st.url ? new URL(st.url).hostname : publicHostname();
+    return tunnelSelfTest(host, st.state, {
+      lookup: h => dnsLookup(h),
+      fetch: url => httpsGet(url),
+    });
+  },
+  'desktop.tunnelStop': (p: { forget?: boolean }) => {
+    requireRole('admin');
+    tunnel.stop();
+    setSetting(db, 'tunnelEnabled', '0');
+    if (p?.forget) secrets.save('tunnel-token', null);
+    auditDesktop('update', 'settings', p?.forget ? 'Cloudflare tunnel stopped and its token removed' : 'Cloudflare tunnel stopped');
+    return { ...tunnel.status(), available: tunnel.available, hasToken: !!secrets.load('tunnel-token'), autostart: false };
+  },
   'desktop.mobileLoadPfx': async (p: { passphrase?: string }) => {
     requireRole('admin');
     if (p.passphrase && !secrets.available()) throw new ApiError('Secure storage is not available on this computer, so a certificate passphrase cannot be stored safely.');
@@ -176,7 +284,8 @@ const desktopRoutes: Record<string, (p: any) => unknown> = {
     if (mobile) await startMobile();
     return mobileStatus();
   },
-  'desktop.print': () => { requireRole('admin', 'clinician', 'viewer', 'researcher'); win?.webContents.print({ printBackground: true }); return true; },
+  ...monitorService.routes,
+  'desktop.print': () => { requireRole('admin', 'clinician', 'nurse', 'viewer', 'researcher'); win?.webContents.print({ printBackground: true }); return true; },
 };
 
 ipcMain.handle('api', async (_e, method: string, params: unknown) => {
@@ -238,6 +347,13 @@ app.whenReady().then(() => {
   try { dailyBackup(); } catch (e) { console.error('[backup]', e); }
   createWindow();
   if (getSetting(db, 'mobileEnabled') === '1') startMobile();
+  if (getSetting(db, 'monitorEnabled') === '1') monitorService.start().catch(e => console.error('[monitor]', e));
+  // Reconnect the unit's own tunnel at launch (never a quick test link).
+  if (getSetting(db, 'tunnelEnabled') === '1' && secrets.load('tunnel-token')) {
+    (async () => { if (!mobile) await startMobile(); if (mobile?.loopbackPort) tunnel.start('token', mobile.loopbackPort, secrets.load('tunnel-token')!); })().catch(e => console.error('[tunnel]', e));
+  }
+  // Monitor readings proposed for the chart; tell the window so the pending banner appears.
+  setInterval(() => { try { if (monitorService.captureTick() > 0) win?.webContents.send('changed'); } catch (e) { console.error('[monitor capture]', e); } }, 60_000);
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-app.on('window-all-closed', async () => { await stopMobile(); db.close(); app.quit(); });
+app.on('window-all-closed', async () => { tunnel.stop(); await stopMobile(); await monitor.dispose(); db.close(); app.quit(); });

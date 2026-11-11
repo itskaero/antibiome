@@ -1,8 +1,8 @@
 import type { AbxIntent, AdmissionSource, Disposition, RespLevel } from './reference';
 
-export type Role = 'admin' | 'clinician' | 'viewer' | 'researcher';
+export type Role = 'admin' | 'clinician' | 'nurse' | 'viewer' | 'researcher';
 export const ROLE_LABEL: Record<Role, string> = {
-  admin: 'Administrator', clinician: 'Clinician (data entry)', viewer: 'Viewer (dashboards)', researcher: 'Researcher (de-identified)',
+  admin: 'Administrator', clinician: 'Clinician (data entry)', nurse: 'Nurse (bedside charting)', viewer: 'Viewer (dashboards)', researcher: 'Researcher (de-identified)',
 };
 
 /** Local ISO-like timestamp without zone: 'YYYY-MM-DDTHH:mm'. The PICU PC's clock is the reference. */
@@ -45,6 +45,9 @@ export interface Episode {
   startAt: LocalDateTime;
   endAt: LocalDateTime | null;
   endReason: string | null;
+  /** Antimicrobials: dosing interval in hours and the dose as prescribed (free text, e.g. "40 mg/kg"). */
+  intervalHours?: number | null;
+  dose?: string | null;
 }
 
 export interface ClinicalEvent {

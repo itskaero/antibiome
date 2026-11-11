@@ -8,7 +8,7 @@ import { ensureBuiltInProtocols } from './protocols';
 
 export type DB = Database;
 
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: string[] = [
   // v1 — PICU core
   `
   CREATE TABLE users (
@@ -271,7 +271,114 @@ const MIGRATIONS: string[] = [
     expires_at INTEGER NOT NULL
   );
   `,
+  // v6 — fluid balance: intake and output entries (mL), soft-deleted like everything else.
+  `
+  CREATE TABLE fluid_entries (
+    id TEXT PRIMARY KEY,
+    admission_id TEXT NOT NULL REFERENCES admissions(id),
+    at TEXT NOT NULL,
+    dir TEXT NOT NULL CHECK (dir IN ('in','out')),
+    category TEXT NOT NULL,
+    ml REAL NOT NULL CHECK (ml > 0),
+    note TEXT,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX idx_fluid_adm ON fluid_entries(admission_id, at);
+  `,
+  // v7 — readings proposed from a bedside monitor, waiting for a clinician to confirm or dismiss.
+  `
+  CREATE TABLE pending_vitals (
+    id TEXT PRIMARY KEY,
+    admission_id TEXT NOT NULL REFERENCES admissions(id),
+    at TEXT NOT NULL,
+    values_json TEXT NOT NULL,
+    source TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    decided_at TEXT,
+    decision TEXT CHECK (decision IN ('confirmed','dismissed')),
+    decided_by INTEGER REFERENCES users(id),
+    vital_set_id TEXT
+  );
+  CREATE INDEX idx_pending_adm ON pending_vitals(admission_id, decided_at);
+  `,
+  // v8 — staff invites (QR / link) and account requests made from a phone, approved by an admin.
+  `
+  CREATE TABLE invites (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    role TEXT NOT NULL CHECK (role IN ('clinician','viewer','researcher')),
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    max_uses INTEGER NOT NULL,
+    uses INTEGER NOT NULL DEFAULT 0,
+    revoked_at TEXT
+  );
+  CREATE TABLE account_requests (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL COLLATE NOCASE,
+    display_name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    pw_hash TEXT NOT NULL,
+    pw_salt TEXT NOT NULL,
+    device_id TEXT REFERENCES devices(id),
+    invite_id TEXT REFERENCES invites(id),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+    requested_at TEXT NOT NULL,
+    decided_by INTEGER REFERENCES users(id),
+    decided_at TEXT
+  );
+  `,
+  // v9 — nurse accounts. SQLite cannot change a CHECK constraint in place, so users and invites are
+  // rebuilt (the documented 12-step procedure; this migration runs with foreign keys off).
+  `
+  CREATE TABLE users_v9 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    display_name TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin','clinician','nurse','viewer','researcher')),
+    pw_hash TEXT NOT NULL,
+    pw_salt TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+  );
+  INSERT INTO users_v9 SELECT id, username, display_name, role, pw_hash, pw_salt, active, created_at FROM users;
+  DROP TABLE users;
+  ALTER TABLE users_v9 RENAME TO users;
+  CREATE TABLE invites_v9 (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    role TEXT NOT NULL CHECK (role IN ('clinician','nurse','viewer','researcher')),
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    max_uses INTEGER NOT NULL,
+    uses INTEGER NOT NULL DEFAULT 0,
+    revoked_at TEXT
+  );
+  INSERT INTO invites_v9 SELECT id, code_hash, role, created_by, created_at, expires_at, max_uses, uses, revoked_at FROM invites;
+  DROP TABLE invites;
+  ALTER TABLE invites_v9 RENAME TO invites;
+  `,
+  `
+  -- v10 — antimicrobial dosing interval and doses given (for "next dose due").
+  ALTER TABLE episodes ADD COLUMN interval_hours REAL;
+  ALTER TABLE episodes ADD COLUMN dose TEXT;
+  CREATE TABLE doses_given (
+    id TEXT PRIMARY KEY,
+    episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+    at TEXT NOT NULL,
+    given_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX idx_doses_ep ON doses_given(episode_id, at);
+  `,
 ];
+/** Migrations that rebuild a referenced table must run with foreign-key enforcement off. */
+const REBUILDS = new Set([8]);
 
 export function openDatabase(file: string): DB {
   const db = openSqlite(file);
@@ -287,14 +394,21 @@ export function openDatabase(file: string): DB {
 export function migrate(db: DB) {
   const current = Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version);
   for (let v = current; v < MIGRATIONS.length; v++) {
+    const rebuild = REBUILDS.has(v);
+    // foreign_keys can only change outside a transaction; legacy_alter_table keeps other tables'
+    // REFERENCES users(...) pointing at the rebuilt table by name.
+    if (rebuild) db.exec('PRAGMA foreign_keys = OFF; PRAGMA legacy_alter_table = ON;');
     db.exec('BEGIN');
     try {
       db.exec(MIGRATIONS[v]);
+      if (rebuild && (db.prepare('PRAGMA foreign_key_check').all() as unknown[]).length) throw new Error(`Migration ${v + 1} left broken references`);
       db.exec(`PRAGMA user_version = ${v + 1}`);
       db.exec('COMMIT');
     } catch (e) {
       db.exec('ROLLBACK');
       throw e;
+    } finally {
+      if (rebuild) db.exec('PRAGMA legacy_alter_table = OFF; PRAGMA foreign_keys = ON;');
     }
   }
 }

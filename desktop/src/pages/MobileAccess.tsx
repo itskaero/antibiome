@@ -6,6 +6,7 @@ import { Copy, QrCode, ShieldCheck, Smartphone, TriangleAlert } from 'lucide-rea
 import { call } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { Button, CardHeader, Chip, Field, Modal, Toggle, useToast } from '@/components/ui';
+import { InviteModal } from '@/components/StaffAccess';
 
 interface Status {
   enabled: boolean; running: boolean; error: string | null; port: number; addresses: string[]; urls: string[];
@@ -18,6 +19,7 @@ export function MobileAccessCard() {
   const devices = useApi<{ devices: DeviceRow[]; showNames: boolean }>('mobile.devices');
   const [port, setPort] = useState('');
   const [pair, setPair] = useState(false);
+  const [invite, setInvite] = useState(false);
   const [it, setIt] = useState(false);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -46,7 +48,8 @@ export function MobileAccessCard() {
           <div className="flex flex-wrap items-end gap-2">
             <Field label="Port" className="w-28"><input className="field tnum" inputMode="numeric" value={port} onChange={e => setPort(e.target.value)} /></Field>
             {s.enabled && String(s.port) !== port && <Button size="sm" disabled={busy} onClick={() => run(() => call('desktop.mobileEnable', { on: true, port: Number(port) }), 'Port changed')}>Apply port</Button>}
-            <Button size="sm" variant="primary" disabled={!s.running || busy} onClick={() => setPair(true)}><QrCode size={14} />Pair a phone</Button>
+            <Button size="sm" variant="primary" disabled={!s.running || busy} onClick={() => setInvite(true)}><QrCode size={14} />Invite staff</Button>
+            <Button size="sm" disabled={!s.running || busy} onClick={() => setPair(true)}>Pair a phone</Button>
             <Button size="sm" variant="ghost" onClick={() => setIt(true)}>Checklist for IT</Button>
           </div>
           <div className="inset flex flex-col gap-1.5 p-3">
@@ -82,6 +85,7 @@ export function MobileAccessCard() {
         </div>
       </div>
       <PairModal open={pair} onClose={() => { setPair(false); devices.reload(); }} urls={s.urls} fingerprint={s.fingerprint} />
+      <InviteModal open={invite} onClose={() => { setInvite(false); devices.reload(); }} urls={s.urls} />
       <ItModal open={it} onClose={() => setIt(false)} port={s.port} />
     </div>
   );

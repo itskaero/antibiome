@@ -18,6 +18,8 @@ import { nowLocal } from '@shared/time';
 const ENTRY: VitalCode[] = ['hr', 'rr', 'spo2', 'fio2', 'sbp', 'dbp', 'map', 'temp', 'crt', 'gcs', 'glucose', 'urine'];
 /** Everything shown back on the card: vitals, then labs and PEWS. */
 const DISPLAY: VitalCode[] = [...ENTRY, ...LAB_CODES, 'pews'];
+/** A set with only panel lab results (no vital sign, no Phoenix lab entered alongside vitals). */
+export const isLabOnlySet = (v: Partial<Record<string, number>>) => { const k = Object.keys(v); return k.length > 0 && k.every(c => VITALS[c as VitalCode]?.group === 'lab') && k.some(c => !LAB_CODES.includes(c as VitalCode)); };
 export type VitalsDraft = Partial<Record<VitalCode, string>>;
 
 /** Draft → validated values, or null when nothing (valid) has been entered yet. */
@@ -174,9 +176,11 @@ export function VitalsCard({ admissionId, canEdit, editable }: { admissionId: st
   const [open, setOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const toast = useToast();
-  const chronological = useMemo(() => [...(data?.sets ?? [])].reverse(), [data]);
+  // Lab-only sets belong to the Laboratory card; vitals (and the Phoenix labs entered with them) stay here.
+  const sets = useMemo(() => (data?.sets ?? []).filter(s => !isLabOnlySet(s.values)), [data]);
+  const chronological = useMemo(() => [...sets].reverse(), [sets]);
   if (!data) return null;
-  const latest = data.sets[0];
+  const latest = sets[0];
   const w = data.worst24;
   const trends = TRENDS.filter(c => chronological.filter(s => s.values[c] != null).length >= 2);
   const del = async (id: string) => {
@@ -262,10 +266,10 @@ export function VitalsCard({ admissionId, canEdit, editable }: { admissionId: st
           )}
 
           <div>
-            <button className="text-[12px] text-accent-ink" onClick={() => setShowAll(!showAll)}>{showAll ? 'Hide' : 'Show'} all {data.sets.length} sets</button>
+            <button className="text-[12px] text-accent-ink" onClick={() => setShowAll(!showAll)}>{showAll ? 'Hide' : 'Show'} all {sets.length} sets</button>
             {showAll && (
               <div className="mt-2 flex flex-col divide-y divide-line text-[12.5px]">
-                {data.sets.map(s => (
+                {sets.map(s => (
                   <div key={s.id} className="group flex items-center gap-3 py-1.5">
                     <span className="tnum w-28 shrink-0 text-ink-3">{s.at.slice(5, 16).replace('T', ' ')}</span>
                     <span className="tnum min-w-0 flex-1 truncate">{DISPLAY.filter(c => s.values[c] != null).map(c => `${VITALS[c].short} ${fmtV(c, s.values[c])}`).join(' · ')}{s.values.pupils_fixed ? ' · pupils fixed' : ''}{s.phoenix ? ` · Phoenix ${s.phoenix.total}` : ''}</span>

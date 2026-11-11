@@ -404,7 +404,7 @@ footer { background: var(--night); border: 1px solid var(--rule); }
 <!-- ══════════════ PRODUCT ══════════════ -->
 <main id="home" class="page" role="tabpanel" aria-labelledby="tab-home">
   <div class="wrap mx-hero">
-    <a class="badge" data-go="features" data-anchor="f-scores"><b>New</b>Phoenix sepsis scoring, therapy charts and Windows 7 builds ›</a>
+    <a class="badge" data-go="features" data-anchor="f-monitor"><b>New</b>Live bedside monitors, labs, fluid balance, rounds and access from home ›</a>
     <h1>Turn PICU data into <em>intelligence</em></h1>
     <p class="lede">Record a child's stay at the bedside in seconds. Antibiome connects every admission, culture, antibiotic and vital sign into patterns your unit can act on — on your own PC, nothing sent to the cloud.</p>
     <div class="ctas"><button class="pill pill-accent" data-go="download">Download for Windows</button><button class="pill pill-ghost" id="watch-top" type="button">▶ Watch the film</button></div>
@@ -422,6 +422,8 @@ footer { background: var(--night); border: 1px solid var(--rule); }
         <div class="arrows"><button type="button" data-rail="-1" aria-label="Previous">←</button><button type="button" data-rail="1" aria-label="Next">→</button></div>
       </div>
       <div class="rail" id="rail">
+        <article class="rcard"><img class="cover" src="assets/monitor-overview.jpg" alt="Live monitor: SpO₂, pulse, temperature and pleth waveforms for every bed" loading="lazy"><div class="lbl glass"><small>New · live monitors</small>The bedside monitors, on the unit PC</div></article>
+        <article class="rcard"><img class="cover" src="assets/monitor-wall.jpg" alt="Central-station wall view with live ECG and pleth for four beds" loading="lazy"><div class="lbl glass"><small>New · wall view</small>A central station for every bed</div></article>
         <article class="rcard"><img class="cover" src="assets/film-dashboard.jpg" alt="The command centre: unit census, admissions, mortality and changes" loading="lazy"><div class="lbl glass"><small>The unit at a glance</small>Census, severity and what changed this month</div></article>
         <article class="rcard light"><div class="lbl"><small class="grey">One patient</small><b>The whole stay on one chart</b></div><div class="shot"><img src="assets/therapy-chart.png" alt="Therapy chart with support, antibiotics, cultures and vitals across a stay" loading="lazy"></div><p style="margin:14px;color:var(--ink-2);font-size:14px">Support, vasoactives and every antibiotic across the days, cultures where they happened, vitals underneath.</p></article>
         <article class="rcard"><img class="cover" src="assets/film-antibiogram.jpg" alt="Cumulative antibiogram forming from culture records" loading="lazy"><div class="lbl glass"><small>Many cultures</small>A cumulative antibiogram, first isolate per patient</div></article>
@@ -437,8 +439,8 @@ footer { background: var(--night); border: 1px solid var(--rule); }
           <span class="kicker"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>Built for one unit</span>
           <p style="margin-top:14px;color:var(--ink-2);max-width:40ch">Antibiome reads the unit the way a senior colleague would: it remembers every admission, every culture and every antibiotic course, and quietly flags what changed — with the test behind it and a reminder that a change is not a cause.</p>
           <div class="notices">
-            <div class="notice"><i class="up">↗</i><div>Amikacin use up 334%<small>174 vs 40 days of therapy per 1,000 days present</small></div></div>
-            <div class="notice"><i class="down">↘</i><div>Vancomycin use down 51%<small>107 vs 220 days of therapy per 1,000 days present</small></div></div>
+            <div class="notice"><i class="up">↗</i><div>Amikacin use up 334%<small>174 vs 40 antibiotic-days per 1,000 patient-days</small></div></div>
+            <div class="notice"><i class="down">↘</i><div>Vancomycin use down 51%<small>107 vs 220 antibiotic-days per 1,000 patient-days</small></div></div>
             <div class="notice"><i class="up">↗</i><div>Median length of stay up 45%<small>5.5 d vs 3.8 d last month</small></div></div>
           </div>
           <p style="margin-top:10px;font-size:12.5px;color:var(--ink-3)">“Antibiome noticed”, from the synthetic demo data.</p>
@@ -575,6 +577,22 @@ footer { background: var(--night); border: 1px solid var(--rule); }
       <p>From the first minute of an admission to the unit's monthly report — what the app records, what it works out, and what it never does.</p>
     </div>
 
+    <div class="fgroup" id="f-monitor">
+      <div class="fimg"><img src="assets/monitor-bed.jpg" alt="One bed's live view: temperature, SpO₂ and pulse tiles, ECG, pleth and respiration waveforms, sensor map" loading="lazy" style="background:#fff"></div>
+      <div class="flist">
+        <h2>Live bedside monitors</h2>
+        <p>The unit's bedside monitors stream into Antibiome over the ward network. It shows their readings next to the patient's record, and takes nothing over from their alarms.</p>
+        <dl>
+          <dt>Live values and waveforms</dt><dd>SpO₂, pulse rate and temperature with ECG, pleth and respiration sweeping in real time, about half a second behind the monitor. Each monitor's own alarm limits are shown, and readings outside them are highlighted.</dd>
+          <dt>Central-station wall view</dt><dd>Every bed on one full-screen display, plus an event log of desaturations and readings outside the limits for 10 seconds or more, probes or leads off, and disconnections.</dd>
+          <dt>Monitor → chart</dt><dd>Every hour, the 5-minute median of the verified values is proposed for the patient's chart. A clinician confirms it with one tap, so nothing enters the record unseen.</dd>
+          <dt>Nothing hard-coded</dt><dd>Receivers are set up in Settings: the monitor protocol (Scalis / M3100 central-station family, or HL7 v2 over MLLP for most other brands), the listening address and the ports. Each monitor can be linked to any census bed.</dd>
+          <dt>Honest about what is decoded</dt><dd>SpO₂, pulse rate and temperature are checked against a real recording. Fields not yet confirmed are badged <i>unverified</i> and never proposed for the chart.</dd>
+        </dl>
+        <div class="chiprow"><span>secondary display</span><span>HL7 v2 / MLLP</span><span>Windows 7 ready</span></div>
+      </div>
+    </div>
+
     <div class="fgroup" id="f-bedside">
       <div class="fimg"><img src="assets/film-dashboard.jpg" alt="Command centre" loading="lazy"></div>
       <div class="flist">
@@ -586,6 +604,7 @@ footer { background: var(--night); border: 1px solid var(--rule); }
           <dt>182 paediatric diagnoses</dt><dd>Intensive-care diagnoses with ICD-10 codes, synonyms and their PIM3 group, from sepsis to post-cardiac surgery and neonatal conditions.</dd>
           <dt>Therapy &amp; events</dt><dd>Vasoactives and antimicrobials as timed episodes with intent; procedures, complications and cultures on a day-by-day timeline.</dd>
           <dt>Daily reconcile</dt><dd>One grid to confirm every bed's support and drugs each morning.</dd>
+          <dt>Rounds &amp; handover</dt><dd>One card per bed: 24-hour vital ranges with trends, antibiotics with their day number, flagged results, fluid balance, pending cultures and what changed since your last round. Prints one bed per page.</dd>
           <dt>Discharge</dt><dd>Outcome and time close everything still running; only the missing module fields are asked for.</dd>
         </dl>
         <div class="chiprow"><span>keyboard-first</span><span>&lt; 60 s target</span><span>audit trail</span></div>
@@ -600,7 +619,10 @@ footer { background: var(--night); border: 1px solid var(--rule); }
         <dl>
           <dt>Therapy chart</dt><dd>Support, each vasoactive and antimicrobial as bars across the days (coloured by WHO AWaRe), cultures and complications as markers, vitals as aligned trend lanes.</dd>
           <dt>Vital signs at key moments</dt><dd>HR, RR, SpO₂, FiO₂, BP, MAP, temperature, capillary refill, GCS, glucose, urine output — with age-specific flags (IPSCC 2005), S/F ratio and shock index.</dd>
-          <dt>Labs with the vitals</dt><dd>Lactate, PaO₂, platelets, INR, D-dimer, fibrinogen and fixed pupils, recorded at the same moment.</dd>
+          <dt>Laboratory panels</dt><dd>Blood count, renal, electrolytes, blood gas, liver, coagulation and inflammatory markers: 24 analytes in SI units, flagged against age-specific ranges, with critical values highlighted. Anion gap, P/F ratio and eGFR are worked out for you.</dd>
+          <dt>Paste the lab report</dt><dd>Paste the report text and the values are read for you, with g/dL, mg/dL and "lakh" converted to SI units. You check each one before saving.</dd>
+          <dt>Fluid balance</dt><dd>Two-tap intake and output with the 24-hour balance, and urine output in mL/kg/h with an oliguria warning.</dd>
+          <dt>Correct the record</dt><dd>Change when an antibiotic or support period started or stopped after the fact. The checks keep times within the stay, and the audit log keeps the old and new times.</dd>
           <dt>Patients archive</dt><dd>Every admission, current and past, searchable by MRN, name, diagnosis, ICD-10 code or bed; other admissions of the same child linked.</dd>
         </dl>
       </div>
@@ -628,7 +650,8 @@ footer { background: var(--night); border: 1px solid var(--rule); }
         <dl>
           <dt>Cumulative antibiogram</dt><dd>% susceptible by organism and drug, first isolate per patient, cells under 30 isolates marked.</dd>
           <dt>MDR isolates</dt><dd>Organism-aware multidrug-resistance classification, with every culture's susceptibility results.</dd>
-          <dt>Days of therapy</dt><dd>DOT per 1,000 days present by month and by drug — the standard paediatric stewardship measure, no dosing data needed.</dd>
+          <dt>Antibiotic-days (DOT)</dt><dd>Each antibiotic given on a day counts 1 (one child on two drugs for 3 days = 6), per 1,000 patient-days, by month and by drug. This is the standard paediatric stewardship measure, and it needs no dosing data.</dd>
+          <dt>Course length by drug</dt><dd>For each drug: how many courses, the usual length, the shortest and longest, and how many ran longer than 7 days.</dd>
           <dt>WHO AWaRe mix</dt><dd>Access, Watch and Reserve shares, why courses were started (empiric, targeted, prophylaxis) and how long they ran.</dd>
         </dl>
       </div>
@@ -669,6 +692,8 @@ footer { background: var(--night); border: 1px solid var(--rule); }
         <p>Built for a hospital's rules.</p>
         <dl>
           <dt>Phones on the ward Wi-Fi</dt><dd>Encrypted, paired by single-use QR code, revocable, 5-minute lock, names hidden by default, bedside work only.</dd>
+          <dt>Staff sign up from their phone</dt><dd>An administrator shows one invite QR code. Each person requests their own account on their phone, and the administrator approves it on the PC or their own phone.</dd>
+          <dt>Access from home</dt><dd>One-click Cloudflare Tunnel, with the connector included in the app. Start a test link, or connect the unit's own tunnel behind Cloudflare Access email codes. Phone pairing and passwords still apply.</dd>
           <dt>Roles &amp; audit</dt><dd>Administrator, clinician, viewer and researcher; every view, change and export logged, append-only.</dd>
           <dt>Local, offline, backed up</dt><dd>One SQLite file on the unit PC, a snapshot every day (14 kept) and backup on demand.</dd>
           <dt>Every Windows PC</dt><dd>Windows 10 and 11, plus a Windows 7/8/8.1 edition; 32- and 64-bit; installer or portable.</dd>
@@ -707,14 +732,14 @@ footer { background: var(--night); border: 1px solid var(--rule); }
           <a class="file" data-asset="x64-7" href="https://github.com/itskaero/antibiome/releases/latest"><b>Portable · 64-bit · Windows 7 edition</b><small data-size>No install</small><span class="get">Download</span></a>
           <a class="file" data-asset="ia32-7" href="https://github.com/itskaero/antibiome/releases/latest"><b>Portable · 32-bit · Windows 7 edition</b><small data-size>For 32-bit Windows 7</small><span class="get">Download</span></a>
         </div>
-        <ul><li>The same app and features on Electron 22, the last version that runs on Windows 7</li><li>That engine no longer gets security updates — move the PC to Windows 10 or later when you can</li><li>A database copied from the regular edition is converted on first open (the original is kept)</li></ul>
+        <ul><li>The same app and features on Electron 22, the last version that runs on Windows 7</li><li>Includes Cloudflare's connector 2023.10.0, the last release for Windows 7, for access from home</li><li>That engine no longer gets security updates — move the PC to Windows 10 or later when you can</li><li>A database copied from the regular edition is converted on first open (the original is kept)</li></ul>
       </div>
     </div>
 
     <div class="how">
       <div class="card"><h3>32- or 64-bit?</h3><p>Windows 10/11: Settings → System → About → <b>System type</b>. Windows 7: Start → right-click Computer → Properties. If unsure, use the installer — it picks for you.</p></div>
       <div class="card"><h3>“Windows protected your PC”</h3><p>The files are not code-signed yet, so SmartScreen warns on first run. Choose <b>More info → Run anyway</b>. Hospital IT can sign them with the hospital's certificate.</p></div>
-      <div class="card"><h3>Requirements</h3><p>Windows 7 or later, 32- or 64-bit, and a few hundred megabytes for the app, plus the database and its daily snapshots. One PC per unit holds the data; phones need the hospital Wi-Fi.</p></div>
+      <div class="card"><h3>Requirements</h3><p>Windows 7 or later, 32- or 64-bit, and a few hundred megabytes for the app, plus the database and its daily snapshots. One PC per unit holds the data; phones use the hospital Wi-Fi, or access from home through Cloudflare.</p></div>
     </div>
     <div class="note">Patient data stays on the PC you install it on. Before using Antibiome with real patients, agree it with your hospital's IT and information-governance teams. Then follow the <a href="#docs" data-go="docs" style="color:var(--accent-ink)">setup guide</a>.</div>
     <p style="margin-top:22px;color:var(--ink-2);font-size:15px">All versions and release notes: <a href="https://github.com/itskaero/antibiome/releases" style="color:var(--accent-ink)">github.com/itskaero/antibiome/releases</a> · Build it yourself: <span class="mono">npm run dist:win</span> or <span class="mono">npm run dist:win7</span> in <span class="mono">desktop/</span>.</p>
@@ -731,7 +756,9 @@ footer { background: var(--night); border: 1px solid var(--rule); }
         <a href="#d-first-run">First run</a>
         <a href="#d-people">People &amp; roles</a>
         <a href="#d-daily">Daily use</a>
+        <a href="#d-monitors">Live bedside monitors</a>
         <a href="#d-phones">Phones on the Wi-Fi</a>
+        <a href="#d-remote">Access from home</a>
         <a href="#d-ai">AI questions</a>
         <a href="#d-backups">Backups &amp; data</a>
         <a href="#d-research">Research export</a>
@@ -740,7 +767,7 @@ footer { background: var(--night); border: 1px solid var(--rule); }
 
       <article class="doc">
         <div class="doc-title">
-          <span class="eyebrow">Setup guide · version 0.1.0</span>
+          <span class="eyebrow">Setup guide · version 0.3</span>
           <h1>Setting up Antibiome PICU</h1>
           <p>From an empty Windows PC to the first admission, then phones and optional AI. Allow about an hour, plus IT time for the network steps.</p>
         </div>
@@ -810,7 +837,15 @@ npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
             <li>Record vital signs on admission, at a deterioration or at review — any subset is fine.</li>
             <li><strong>Daily reconcile</strong> (<kbd>R</kbd>) checks every bed's support and drugs in one grid.</li>
           </ul>
-          <h3>Vitals, labs and scores</h3>
+          <h3>Laboratory results</h3>
+          <p>On the patient page, press <strong>Add results</strong> on the Laboratory card. Tap the panels you have (Blood count, Renal, Electrolytes, Blood gas, Liver, Coagulation, Inflammation) and type the values. You can also <strong>paste the lab report</strong> and press <em>Read values</em>: g/dL, mg/dL and "lakh" are converted to SI units, and every converted value is labelled so you can check it before saving. Results are flagged against age-specific ranges (H/L, and HH/LL for critical values). Your laboratory's own ranges take precedence.</p>
+          <h3>Fluid balance</h3>
+          <p>On the Fluid balance card choose <em>Intake</em> or <em>Output</em>, then the type and an amount, and press <strong>Add</strong>. The card shows the 24-hour balance and urine output in mL/kg/h, using the admission weight.</p>
+          <h3>Correcting antibiotic and support times</h3>
+          <p>Press the pencil on a running antibiotic, on a course under <em>Recently stopped</em>, or on any therapy entry in the timeline. Change the start, the stop (or tick <em>Still running</em>) and the intent. Days of therapy update by themselves, and the audit log keeps the old and new times.</p>
+          <h3>Rounds &amp; handover</h3>
+          <p><strong>Rounds &amp; handover</strong> in the sidebar shows every bed on one page. Press <strong>Mark round done</strong> when you finish; next time, each bed highlights what changed since then: new or stopped drugs, support changes, events, cultures and flagged results.</p>
+          <h3>Vitals and scores</h3>
           <p>Press <strong>Record</strong> on the vitals card. Add <em>Labs</em> (lactate, PaO₂, platelets, INR, D-dimer, fibrinogen, fixed pupils) or <em>PEWS</em> to the same set when you have them. The app works out the <strong>Phoenix Sepsis Score</strong> for that moment and the worst in the first 24 h, and flags Phoenix sepsis and septic shock. Inputs that were not recorded count as zero, and the card says which ones are missing.</p>
           <h3>The therapy chart</h3>
           <p>At the top of every patient page: respiratory support, vasoactives and each antimicrobial across the days of the stay, cultures and complications where they happened, and vitals underneath. Hover any mark for exact times.</p>
@@ -818,6 +853,22 @@ npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
           <p><strong>Patients</strong> in the sidebar lists every admission, current and past. Search by MRN, name, diagnosis, ICD-10 code or bed, and filter by outcome or admission date. Other admissions of the same child are linked from the patient page.</p>
           <h3>Discharge</h3>
           <p>Choose the outcome and time; anything still running is closed at that time, and the sheet asks only for module fields still missing.</p>
+        </section>
+
+        <section id="d-monitors">
+          <h2>Live bedside monitors</h2>
+          <p>Antibiome can receive the data your bedside monitors send to their central station and show it on the <strong>Live monitor</strong> page. It is a secondary display: <b>alarms stay on the bedside monitors</b>.</p>
+          <h3>1 · Put the PC where the monitors send</h3>
+          <ul>
+            <li>Connect the PC to the monitors' network switch, or connect that switch to a LAN port on the router (not the WAN port).</li>
+            <li>Give the PC the address the monitors send to. For the Scalis / M3100 family this is <span class="mono">192.168.10.251</span> / <span class="mono">255.255.255.0</span>: Network adapter → IPv4 → Advanced → <em>Add</em>. The PC keeps its other address for the internet.</li>
+            <li>Close the old central-station program (for example CMS.exe). Both cannot use the same ports.</li>
+          </ul>
+          <h3>2 · Set up a receiver</h3>
+          <p><strong>Live monitor → Receivers</strong> (administrator). The Scalis receiver is ready: one port per bed (510 + bed number). For other brands, add a receiver with <em>HL7 v2 over MLLP</em> on the port their gateway sends to. Then press <strong>Start receiving</strong> and allow the app through Windows Firewall if asked. Monitors reconnect within seconds.</p>
+          <h3>3 · Link monitors to beds</h3>
+          <p>Open a monitor and choose its census bed under <em>Census patient</em>. Linked beds show live SpO₂ and pulse on the census board and can propose readings for the chart. Set how often under <em>Receivers → Propose readings for the chart</em>, then confirm the readings on the patient page.</p>
+          <div class="note"><b>Unverified fields.</b> Heart rate from the ECG and NIBP are marked unverified on Scalis monitors until a recording confirms them: <em>Receivers → Record raw data</em>, with ECG leads attached and one NIBP reading taken. Recordings contain patient names, so keep them on the PC.</div>
         </section>
 
         <section id="d-phones">
@@ -835,7 +886,13 @@ npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
           <div class="note"><b>Recommended:</b> a certificate for the PC's address from the hospital's certificate authority, as a PFX file. Without it the app creates its own certificate and each phone shows a one-time warning.</div>
           <h3>2 · Turn it on</h3>
           <p>Settings → <strong>Phone access</strong> → On. The card shows the address (for example <span class="mono">https://10.20.0.15:8443</span>), the certificate's SHA-256 fingerprint, and <em>Load hospital certificate…</em></p>
-          <h3>3 · Pair each phone</h3>
+          <h3>3 · Invite staff (they sign up on their phone)</h3>
+          <ol class="steps">
+            <li><div>On the PC, press <strong>Invite staff</strong>, choose the role, how long the invite lasts and how many people can use it, and show the QR code.</div></li>
+            <li><div>Each person scans it, enters their name, a username and a password, and presses <strong>Request account</strong>. Their phone is paired at the same time.</div></li>
+            <li><div>Approve each request in <strong>Settings → Account requests</strong>, or on your phone under <em>Me</em>. Until then, signing in says the account is waiting.</div></li>
+          </ol>
+          <h3>4 · Or pair a phone for an existing account</h3>
           <ol class="steps">
             <li><div>On the PC, press <strong>Pair a phone</strong>. A QR code and an 8-character code appear; they work once, for 10 minutes.</div></li>
             <li><div>On the phone, connected to the staff Wi-Fi, scan the QR code. If a certificate warning appears, check that the fingerprint starts with the characters shown on the PC, then continue.</div></li>
@@ -848,6 +905,22 @@ npm run dist:win7    # Windows 7/8/8.1 edition</pre></div>
             <li><strong>Show patient names and MRNs on phones</strong> is off by default. Phones then show bed, pseudonymous ID, diagnosis and age.</li>
           </ul>
           <div class="note warn"><b>Agree locally before go-live:</b> personal phones on the clinical network need information-governance approval, and phones cannot block screenshots.</div>
+        </section>
+
+        <section id="d-remote">
+          <h2>Access from home</h2>
+          <p>Antibiome includes Cloudflare's connector, so staff can reach the unit PC from home without opening the hospital firewall. Settings → <strong>Access from home</strong>.</p>
+          <h3>Try it</h3>
+          <p>Press <strong>Start quick test</strong>. A temporary <span class="mono">trycloudflare.com</span> address and QR code appear. Open it on a phone using mobile data. If the sign-in page loads, home access works from this PC. Press <strong>Stop</strong> afterwards: anyone with that link can reach the sign-in page.</p>
+          <h3>Set it up for the unit</h3>
+          <ol class="steps">
+            <li><div>Add your hospital's domain (or a sub-domain from IT) to a free Cloudflare account.</div></li>
+            <li><div>Zero Trust → Networks → Tunnels → <strong>Create a tunnel</strong> (cloudflared). Copy the token, paste it into Antibiome and press <strong>Connect</strong>. It is stored encrypted and reconnects whenever the app starts.</div></li>
+            <li><div>In the tunnel, add a public hostname (for example <span class="mono">picu.yourhospital.org</span>) with the service <span class="mono">http://localhost:8790</span>.</div></li>
+            <li><div>Zero Trust → Access → Applications → <strong>Self-hosted</strong> for the same address: allow your staff's emails with a one-time PIN.</div></li>
+            <li><div>Enter the address in Antibiome. <strong>Invite staff</strong> QR codes then use it, so people can sign up from anywhere.</div></li>
+          </ol>
+          <div class="note"><b>Windows 7.</b> The Windows 7 edition ships cloudflared 2023.10.0, the last release that runs on Windows 7. Cloudflare only guarantees connectors up to a year old: if the tunnel stops connecting, the connector log on the same card says so. Then run a current connector on another always-on device on the network and enter its address under <em>Connector on another PC</em>.</div>
         </section>
 
         <section id="d-ai">

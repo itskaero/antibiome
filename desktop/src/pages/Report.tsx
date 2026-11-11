@@ -76,7 +76,7 @@ export function Report() {
         </Section>
 
         <Section title="Antimicrobial stewardship">
-          <Big label="Total use" value={`${fmtInt(c.dot.per1000)}`} note="DOT per 1,000 days present" />
+          <Big label="Total use" value={`${fmtInt(c.dot.per1000)}`} note="antibiotic-days per 1,000 patient-days (DOT)" />
           <div className="col-span-2">
             {drugs.map(([drug, dot]) => {
               const prev = p.dot.byDrug[drug] ?? 0;

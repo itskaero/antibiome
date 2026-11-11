@@ -84,6 +84,12 @@ export function LiveMonitor({ args, isAdmin, canChart }: { args: string[]; isAdm
 
       <SafetyNote />
       {status.data && !beds.length && <Setup s={status.data} />}
+      {status.data?.conflicts?.map(c => (
+        <p key={`${c.receiverId}:${c.bed}`} className="flex items-center gap-2 rounded-xl border border-crit/30 bg-crit-soft px-3 py-2 text-[12.5px] text-crit-ink">
+          <CircleAlert size={14} />Two monitors use bed {c.bed} ({c.remotes.join(' and ')}) — they push each other off. Change the bed number on one of them.
+        </p>
+      ))}
+      {status.data && <NetworkCheck s={status.data} live={live} />}
       {failing.map(r => (
         <p key={r.id} className="flex items-center gap-2 rounded-xl border border-warn/30 bg-warn-soft px-3 py-2 text-[12.5px] text-warn-ink">
           <CircleAlert size={14} />{r.name}: {r.failed.length} port{r.failed.length > 1 ? 's' : ''} could not be opened ({r.failed.slice(0, 3).map(f => f.port).join(', ')}{r.failed.length > 3 ? '…' : ''}) — {r.failed[0].error}
@@ -196,6 +202,7 @@ function ReceiversModal({ s, onClose }: { s: Status; onClose: () => void }) {
           );
         })}
         <Button variant="subtle" onClick={add}><Plus size={15} />Add receiver</Button>
+        <Connections s={s} />
         <div className="inset flex flex-wrap items-center justify-between gap-3 p-3.5 text-[12.5px]">
           <span><span className="block font-medium">Propose readings for the chart</span><span className="text-ink-3">For beds linked to a census patient. A clinician confirms each one on the patient page.</span></span>
           <select id="capture-every" className="field h-9 w-auto" defaultValue={String(s.captureMinutes)} onChange={async e => { try { await call('desktop.monitorCapture', { minutes: Number(e.target.value) }); toast('Saved'); } catch (x: any) { toast(x.message, 'crit'); } }}>
@@ -237,6 +244,70 @@ function Setup({ s }: { s: Status }) {
         ))}
       </ol>
       <p className="mt-4 text-[12.5px] text-ink-3">Press <b>Demo</b> to see the screen with synthetic beds.</p>
+    </div>
+  );
+}
+
+// ── Who connected, and a network check for missing monitors ──
+
+const since = (t: number) => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `${s} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`; };
+
+function Connections({ s }: { s: Status }) {
+  const rows = s.receivers.flatMap(r => (r.recent ?? []).map(c => ({ ...c, receiver: r.name }))).sort((a, b) => b.at - a.at).slice(0, 30);
+  return (
+    <div className="inset flex flex-col gap-2 p-3.5 text-[12.5px]">
+      <span className="font-medium">Recent connections</span>
+      <span className="text-ink-3">Every monitor that reached this PC, newest first. A monitor missing from here is not reaching this PC at all — see the network check on the Live monitor page.</span>
+      {!rows.length ? <span className="text-ink-3">None yet.</span> : (
+        <table className="w-full text-[12px]">
+          <thead><tr className="text-left text-ink-3"><th className="py-1 font-medium">From</th><th className="font-medium">Port</th><th className="font-medium">Bed</th><th className="font-medium">Frames</th><th className="font-medium">When</th><th className="font-medium">State</th></tr></thead>
+          <tbody className="tnum">
+            {rows.map((c, i) => (
+              <tr key={i} className="border-t border-line">
+                <td className="py-1 font-mono">{c.remote ?? '?'}</td><td>{c.port}</td><td>{c.bed ?? '—'}</td>
+                <td>{c.framesOk}{c.framesRejected ? <span className="text-warn-ink"> / {c.framesRejected} bad</span> : ''}</td>
+                <td className="text-ink-3">{since(c.at)}</td>
+                <td>{c.unknownProtocol ? <Chip tone="crit">Unknown protocol</Chip> : c.closedAt == null ? <Chip tone="good" dot>Open</Chip> : <span className="text-ink-3">closed after {Math.max(1, Math.round((c.closedAt - c.at) / 1000))} s</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+const NET_STEPS = [
+  { label: 'List every monitor on the network (cmd)', cmd: 'for /L %i in (1,1,40) do @ping -n 1 -w 300 192.168.10.%i | find "TTL"' },
+  { label: 'Then show their hardware addresses', cmd: 'arp -a' },
+  { label: 'Record which central address the missing monitors call — cmd as administrator, wait 2 min, then stop', cmd: 'netsh trace start capture=yes Ethernet.Type=ARP maxSize=20 tracefile=C:\\arp.etl' },
+  { label: 'Stop the recording (send C:\\arp.etl to whoever supports the unit)', cmd: 'netsh trace stop' },
+];
+
+function NetworkCheck({ s, live }: { s: Status; live: number }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const seen = s.seenRemotes?.length ?? 0;
+  const copy = async (t: string) => { try { await navigator.clipboard.writeText(t); toast('Copied'); } catch { toast('Select the text and copy it', 'crit'); } };
+  if (!s.running) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+        {seen > live && <span className="flex items-center gap-1.5 rounded-xl border border-warn/30 bg-warn-soft px-3 py-1.5 text-warn-ink"><CircleAlert size={14} />{seen - live} monitor{seen - live > 1 ? 's' : ''} connected recently but {seen - live > 1 ? 'are' : 'is'} not sending — see Receivers → Recent connections.</span>}
+        <button className="text-ink-3 underline hover:text-ink" onClick={() => setOpen(!open)}>{open ? 'Hide network check' : 'A monitor is missing?'}</button>
+      </div>
+      {open && (
+        <div className="card flex flex-col gap-3 p-4 text-[12.5px]">
+          <p className="text-ink-2">A monitor that never appears is not reaching this PC. Usually it is calling a <b>different central address</b> (another central station's IP), uses a <b>bed number another monitor already has</b>, or its cable is on another switch. Its switch light blinking while nothing arrives here points to the first. Run these on this PC:</p>
+          {NET_STEPS.map(x => (
+            <div key={x.cmd} className="flex flex-col gap-1">
+              <span className="text-ink-3">{x.label}</span>
+              <div className="flex items-center gap-2"><code className="flex-1 overflow-x-auto rounded-lg bg-panel-2 px-2.5 py-1.5 font-mono text-[11.5px] whitespace-nowrap">{x.cmd}</code><Button size="sm" variant="ghost" onClick={() => copy(x.cmd)}>Copy</Button></div>
+            </div>
+          ))}
+          <p className="text-ink-3">If they call another address (for example 192.168.10.250), add it to this PC (Network adapter → IPv4 → Advanced → Add, mask 255.255.255.0) and add a receiver for it under <b>Receivers</b>. Bed numbers above {Math.max(...s.config.map(r => r.ports.mode === 'base+bed' ? r.ports.maxBed : 0), 0) || 64} need a larger range on the receiver.</p>
+        </div>
+      )}
     </div>
   );
 }

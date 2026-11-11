@@ -1,7 +1,7 @@
 {
   "name": "antibiome-picu",
   "productName": "Antibiome PICU",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "PICU Intelligence — standalone desktop app with a local SQLite database",
   "main": "dist-electron/main.cjs",
   "private": true,

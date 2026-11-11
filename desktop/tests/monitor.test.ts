@@ -96,6 +96,33 @@ describe('monitor gateway', () => {
     expect(toHex(Buffer.concat(got)).startsWith('02 00 13 34')).toBe(true);
   });
 
+  it('logs each connection, flags two monitors sharing a bed, and spots a foreign protocol', async () => {
+    let t = 1_000_000;
+    gw = new MonitorGateway(() => t);
+    await gw.configure([rx({ ports: { mode: 'base+bed', base: 42500, maxBed: 4 } })]);
+    const from = async (port: number, localAddress: string) => { const c = connect({ port, host: '127.0.0.1', localAddress }); clients.push(c); await new Promise(r => c.once('connect', r)); return c; };
+    const a = await from(42503, '127.0.0.2');
+    ddtSecond(3).forEach(f => a.write(f));
+    await wait(200);
+    const b = await from(42503, '127.0.0.3'); // a second monitor also set to bed 3
+    ddtSecond(3).forEach(f => b.write(f));
+    const g = await from(42504, '127.0.0.4');   // something that is not a DDT monitor
+    g.write(Buffer.from('GET / HTTP/1.0\r\n\r\n'));
+    await wait(200);
+    t += 31_000;
+    g.write(Buffer.from('more junk'));
+    await wait(200);
+    const st = gw.status();
+    expect(st.conflicts).toEqual([expect.objectContaining({ bed: 3, remotes: ['127.0.0.2', '127.0.0.3'] })]);
+    expect(st.seenRemotes).toEqual(['127.0.0.2', '127.0.0.3', '127.0.0.4']);
+    const recent = st.receivers[0].recent;
+    expect(recent[0]).toMatchObject({ remote: '127.0.0.4', port: 42504, bed: 4, framesOk: 0, unknownProtocol: true });
+    expect(recent.find(r => r.remote === '127.0.0.2')!.framesOk).toBeGreaterThan(0);
+    for (let i = 0; i < 55; i++) { const c = await from(42501, '127.0.0.5'); c.destroy(); }
+    await wait(200);
+    expect(gw.status().receivers[0].recent).toHaveLength(50);
+  });
+
   it('reports ports that are already taken instead of failing', async () => {
     other = new MonitorGateway();
     await other.configure([rx({ ports: { mode: 'base+bed', base: 42200, maxBed: 2 } })]);

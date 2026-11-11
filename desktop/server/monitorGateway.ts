@@ -54,10 +54,19 @@ export interface MonitorUpdate { at: number; beds: BedSnapshot[]; waves: Record<
 export interface TrendPoint { t: number; min: number; max: number; mean: number }
 export type MonitorEventKind = 'desat' | 'high' | 'low' | 'probe-off' | 'leads-off' | 'disconnected';
 export interface BedEvent { kind: MonitorEventKind; param?: Param; start: number; end: number | null; worst?: number; limit?: number }
-export interface ReceiverStatus { id: string; name: string; driver: string; enabled: boolean; listening: number[]; failed: { port: number; error: string }[]; expectedAddress?: string; hasExpectedAddress: boolean | null; connections: number }
-export interface MonitorStatus { running: boolean; demo: boolean; receivers: ReceiverStatus[]; addresses: string[]; recording: boolean }
+/** One TCP connection from a monitor (kept so an administrator can see who tried to connect, and what happened). */
+export interface ConnectionRecord { at: number; remote: string | null; port: number; bed: number | null; framesOk: number; framesRejected: number; bytes: number; closedAt: number | null; unknownProtocol: boolean }
+/** Two monitors sending as the same bed (same port / bed number) from different addresses. */
+export interface BedConflict { receiverId: string; bed: number; remotes: string[]; at: number }
+export interface ReceiverStatus { id: string; name: string; driver: string; enabled: boolean; listening: number[]; failed: { port: number; error: string }[]; expectedAddress?: string; hasExpectedAddress: boolean | null; connections: number; recent: ConnectionRecord[] }
+export interface MonitorStatus { running: boolean; demo: boolean; receivers: ReceiverStatus[]; addresses: string[]; recording: boolean; conflicts: BedConflict[]; seenRemotes: string[] }
 
 const STALE_MS = 5000;
+const CONN_LOG = 50;
+/** A connection that sends data but no valid frame for this long is speaking another protocol. */
+export const UNKNOWN_PROTOCOL_MS = 30_000;
+/** Conflicts and "seen" addresses are reported for this long after they last happened. */
+const RECENT_MS = 10 * 60_000;
 const TREND_MINUTES = 12 * 60;
 const EVENTS_KEPT = 300;
 const MIN_EVENT_MS = 10_000;   // a breach must last this long to count as an event
@@ -106,6 +115,8 @@ export class MonitorGateway extends EventEmitter {
   private demoTimer: ReturnType<typeof setInterval> | null = null;
   private demoT = 0;
   private recordDir: string | null = null;
+  private conns = new Map<string, ConnectionRecord[]>();
+  private conflicts = new Map<string, BedConflict>();
 
   constructor(public now: () => number = Date.now) {
     super();
@@ -123,7 +134,10 @@ export class MonitorGateway extends EventEmitter {
         failed: this.failed.get(r.id) ?? [], expectedAddress: r.expectedAddress || undefined,
         hasExpectedAddress: r.expectedAddress ? addresses.includes(r.expectedAddress) || r.host === r.expectedAddress : null,
         connections: [...this.beds.values()].filter(b => b.receiverId === r.id && b.connected).length,
+        recent: [...(this.conns.get(r.id) ?? [])].reverse(),
       })),
+      conflicts: [...this.conflicts.values()].filter(c => this.now() - c.at < RECENT_MS),
+      seenRemotes: [...new Set([...this.conns.values()].flat().filter(c => c.remote && (c.closedAt == null || this.now() - c.closedAt < RECENT_MS)).map(c => c.remote!))].sort(),
     };
   }
 
@@ -240,10 +254,17 @@ export class MonitorGateway extends EventEmitter {
     const reader = driver.createReader();
     const remote = sock.remoteAddress?.replace(/^::ffff:/, '') ?? null;
     const touched = new Set<Bed>();
+    const rec: ConnectionRecord = { at: this.now(), remote, port, bed: bedFromPort, framesOk: 0, framesRejected: 0, bytes: 0, closedAt: null, unknownProtocol: false };
+    const log = this.conns.get(r.id) ?? []; log.push(rec); if (log.length > CONN_LOG) log.splice(0, log.length - CONN_LOG); this.conns.set(r.id, log);
     // With a port-per-bed plan the bed is known now; otherwise the first message names it.
     const claim = (n: number) => {
       const b = this.bed(r, n, 'network');
       if (!touched.has(b)) {
+        // A different address sending as the same bed while the first is still connected: two monitors share a bed number.
+        if (b.socket && b.socket !== sock && !b.socket.destroyed && b.remote && remote && b.remote !== remote) {
+          const key = `${r.id}:${n}`, prev = this.conflicts.get(key);
+          this.conflicts.set(key, { receiverId: r.id, bed: n, remotes: [...new Set([...(prev?.remotes ?? []), b.remote, remote])].sort(), at: this.now() });
+        }
         if (b.socket && b.socket !== sock && bedFromPort != null) b.socket.destroy(); // a monitor that reconnects replaces its old connection
         Object.assign(b, { socket: bedFromPort != null ? sock : b.socket, remote, connected: true, connectedAt: this.now(), source: 'network' as const });
         this.closeEvent(b, 'disconnected');
@@ -260,6 +281,9 @@ export class MonitorGateway extends EventEmitter {
       if (this.recordDir) { try { appendFileSync(join(this.recordDir, `${r.id}-port-${port}.bin`), chunk); } catch { /* disk full: keep monitoring */ } }
       const { events, reply } = reader.push(chunk);
       for (const m of reply ?? []) sock.write(m);
+      rec.bytes += chunk.length; rec.framesOk += events.length; rec.framesRejected = reader.rejected;
+      if (rec.bed == null && events[0]?.bed != null) rec.bed = events[0].bed;
+      if (!rec.framesOk && rec.bytes > 0 && this.now() - rec.at >= UNKNOWN_PROTOCOL_MS) rec.unknownProtocol = true;
       for (const ev of events) {
         const n = bedFromPort ?? ev.bed;
         if (n == null || n < 1 || n > 250) continue;
@@ -270,6 +294,7 @@ export class MonitorGateway extends EventEmitter {
     });
     const done = () => {
       if (ka) clearInterval(ka);
+      if (rec.closedAt == null) { rec.closedAt = this.now(); if (!rec.framesOk && rec.bytes > 0 && rec.closedAt - rec.at >= UNKNOWN_PROTOCOL_MS) rec.unknownProtocol = true; }
       for (const b of touched) if (b.socket === sock || bedFromPort == null) { b.socket = null; b.connected = false; this.openEvent(b, 'disconnected'); }
     };
     sock.on('close', done);
